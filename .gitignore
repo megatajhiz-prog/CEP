@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+build/work/
+dist/
+Output/
+*.spec.bak
+*.wpj.tmp
+.wp_*.tmp
+assets/fonts/*.ttf
+assets/fonts/*.otf
+.venv/
