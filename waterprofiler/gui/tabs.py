@@ -43,11 +43,13 @@ def make_table(headers: List[str]) -> QTableWidget:
     return tb
 
 
-LRI, PDI = "\u2066", "\u2069"   # left-to-right isolate: keeps signs and digits in order inside RTL text
+LRM = "\u200e"   # left-to-right mark. Qt's text engine ignores the newer isolates (U+2066..2069),
+                 # which left signs on the wrong side of numbers ("950+"); a leading LRM makes the
+                 # digits, the sign and the parentheses that follow resolve as one LTR run.
 
 
 def ltr(text: str) -> str:
-    return LRI + text + PDI
+    return LRM + text + LRM
 
 
 def put(tb: QTableWidget, r: int, c: int, text: str, number: bool = False, bg: Optional[QColor] = None, bold: bool = False) -> None:
