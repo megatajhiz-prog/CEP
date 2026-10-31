@@ -54,16 +54,22 @@ class ReconcileResult:
 
 
 def _flows(plant: Plant) -> List[Tuple[Key, float]]:
+    """Adjustable flows. A flow entered as exactly 0 means 'does not exist' and stays fixed at 0."""
     out: List[Tuple[Key, float]] = []
+
+    def add(key: Key, v: float) -> None:
+        if v != 0.0:
+            out.append((key, v))
+
     for i, s in enumerate(plant.subsystems):
         for src, v in s.intake.items():
-            out.append(((i, f"intake:{src}"), v))
-        out.append(((i, "from_other"), s.from_other))
-        out.append(((i, "to_other"), s.to_other))
-        out.append(((i, "product"), s.product))
-        out.append(((i, "evaporation"), s.evaporation))
+            add((i, f"intake:{src}"), v)
+        add((i, "from_other"), s.from_other)
+        add((i, "to_other"), s.to_other)
+        add((i, "product"), s.product)
+        add((i, "evaporation"), s.evaporation)
         for o, v in s.discharge.items():
-            out.append(((i, f"discharge:{o}"), v))
+            add((i, f"discharge:{o}"), v)
     return out
 
 
@@ -87,6 +93,11 @@ def reconcile(
     if n == 0:
         raise ValueError("plant has no flows to reconcile")
     idx = {k: j for j, (k, _) in enumerate(flows)}
+
+    def put(row: np.ndarray, key: Key, coeff: float) -> None:
+        j = idx.get(key)
+        if j is not None:
+            row[j] += coeff
     x0 = np.array([v for _, v in flows], dtype=float)
     mean_flow = float(np.mean(np.abs(x0))) or 1.0
 
@@ -102,20 +113,20 @@ def reconcile(
     for i, s in enumerate(plant.subsystems):
         a = np.zeros(n)
         for src in s.intake:
-            a[idx[(i, f"intake:{src}")]] += 1.0
-        a[idx[(i, "from_other")]] += 1.0
-        a[idx[(i, "to_other")]] -= 1.0
-        a[idx[(i, "product")]] -= 1.0
-        a[idx[(i, "evaporation")]] -= 1.0
+            put(a, (i, f"intake:{src}"), 1.0)
+        put(a, (i, "from_other"), 1.0)
+        put(a, (i, "to_other"), -1.0)
+        put(a, (i, "product"), -1.0)
+        put(a, (i, "evaporation"), -1.0)
         for o in s.discharge:
-            a[idx[(i, f"discharge:{o}")]] -= 1.0
+            put(a, (i, f"discharge:{o}"), -1.0)
         rows.append(a); rhs.append(0.0)
 
     # 2) transfers between subsystems cancel
     a = np.zeros(n)
     for i, _ in enumerate(plant.subsystems):
-        a[idx[(i, "to_other")]] += 1.0
-        a[idx[(i, "from_other")]] -= 1.0
+        put(a, (i, "to_other"), 1.0)
+        put(a, (i, "from_other"), -1.0)
     rows.append(a); rhs.append(0.0)
 
     # 3) plant meters (per source and per outlet)
@@ -127,7 +138,7 @@ def reconcile(
             a = np.zeros(n)
             for i, s in enumerate(plant.subsystems):
                 if src.name in s.intake:
-                    a[idx[(i, f"intake:{src.name}")]] = 1.0
+                    put(a, (i, f"intake:{src.name}"), 1.0)
             if a.any():
                 rows.append(a); rhs.append(src.metered_m3)
         for o in plant.outlets:
@@ -136,7 +147,7 @@ def reconcile(
             a = np.zeros(n)
             for i, s in enumerate(plant.subsystems):
                 if o.name in s.discharge:
-                    a[idx[(i, f"discharge:{o.name}")]] = 1.0
+                    put(a, (i, f"discharge:{o.name}"), 1.0)
             if a.any():
                 rows.append(a); rhs.append(o.metered_m3)
         # meter_rel_sigma is reserved: meters are treated as exact constraints.
