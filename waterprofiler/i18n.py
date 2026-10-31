@@ -162,6 +162,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "chart_title_comp": {"fa": "اجزای هزینهٔ واقعی", "en": "True cost components"},
     "chart_title_balance": {"fa": "توزیع آب کارخانه", "en": "Plant water distribution"},
     # ---- main window / editors
+    "other_flows": {"fa": "جریان‌های داخلی، محصول و تبخیر", "en": "Internal flows, product and evaporation"},
     "new_subsystem": {"fa": "زیرسیستم جدید", "en": "New subsystem"},
     "subsystem_list": {"fa": "فهرست زیرسیستم‌ها", "en": "Subsystems"},
     "pump_volts": {"fa": "ولتاژ (V)", "en": "Voltage (V)"},

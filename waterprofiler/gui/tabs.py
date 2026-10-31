@@ -43,8 +43,11 @@ def make_table(headers: List[str]) -> QTableWidget:
     return tb
 
 
+LRM = "\u200e"   # left-to-right mark: keeps signs and digits in order inside right-to-left text
+
+
 def put(tb: QTableWidget, r: int, c: int, text: str, number: bool = False, bg: Optional[QColor] = None, bold: bool = False) -> None:
-    it = QTableWidgetItem(text)
+    it = QTableWidgetItem(LRM + text + LRM if number else text)
     if number:
         it.setTextAlignment(RIGHT)
     if bg is not None:
@@ -115,7 +118,7 @@ class BalanceTab(_Scroll):
             (t("closure"), "—" if b.closure_pct is None else f"{b.closure_pct:.1f}%"),
         ]
         for lab, val in rows:
-            lbl = QLabel(val)
+            lbl = QLabel(LRM + val + LRM)
             lbl.setAlignment(RIGHT)
             self.totals.addRow(lab + " (m³)" if "%" not in val else lab, lbl)
 
@@ -139,6 +142,7 @@ class CostTab(_Scroll):
         heads = [t("subsystem")] + [t("comp_" + c) for c in COMPONENTS] + [
             t("total"), t("cost_per_m3"), t("water_share"), t("cost_share"), t("priority")]
         self.table = make_table(heads)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setMinimumHeight(220)
         self.lay.addWidget(self.table)
         self.kpi = make_table([t("indicator"), t("value")])

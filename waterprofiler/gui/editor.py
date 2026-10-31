@@ -149,7 +149,7 @@ class SubsystemEditor(QScrollArea):
         row.addWidget(table_box(t("discharge"), self.discharge, t("add"), t("remove"), lambda: ["", None]))
         lay.addLayout(row)
 
-        flows = QGroupBox(t("tab_balance"))
+        flows = QGroupBox(t("other_flows"))
         ff = QFormLayout(flows)
         self.recirc = dspin(decimals=2)
         self.from_other = dspin(decimals=2)
