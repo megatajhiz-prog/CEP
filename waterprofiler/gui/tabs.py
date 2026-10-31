@@ -43,11 +43,15 @@ def make_table(headers: List[str]) -> QTableWidget:
     return tb
 
 
-LRM = "\u200e"   # left-to-right mark: keeps signs and digits in order inside right-to-left text
+LRI, PDI = "\u2066", "\u2069"   # left-to-right isolate: keeps signs and digits in order inside RTL text
+
+
+def ltr(text: str) -> str:
+    return LRI + text + PDI
 
 
 def put(tb: QTableWidget, r: int, c: int, text: str, number: bool = False, bg: Optional[QColor] = None, bold: bool = False) -> None:
-    it = QTableWidgetItem(LRM + text + LRM if number else text)
+    it = QTableWidgetItem(ltr(text) if number else text)
     if number:
         it.setTextAlignment(RIGHT)
     if bg is not None:
@@ -118,7 +122,7 @@ class BalanceTab(_Scroll):
             (t("closure"), "—" if b.closure_pct is None else f"{b.closure_pct:.1f}%"),
         ]
         for lab, val in rows:
-            lbl = QLabel(LRM + val + LRM)
+            lbl = QLabel(ltr(val))
             lbl.setAlignment(RIGHT)
             self.totals.addRow(lab + " (m³)" if "%" not in val else lab, lbl)
 
@@ -403,7 +407,7 @@ class ReconcileTab(_Scroll):
         self.info.setWordWrap(True)
         self.lay.addWidget(self.info)
         self.table = make_table([t("subsystem"), t("rc_flow"), t("rc_orig"), t("rc_adj"), t("rc_delta")])
-        self.table.setMinimumHeight(300)
+        self.table.setMinimumHeight(450)
         self.lay.addWidget(self.table)
         self.lay.addStretch(1)
 
@@ -432,8 +436,8 @@ class ReconcileTab(_Scroll):
             self.info.setText(f"{t('analysis_error')}: {e}")
             return
         self.result = res
-        lines = [f"{t('rc_chi')}: {res.chi_square:,.2f}",
-                 f"{t('rc_resid')}: {res.residual_before:,.1f} → {res.residual_after:,.3g}"]
+        lines = [f"{t('rc_chi')}: {ltr(f'{res.chi_square:,.2f}')}",
+                 f"{t('rc_resid')}: {ltr(f'{res.residual_before:,.1f}')}  /  {ltr(f'{res.residual_after:.3g}')}"]
         if not res.adjustments:
             lines.append(t("rc_none"))
         self.info.setText("\n".join(lines))
