@@ -282,3 +282,11 @@ def test_plant_roundtrip():
     q = Plant.from_dict(p.to_dict())
     assert q.to_dict() == p.to_dict()
     assert cost.plant_cost(q).total == approx(cost.plant_cost(p).total)
+
+
+def test_persian_demo_matches_english_numbers():
+    en, fa = demo_plant("en"), demo_plant("fa")
+    assert [s.kind for s in en.subsystems] == [s.kind for s in fa.subsystems]
+    assert cost.plant_cost(en).total == approx(cost.plant_cost(fa).total)
+    assert abs(balance.plant_balance(fa).unknown_loss) < 1e-6 * balance.plant_balance(fa).sum_intake
+    assert all(s.params for s in fa.subsystems)           # estimator inputs are kept for the savings tab

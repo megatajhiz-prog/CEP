@@ -237,7 +237,7 @@ class MainWindow(QMainWindow):
 
     def action_demo(self) -> None:
         if self._confirm_discard():
-            self._set_plant(demo_plant(), None)
+            self._set_plant(demo_plant(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_open(self) -> None:
