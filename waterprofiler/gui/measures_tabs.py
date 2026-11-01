@@ -134,14 +134,16 @@ class MeasuresTab(_Scroll):
             est = M.estimates(self.plant, m) if self.plant else []
             put(self.table, r, 5, " | ".join(_fmt_range(e.low, e.high) for e in est[:2]) if est else "—", number=bool(est))
             if m.id == cur:
+                self.table.setCurrentCell(r, 0)
                 self.table.selectRow(r)
         self.count.setText(t("ms_count", n=len(rows)))
         if cur is None or all(m.id != cur for m in rows):
             self._show()
 
     def _selected_id(self) -> Optional[int]:
-        r = self.table.currentRow()
-        if 0 <= r < len(self._rows) and self.table.selectionModel().hasSelection():
+        rows = self.table.selectionModel().selectedRows()
+        r = rows[0].row() if rows else self.table.currentRow() if self.table.selectedItems() else -1
+        if 0 <= r < len(self._rows):
             return self._rows[r].id
         return None
 
@@ -152,7 +154,9 @@ class MeasuresTab(_Scroll):
     def select(self, measure_id: int) -> None:
         for r, m in enumerate(self._rows):
             if m.id == measure_id:
+                self.table.setCurrentCell(r, 0)
                 self.table.selectRow(r)
+                self._show()
                 return
 
     def _show(self) -> None:
