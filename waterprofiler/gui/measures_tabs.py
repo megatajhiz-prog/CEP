@@ -239,7 +239,7 @@ class PlanTab(_Scroll):
         self.c_pay = StatCard(t("pl_payback"), COL["orange"])
         self.lay.addLayout(stat_row(self.c_save, self.c_value, self.c_capex, self.c_pay))
 
-        heads = [t("ms_measure"), t("pl_target"), t("pl_pct"), t("pl_capex"), t("pl_opex"), t("pl_life"), t("pl_rate")]
+        heads = [t("ms_measure"), t("pl_target"), t("pl_pct"), t("pl_capex"), t("pl_opex"), t("pl_life"), t("pl_rate"), ""]
         self.inputs = QTableWidget(0, len(heads))
         self.inputs.setHorizontalHeaderLabels(heads)
         from PySide6.QtWidgets import QHeaderView
@@ -253,7 +253,7 @@ class PlanTab(_Scroll):
         self.inputs.verticalHeader().setDefaultSectionSize(44)
         self.inputs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.inputs.setMinimumHeight(260)
-        for c, w in ((1, 150), (2, 100), (3, 130), (4, 130), (5, 90), (6, 100)):
+        for c, w in ((1, 150), (2, 100), (3, 130), (4, 130), (5, 90), (6, 100), (7, 48)):
             self.inputs.setColumnWidth(c, w)
         rm = button(t("pl_remove"), "danger", self._remove)
         clr = button(t("pl_clear"), "", self._clear)
@@ -309,6 +309,10 @@ class PlanTab(_Scroll):
                 sp.setValue(getattr(it, attr))
                 sp.valueChanged.connect(lambda v, it=it, a=attr: self._set(it, a, v))
                 self.inputs.setCellWidget(r, col, sp)
+            rm = button("✕", "danger")
+            rm.setToolTip(t("pl_remove"))
+            rm.clicked.connect(lambda _=False, it=it: self._remove_item(it))
+            self.inputs.setCellWidget(r, 7, rm)
         self._loading = False
 
     def _set(self, it, attr: str, value) -> None:
@@ -326,11 +330,16 @@ class PlanTab(_Scroll):
         self.plant.plan.append(M.new_plan_item(self.plant, m, target))
         self.refresh(self.plant)
 
-    def _remove(self) -> None:
-        r = self.inputs.currentRow()
-        if self.plant is not None and 0 <= r < len(self.plant.plan):
-            del self.plant.plan[r]
+    def _remove_item(self, item) -> None:
+        if self.plant is not None and item in self.plant.plan:
+            self.plant.plan.remove(item)
             self.refresh(self.plant)
+
+    def _remove(self) -> None:
+        rows = self.inputs.selectionModel().selectedRows()
+        r = rows[0].row() if rows else self.inputs.currentRow()
+        if self.plant is not None and 0 <= r < len(self.plant.plan):
+            self._remove_item(self.plant.plan[r])
 
     def _clear(self) -> None:
         if self.plant is not None:
