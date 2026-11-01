@@ -156,7 +156,8 @@ def test_measures_and_plan_tabs(app, lang):
     assert w.measures_tab.table.rowCount() == 12
     # adding a measure goes to the plan and switches page
     before = len(w.plant.plan)
-    w.measures_tab.select(1)
+    w.measures_tab.select(12)                           # automatic blowdown control, not in the demo plan
+    assert w.measures_tab.selected().id == 12
     w.measures_tab._add()
     assert w.tabs.currentWidget() is w.plan_tab
     assert len(w.plant.plan) == before + 1
