@@ -129,9 +129,22 @@ def main(out: str) -> int:
         shot(win, "08_balance_leak")
         shot(win.balance_tab.widget(), "08_balance_leak_full")
 
-    def reconcile():
+    def measures():
         win.tabs.setCurrentIndex(5)
         win._tab_changed(5)
+        win.measures_tab.select(11)
+        shot(win, "12_measures")
+        shot(win.measures_tab.widget(), "12_measures_full")
+
+    def plan():
+        win.tabs.setCurrentIndex(6)
+        win._tab_changed(6)
+        shot(win, "13_plan")
+        shot(win.plan_tab.widget(), "13_plan_full")
+
+    def reconcile():
+        win.tabs.setCurrentIndex(7)
+        win._tab_changed(7)
         win.reconcile_tab._run()
         shot(win, "09_reconcile")
         shot(win.reconcile_tab.widget(), "09_reconcile_full")
@@ -150,7 +163,7 @@ def main(out: str) -> int:
         win._tab_changed(3)
         shot(win, "10_english_cost")
 
-    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, cost,
+    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, cost, measures, plan,
                savings, leak_balance, reconcile, about, english):
         step(fn)
 

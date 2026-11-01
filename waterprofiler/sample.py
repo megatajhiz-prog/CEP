@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .estimators import boiler_water, cooling_tower_water, irrigation_water, process_water, sanitary_water
-from .model import Outlet, Plant, Pump, Source, Subsystem, Treatment, UnitCosts
+from .model import Outlet, PlanItem, Plant, Pump, Source, Subsystem, Treatment, UnitCosts
 
 _NAMES = {
     "en": {
@@ -84,4 +84,10 @@ def demo_plant(lang: str = "en") -> Plant:
                     Treatment(n["etp"], 0.60, wastewater=True)],
         subsystems=subs,
         costs=UnitCosts(electricity_per_kwh=0.11, fuel_per_kwh_thermal=0.035, heating_efficiency=0.80),
+        plan=[
+            PlanItem(11, n["ct"], 12.0, capex=5000, opex=300, life_years=15, rate_pct=10),    # raise cycles of concentration
+            PlanItem(23, n["boiler"], 25.0, capex=12000, opex=500, life_years=15, rate_pct=10),  # condensate return
+            PlanItem(5, "", 5.0, capex=3000, opex=0, life_years=10, rate_pct=10),               # leak repair, plant-wide
+            PlanItem(33, n["process"], 15.0, capex=20000, opex=1500, life_years=15, rate_pct=10),  # filter and reuse process water
+        ],
     )

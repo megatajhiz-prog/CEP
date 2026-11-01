@@ -6,6 +6,7 @@ from html import escape
 from typing import Optional
 
 from . import __version__, branding
+from . import measures as _ms
 from .analysis import Analysis
 from .cost import COMPONENTS
 from .i18n import Translator
@@ -93,6 +94,24 @@ td.n {{ text-align:right; direction:ltr; }}
     parts.append("<tr><td><b>" + escape(t("total")) + "</b></td>"
                  + "".join(f"<td class='n'><b>{_n(c.by_component[x])}</b></td>" for x in COMPONENTS)
                  + f"<td class='n'><b>{_n(c.total)}</b></td><td></td><td></td><td></td></tr></table>")
+    if a.plant.plan:
+        res = _ms.evaluate_plan(a.plant)
+        parts.append(f"<h2>{escape(t('sheet_plan'))}</h2><table><tr>"
+                     + "".join(f"<th>{escape(t(x))}</th>" for x in ("ms_measure", "pl_target", "pl_pct", "pl_saved", "pl_val_col",
+                                                                      "pl_capex", "pl_pay"))
+                     + "</tr>")
+        for ln in res.lines:
+            pb = "—" if ln.payback is None else f"{ln.payback:.1f}"
+            parts.append(f"<tr><td>{ln.measure.id}. {escape(ln.measure.name(lang))}</td>"
+                         f"<td>{escape(ln.item.target or t('ms_plant_wide'))}</td><td class='n'>{ln.item.saving_pct:.1f}</td>"
+                         f"<td class='n'>{_n(ln.saving)}</td><td class='n'>{_n(ln.annual_value)}</td>"
+                         f"<td class='n'>{_n(ln.item.capex)}</td><td class='n'>{pb}</td></tr>")
+        pt = "—" if res.payback is None else f"{res.payback:.1f}"
+        parts.append(f"<tr><td><b>{escape(t('total'))}</b></td><td></td><td class='n'><b>{res.saving_pct:.1f}</b></td>"
+                     f"<td class='n'><b>{_n(res.saving)}</b></td><td class='n'><b>{_n(res.annual_value)}</b></td>"
+                     f"<td class='n'><b>{_n(res.capex)}</b></td><td class='n'><b>{pt}</b></td></tr></table>")
+        parts.append(f"<p class='small'>{escape(t('ms_disclaimer'))}</p>")
+
 
     if a.warnings:
         parts.append(f"<h2 class='warn'>{escape(t('warnings'))}</h2><ul>"

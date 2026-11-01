@@ -51,3 +51,9 @@ it, builds the installer, silently installs it and self-tests the installed copy
 Results are only as good as the inputs: the estimators are rules of thumb from the
 ORNL report and should be replaced by metered values where available. Treat the
 output as an engineering screening, not a certified audit.
+
+## Water-saving measures (v0.3)
+
+The *Measures database* page lists 80 water-saving measures in 9 groups with screening ranges, investment level and
+a plant-specific estimate; *Saving plan* combines the chosen measures without double counting and reports
+saving, annual value, I1, I2, LCC and payback. The plan is stored in the project file and exported to Excel and PDF.

@@ -9,6 +9,7 @@ from openpyxl.utils import get_column_letter
 from .analysis import Analysis
 from .cost import COMPONENTS
 from .i18n import Translator
+from . import measures as _ms
 from .messages import localize_all
 
 HEAD_FILL = PatternFill("solid", fgColor="0B3D78")
@@ -121,6 +122,31 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
             if isinstance(v, float):
                 c.number_format = "#,##0.00"
     _autowidth(ws)
+
+    # --- Saving plan
+    if p.plan:
+        res = _ms.evaluate_plan(p)
+        ws = wb.create_sheet(t("sheet_plan")[:31])
+        ws.sheet_view.rightToLeft = rtl
+        _header(ws, 1, [t("ms_measure"), t("pl_target"), t("pl_pct"), t("pl_capex"), t("pl_opex"), t("pl_life"),
+                        t("pl_rate"), t("pl_saved"), t("pl_val_col"), t("pl_i1"), t("pl_i2"), t("pl_lcc"), t("pl_pay")])
+        for i, ln in enumerate(res.lines, 2):
+            it = ln.item
+            vals = [f"{ln.measure.id}. {ln.measure.name(lang)}", it.target or t("ms_plant_wide"), it.saving_pct,
+                    it.capex, it.opex, it.life_years, it.rate_pct, ln.saving, ln.annual_value, ln.i1, ln.i2, ln.lcc,
+                    ln.payback]
+            for j, v in enumerate(vals, 1):
+                c = ws.cell(row=i, column=j, value=v)
+                if isinstance(v, float):
+                    c.number_format = "#,##0.00"
+        n = len(res.lines) + 3
+        ws.cell(row=n, column=1, value=t("pl_saving") + " (m³)").font = Font(bold=True)
+        ws.cell(row=n, column=2, value=res.saving).number_format = "#,##0"
+        ws.cell(row=n + 1, column=1, value=t("pl_value")).font = Font(bold=True)
+        ws.cell(row=n + 1, column=2, value=res.annual_value).number_format = "#,##0"
+        ws.cell(row=n + 2, column=1, value=t("pl_capex")).font = Font(bold=True)
+        ws.cell(row=n + 2, column=2, value=res.capex).number_format = "#,##0"
+        _autowidth(ws)
 
     # --- Warnings
     if a.warnings:

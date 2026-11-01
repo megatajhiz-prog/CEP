@@ -9,7 +9,9 @@ from waterprofiler.sample import demo_plant
 
 
 def same(a, b):
-    """Plant dicts equal up to the 15-16 significant digits an Excel cell keeps."""
+    """Plant dicts equal up to the 15-16 significant digits an Excel cell keeps (the saving plan is not part of the input workbook)."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        a, b = {k: v for k, v in a.items() if k != "plan"}, {k: v for k, v in b.items() if k != "plan"}
     return a == pytest.approx(b, rel=1e-12) if not isinstance(a, (dict, list)) else _walk(a, b)
 
 

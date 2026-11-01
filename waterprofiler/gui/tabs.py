@@ -17,6 +17,7 @@ from ..cost import COMPONENTS
 from ..estimators import InputError
 from ..i18n import Translator
 from ..messages import localize, localize_all
+from .. import measures as _ms
 from ..model import Plant, Subsystem
 from ..reconcile import ReconcileResult, reconcile
 from .theme import COL
@@ -239,7 +240,22 @@ class CostTab(_Scroll):
         self.chart_comp.setMinimumHeight(310)
         self.lay.addWidget(card("", self.chart_share))
         self.lay.addWidget(card("", self.chart_comp))
+        self.sugg = make_table([t("ms_measure"), t("pl_target"), t("ms_use"), t("ms_est"), t("pl_val_col")])
+        self.sugg.setMinimumHeight(330)
+        self.lay.addWidget(card(t("cost_suggest"), self.sugg, note=t("cost_suggest_note")))
         self.lay.addStretch(1)
+
+    def _fill_suggestions(self, plant: Plant) -> None:
+        t = self.t
+        est = _ms.recommend(plant, limit=8)
+        self.sugg.setRowCount(len(est))
+        for r, e in enumerate(est):
+            m = e.measure
+            put(self.sugg, r, 0, f"{m.id}. {m.name(t.lang)}")
+            put(self.sugg, r, 1, e.target or t("ms_plant_wide"))
+            put(self.sugg, r, 2, _ms.range_text(m.use, m, t.lang), number=True)
+            put(self.sugg, r, 3, f"{_fmt(e.low)} – {_fmt(e.high)}", number=True)
+            put(self.sugg, r, 4, f"{_fmt(e.value_low)} – {_fmt(e.value_high)}", number=True)
 
     def show_error(self, text: str) -> None:
         self.msg.setText(text)
@@ -252,6 +268,7 @@ class CostTab(_Scroll):
         t, c, k = self.t, a.cost, a.kpi
         cur = a.plant.currency
         self.msg.setText("" if a.plant.subsystems else t("no_data"))
+        self._fill_suggestions(a.plant)
         self.c_true.set(_fmt(c.total), cur)
         self.c_direct.set(_fmt(c.direct_billed_cost), cur)
         self.c_ratio.set("—" if c.true_to_direct_ratio is None else f"×{c.true_to_direct_ratio:.2f}",

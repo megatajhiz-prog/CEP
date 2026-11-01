@@ -138,3 +138,48 @@ def test_about_dialog_and_branding(app):
     assert "CEPWater" in w.windowTitle()
     assert not w.windowIcon().isNull()
     w.close()
+
+
+@pytest.mark.parametrize("lang", ["fa", "en"])
+def test_measures_and_plan_tabs(app, lang):
+    from waterprofiler import measures as M
+    w = _win(lang)
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.measures_tab)
+    app.processEvents()
+    assert w.measures_tab.table.rowCount() == 80
+    w.measures_tab.select(11)
+    assert w.measures_tab.selected().id == 11
+    assert w.measures_tab.target.count() >= 1
+    # filters
+    w.measures_tab.group.setCurrentIndex(2)             # group 2: cooling
+    assert w.measures_tab.table.rowCount() == 12
+    # adding a measure goes to the plan and switches page
+    before = len(w.plant.plan)
+    w.measures_tab.select(1)
+    w.measures_tab._add()
+    assert w.tabs.currentWidget() is w.plan_tab
+    assert len(w.plant.plan) == before + 1
+    assert w.plan_tab.inputs.rowCount() == len(w.plant.plan)
+    assert w.plan_tab.results.rowCount() == len(w.plant.plan)
+    # editing a percentage recomputes the result
+    sp = w.plan_tab.inputs.cellWidget(0, 2)
+    sp.setValue(7.0)
+    assert w.plant.plan[0].saving_pct == 7.0
+    # removal
+    w.plan_tab.inputs.selectRow(0)
+    w.plan_tab._remove()
+    assert len(w.plant.plan) == before
+    w.plan_tab._clear()
+    assert w.plan_tab.results.rowCount() == 0
+    assert M.evaluate_plan(w.plant).saving == 0
+    w.close()
+
+
+def test_cost_tab_suggests_measures(app):
+    w = _win("en")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.cost_tab)
+    app.processEvents()
+    assert w.cost_tab.sugg.rowCount() == 8
+    w.close()
