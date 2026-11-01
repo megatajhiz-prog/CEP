@@ -255,12 +255,10 @@ class PlanTab(_Scroll):
         self.inputs.setMinimumHeight(260)
         for c, w in ((1, 150), (2, 100), (3, 130), (4, 130), (5, 90), (6, 100), (7, 48)):
             self.inputs.setColumnWidth(c, w)
-        rm = button(t("pl_remove"), "danger", self._remove)
-        clr = button(t("pl_clear"), "", self._clear)
+        clr = button(t("pl_clear"), "danger", self._clear)
         row = QWidget()
         rl = QHBoxLayout(row)
         rl.setContentsMargins(0, 0, 0, 0)
-        rl.addWidget(rm)
         rl.addWidget(clr)
         rl.addStretch(1)
         self.lay.addWidget(card(t("pl_items"), self.inputs, row, note=t("pl_note")))
@@ -334,12 +332,6 @@ class PlanTab(_Scroll):
         if self.plant is not None and item in self.plant.plan:
             self.plant.plan.remove(item)
             self.refresh(self.plant)
-
-    def _remove(self) -> None:
-        rows = self.inputs.selectionModel().selectedRows()
-        r = rows[0].row() if rows else self.inputs.currentRow()
-        if self.plant is not None and 0 <= r < len(self.plant.plan):
-            self._remove_item(self.plant.plan[r])
 
     def _clear(self) -> None:
         if self.plant is not None:

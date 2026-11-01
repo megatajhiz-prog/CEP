@@ -168,12 +168,10 @@ def test_measures_and_plan_tabs(app, lang):
     sp.setValue(7.0)
     assert w.plant.plan[0].saving_pct == 7.0
     # removal
-    w.plan_tab.inputs.setCurrentCell(0, 0)
-    w.plan_tab.inputs.selectRow(0)
-    w.plan_tab._remove()
-    assert len(w.plant.plan) == before
+    n = len(w.plant.plan)
     w.plan_tab.inputs.cellWidget(0, 7).click()          # per-row delete button
-    assert len(w.plant.plan) == before - 1
+    assert len(w.plant.plan) == n - 1
+    assert w.plan_tab.inputs.rowCount() == n - 1
     w.plan_tab._clear()
     assert w.plan_tab.results.rowCount() == 0
     assert M.evaluate_plan(w.plant).saving == 0
