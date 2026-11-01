@@ -282,3 +282,32 @@ def test_plant_roundtrip():
     q = Plant.from_dict(p.to_dict())
     assert q.to_dict() == p.to_dict()
     assert cost.plant_cost(q).total == approx(cost.plant_cost(p).total)
+
+
+def test_persian_demo_matches_english_numbers():
+    en, fa = demo_plant("en"), demo_plant("fa")
+    assert [s.kind for s in en.subsystems] == [s.kind for s in fa.subsystems]
+    assert cost.plant_cost(en).total == approx(cost.plant_cost(fa).total)
+    assert abs(balance.plant_balance(fa).unknown_loss) < 1e-6 * balance.plant_balance(fa).sum_intake
+    assert all(s.params for s in fa.subsystems)           # estimator inputs are kept for the savings tab
+
+
+def test_reconcile_keeps_zero_flows_at_zero():
+    p = demo_plant()
+    p.subsystems[1].intake = {k: v * 1.1 for k, v in p.subsystems[1].intake.items()}   # unexplained extra makeup
+    r = reconcile.reconcile(p)
+    zero_before = {(s.name, f) for s in p.subsystems for f in ("from_other", "to_other", "product", "evaporation")
+                   if getattr(s, f) == 0.0}
+    assert zero_before
+    for adj in r.adjustments:
+        assert (adj.subsystem, adj.flow) not in zero_before
+    for s in r.plant.subsystems:
+        for f in ("from_other", "to_other", "product", "evaporation"):
+            if (s.name, f) in zero_before:
+                assert getattr(s, f) == 0.0
+    assert not r.notes                                   # nothing needed pinning
+    b = balance.plant_balance(r.plant)
+    assert abs(b.unknown_loss) < 1e-6 * b.sum_intake
+    assert b.source_side_imbalance == pytest.approx(0.0, abs=1e-3)
+    ct = r.plant.subsystems[1]
+    assert sum(ct.intake.values()) < sum(p.subsystems[1].intake.values())   # the extra water is taken back out of the cooling tower

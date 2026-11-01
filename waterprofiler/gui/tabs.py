@@ -43,8 +43,17 @@ def make_table(headers: List[str]) -> QTableWidget:
     return tb
 
 
+LRM = "\u200e"   # left-to-right mark. Qt's text engine ignores the newer isolates (U+2066..2069),
+                 # which left signs on the wrong side of numbers ("950+"); a leading LRM makes the
+                 # digits, the sign and the parentheses that follow resolve as one LTR run.
+
+
+def ltr(text: str) -> str:
+    return LRM + text + LRM
+
+
 def put(tb: QTableWidget, r: int, c: int, text: str, number: bool = False, bg: Optional[QColor] = None, bold: bool = False) -> None:
-    it = QTableWidgetItem(text)
+    it = QTableWidgetItem(ltr(text) if number else text)
     if number:
         it.setTextAlignment(RIGHT)
     if bg is not None:
@@ -115,7 +124,7 @@ class BalanceTab(_Scroll):
             (t("closure"), "—" if b.closure_pct is None else f"{b.closure_pct:.1f}%"),
         ]
         for lab, val in rows:
-            lbl = QLabel(val)
+            lbl = QLabel(ltr(val))
             lbl.setAlignment(RIGHT)
             self.totals.addRow(lab + " (m³)" if "%" not in val else lab, lbl)
 
@@ -139,6 +148,7 @@ class CostTab(_Scroll):
         heads = [t("subsystem")] + [t("comp_" + c) for c in COMPONENTS] + [
             t("total"), t("cost_per_m3"), t("water_share"), t("cost_share"), t("priority")]
         self.table = make_table(heads)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setMinimumHeight(220)
         self.lay.addWidget(self.table)
         self.kpi = make_table([t("indicator"), t("value")])
@@ -399,7 +409,7 @@ class ReconcileTab(_Scroll):
         self.info.setWordWrap(True)
         self.lay.addWidget(self.info)
         self.table = make_table([t("subsystem"), t("rc_flow"), t("rc_orig"), t("rc_adj"), t("rc_delta")])
-        self.table.setMinimumHeight(300)
+        self.table.setMinimumHeight(450)
         self.lay.addWidget(self.table)
         self.lay.addStretch(1)
 
@@ -428,8 +438,8 @@ class ReconcileTab(_Scroll):
             self.info.setText(f"{t('analysis_error')}: {e}")
             return
         self.result = res
-        lines = [f"{t('rc_chi')}: {res.chi_square:,.2f}",
-                 f"{t('rc_resid')}: {res.residual_before:,.1f} → {res.residual_after:,.3g}"]
+        lines = [f"{t('rc_chi')}: {ltr(f'{res.chi_square:,.2f}')}",
+                 f"{t('rc_resid')}: {ltr(f'{res.residual_before:,.1f}')}  /  {ltr(f'{res.residual_after:.3g}')}"]
         if not res.adjustments:
             lines.append(t("rc_none"))
         self.info.setText("\n".join(lines))
