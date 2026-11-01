@@ -41,6 +41,8 @@ class MeasuresTab(_Scroll):
         self.t = t
         self.plant: Optional[Plant] = None
         self._rows: List[M.Measure] = []
+        self._sel: Optional[int] = None
+        self._filling = False
 
         # ---- filters
         self.search = QLineEdit()
@@ -104,7 +106,7 @@ class MeasuresTab(_Scroll):
         self.search.textChanged.connect(self._fill)
         self.group.currentIndexChanged.connect(self._fill)
         self.relevant.toggled.connect(self._fill)
-        self.table.itemSelectionChanged.connect(self._show)
+        self.table.itemSelectionChanged.connect(self._on_selection)
         self._fill()
 
     # ------------------------------------------------------------------ data
@@ -123,8 +125,11 @@ class MeasuresTab(_Scroll):
             kinds = self._kinds()
             rows = [m for m in rows if "plant" in m.targets or kinds.intersection(m.targets)]
         self._rows = rows
-        cur = self._selected_id()
+        self._filling = True
+        self.table.blockSignals(True)
+        self.table.clearSelection()
         self.table.setRowCount(len(rows))
+        keep = None
         for r, m in enumerate(rows):
             put(self.table, r, 0, str(m.id), number=True)
             put(self.table, r, 1, m.name(t.lang))
@@ -133,27 +138,33 @@ class MeasuresTab(_Scroll):
             put(self.table, r, 4, M.capex_text(m, t.lang))
             est = M.estimates(self.plant, m) if self.plant else []
             put(self.table, r, 5, " | ".join(_fmt_range(e.low, e.high) for e in est[:2]) if est else "—", number=bool(est))
-            if m.id == cur:
-                self.table.setCurrentCell(r, 0)
-                self.table.selectRow(r)
+            if m.id == self._sel:
+                keep = r
+        if keep is not None:
+            self.table.setCurrentCell(keep, 0)
+            self.table.selectRow(keep)
+        else:
+            self._sel = None
+        self.table.blockSignals(False)
+        self._filling = False
         self.count.setText(t("ms_count", n=len(rows)))
-        if cur is None or all(m.id != cur for m in rows):
-            self._show()
+        self._show()
 
-    def _selected_id(self) -> Optional[int]:
+    def _on_selection(self) -> None:
+        if self._filling:
+            return
         rows = self.table.selectionModel().selectedRows()
-        r = rows[0].row() if rows else self.table.currentRow() if self.table.selectedItems() else -1
-        if 0 <= r < len(self._rows):
-            return self._rows[r].id
-        return None
+        if rows and 0 <= rows[0].row() < len(self._rows):
+            self._sel = self._rows[rows[0].row()].id
+        self._show()
 
     def selected(self) -> Optional[M.Measure]:
-        mid = self._selected_id()
-        return M.get(mid) if mid is not None else None
+        return M.get(self._sel) if self._sel is not None else None
 
     def select(self, measure_id: int) -> None:
         for r, m in enumerate(self._rows):
             if m.id == measure_id:
+                self._sel = measure_id
                 self.table.setCurrentCell(r, 0)
                 self.table.selectRow(r)
                 self._show()
