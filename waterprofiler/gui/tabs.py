@@ -22,7 +22,7 @@ from ..reconcile import ReconcileResult, reconcile
 from .theme import COL
 from .widgets import BarChart, StatCard, button, card, dspin
 
-RIGHT = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+RIGHT = Qt.AlignmentFlag.AlignCenter
 WARN_BG = QColor("#FFF1D6")
 BAD_BG = QColor("#FBDADA")
 
@@ -56,11 +56,22 @@ def stat_row(*cards: StatCard) -> QHBoxLayout:
     return row
 
 
+class _MessageLabel(QLabel):
+    """Warning line that takes no space while it is empty."""
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("msg")
+        self.setWordWrap(True)
+        self.setVisible(False)
+
+    def setText(self, text: str) -> None:  # noqa: N802 (Qt API)
+        super().setText(text)
+        self.setVisible(bool(text))
+
+
 def _message_label() -> QLabel:
-    lab = QLabel()
-    lab.setObjectName("msg")
-    lab.setWordWrap(True)
-    return lab
+    return _MessageLabel()
 
 
 def _warn_label() -> QLabel:
@@ -216,6 +227,7 @@ class CostTab(_Scroll):
             t("total"), t("cost_per_m3"), t("water_share"), t("cost_share"), t("priority")]
         self.table = make_table(heads)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setStyleSheet("QHeaderView::section{padding:9px 4px; font-size:11px;} QTableWidget::item{padding:4px 3px;}")
         self.table.setMinimumHeight(250)
         self.lay.addWidget(card(t("tab_cost"), self.table))
         self.kpi = make_table([t("indicator"), t("value")])

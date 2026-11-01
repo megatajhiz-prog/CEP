@@ -2,7 +2,7 @@ name: Documentation screenshots
 
 on:
   push:
-    branches: [docs-screenshots, cepwater]
+    branches: [docs-screenshots, cepwater, ui-polish]
   workflow_dispatch:
 
 permissions:

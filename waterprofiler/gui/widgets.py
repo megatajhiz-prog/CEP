@@ -81,14 +81,15 @@ class StatCard(QFrame):
         self.hint = QLabel("")
         self.hint.setObjectName("stathint")
         self.hint.setWordWrap(True)
+        self.setMinimumHeight(108)
         for w in (self.title, self.value, self.hint):
             lay.addWidget(w)
+        lay.addStretch(1)
 
     def set(self, value: str, hint: str = "", accent: Optional[str] = None) -> None:
         # a leading LRM keeps digits, signs and % together in right-to-left layouts
         self.value.setText("\u200e" + value + "\u200e")
         self.hint.setText(hint)
-        self.hint.setVisible(bool(hint))
         if accent:
             self.value.setStyleSheet(f"color:{accent};")
 
@@ -176,7 +177,7 @@ class DataTable(QTableWidget):
                 self.setItem(r, c, it)
             elif kind == "num":
                 it = QTableWidgetItem(fmt_float(parse_float(v)))
-                it.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.setItem(r, c, it)
             else:
                 self.setItem(r, c, QTableWidgetItem("" if v is None else str(v)))
