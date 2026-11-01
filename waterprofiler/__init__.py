@@ -1,8 +1,8 @@
-"""Water Profiler: industrial plant water balance and true cost of water.
+"""CEPWater: industrial plant water balance and true cost of water (Control Energy Pasargad).
 
 Calculation methodology follows ORNL/TM-2021/1918 (Malhotra et al., 2021),
 re-expressed in SI units (m3, kWh, degC). Typographical sign errors in the
 printed report equations are corrected; see docs/FORMULAS.md.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

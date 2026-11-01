@@ -7,11 +7,12 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 from PySide6.QtCore import QLocale, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QHeaderView,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
+    QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..numparse import fmt_float, parse_float
+from .theme import CHART, COL, nav_pixmap
 
 ITEM_FLAG = Qt.ItemFlag
 CHECKED, UNCHECKED = Qt.CheckState.Checked, Qt.CheckState.Unchecked
@@ -25,8 +26,101 @@ def dspin(maximum: float = 1e12, decimals: int = 3, minimum: float = 0.0, step: 
     s.setSingleStep(step)
     s.setGroupSeparatorShown(True)
     s.setKeyboardTracking(False)
+    s.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)   # clean modern look; type or scroll
     s.setMinimumWidth(130)
     return s
+
+
+def button(text: str, kind: str = "", on_click=None) -> QPushButton:
+    """Push button with a theme variant: '' (outline), 'primary', 'danger' or 'ghost'."""
+    b = QPushButton(text)
+    if kind:
+        b.setProperty("kind", kind)
+    b.setCursor(Qt.CursorShape.PointingHandCursor)
+    if on_click is not None:
+        b.clicked.connect(lambda _=False: on_click())
+    return b
+
+
+def card(title: str = "", *widgets: QWidget, note: str = "") -> QFrame:
+    """White rounded panel with an optional title and note."""
+    f = QFrame()
+    f.setObjectName("card")
+    lay = QVBoxLayout(f)
+    lay.setContentsMargins(18, 14, 18, 16)
+    lay.setSpacing(10)
+    if title:
+        lab = QLabel(title)
+        lab.setObjectName("cardtitle")
+        lay.addWidget(lab)
+    if note:
+        n = QLabel(note)
+        n.setObjectName("cardnote")
+        n.setWordWrap(True)
+        lay.addWidget(n)
+    for w in widgets:
+        lay.addWidget(w)
+    return f
+
+
+class StatCard(QFrame):
+    """Big-number tile: title, value, optional hint, coloured value."""
+
+    def __init__(self, title: str, accent: str = COL["blue"]):
+        super().__init__()
+        self.setObjectName("stat")
+        self.accent = accent
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(18, 14, 18, 14)
+        lay.setSpacing(2)
+        self.title = QLabel(title)
+        self.title.setObjectName("stattitle")
+        self.value = QLabel("—")
+        self.value.setObjectName("statvalue")
+        self.value.setStyleSheet(f"color:{accent};")
+        self.hint = QLabel("")
+        self.hint.setObjectName("stathint")
+        self.hint.setWordWrap(True)
+        for w in (self.title, self.value, self.hint):
+            lay.addWidget(w)
+
+    def set(self, value: str, hint: str = "", accent: Optional[str] = None) -> None:
+        # a leading LRM keeps digits, signs and % together in right-to-left layouts
+        self.value.setText("\u200e" + value + "\u200e")
+        self.hint.setText(hint)
+        self.hint.setVisible(bool(hint))
+        if accent:
+            self.value.setStyleSheet(f"color:{accent};")
+
+
+class NavButton(QPushButton):
+    """Sidebar entry: vector icon + text, laid out by Qt so it mirrors correctly in RTL."""
+
+    def __init__(self, icon_name: str, text: str):
+        super().__init__()
+        self.setObjectName("nav")
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(46)
+        self.icon_name = icon_name
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 0, 16, 0)
+        lay.setSpacing(12)
+        self.ic = QLabel()
+        self.ic.setFixedSize(22, 22)
+        self.tx = QLabel(text)
+        for w in (self.ic, self.tx):
+            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        lay.addWidget(self.ic)
+        lay.addWidget(self.tx, 1)
+        self.toggled.connect(self._paint)
+        self._paint(False)
+
+    def _paint(self, on: bool) -> None:
+        col = "#FFFFFF" if on else COL["sub"]
+        self.ic.setPixmap(nav_pixmap(self.icon_name, col))
+        self.tx.setStyleSheet(f"color:{'#FFFFFF' if on else COL['text']}; font-size:14px; "
+                              f"font-weight:{700 if on else 500}; background:transparent;")
 
 
 class DataTable(QTableWidget):
@@ -44,6 +138,10 @@ class DataTable(QTableWidget):
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.setAlternatingRowColors(True)
+        self.setShowGrid(False)
+        self.verticalHeader().setVisible(False)
+        self.verticalHeader().setDefaultSectionSize(38)
+        self.setMinimumHeight(150)
         self.itemChanged.connect(self._on_item)
 
     def _on_item(self, _item) -> None:
@@ -126,8 +224,8 @@ def table_box(title: str, table: DataTable, add_text: str, remove_text: str,
     lay = QVBoxLayout(box)
     lay.addWidget(table)
     bar = QHBoxLayout()
-    add = QPushButton(add_text)
-    rem = QPushButton(remove_text)
+    add = button("+  " + add_text, "primary")
+    rem = button(remove_text, "danger")
     add.clicked.connect(lambda: table.add_row(default_row() if default_row else None))
     rem.clicked.connect(table.remove_selected)
     bar.addWidget(add)
@@ -137,7 +235,7 @@ def table_box(title: str, table: DataTable, add_text: str, remove_text: str,
     return box
 
 
-PALETTE = ["#2f6fb0", "#e08a2b", "#3a9d8f", "#a65ea8", "#c9524a", "#7a8b3c"]
+PALETTE = CHART
 
 
 class BarChart(QWidget):
@@ -162,43 +260,47 @@ class BarChart(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: N802 (Qt API)
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        fg = self.palette().text().color()
-        p.fillRect(self.rect(), self.palette().base())
+        fg = QColor(COL["sub"])
+        ink = QColor(COL["text"])
         w, h = self.width(), self.height()
         f = QFont(self.font())
         fm = QFontMetrics(f)
 
-        p.setPen(fg)
+        p.setPen(QColor(COL["navy"]))
         bold = QFont(f)
         bold.setBold(True)
+        bold.setPointSizeF(f.pointSizeF() + 1)
         p.setFont(bold)
-        p.drawText(QRectF(0, 4, w, 22), Qt.AlignmentFlag.AlignCenter, self.title)
+        p.drawText(QRectF(0, 2, w, 24), Qt.AlignmentFlag.AlignCenter, self.title)
         p.setFont(f)
 
         if not self.categories or not self.series:
+            p.end()
             return
 
-        # legend
-        x = 12.0
+        # legend (round swatches)
+        total = sum(14 + fm.horizontalAdvance(n) + 26 for n, _v in self.series)
+        x = max(8.0, (w - total) / 2.0)
         y = 30.0
         for i, (name, _v) in enumerate(self.series):
-            p.fillRect(QRectF(x, y + 3, 10, 10), QColor(PALETTE[i % len(PALETTE)]))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(PALETTE[i % len(PALETTE)]))
+            p.drawEllipse(QRectF(x, y + 4, 9, 9))
             tw = fm.horizontalAdvance(name)
-            p.setPen(fg)
-            p.drawText(QRectF(x + 14, y, tw + 8, 16), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name)
-            x += 14 + tw + 22
+            p.setPen(ink)
+            p.drawText(QRectF(x + 14, y, tw + 8, 18), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, name)
+            x += 14 + tw + 26
 
-        left, right, top, bottom = 50.0, 10.0, 54.0, 46.0
+        left, right, top, bottom = 54.0, 12.0, 60.0, 46.0
         pw, ph = w - left - right, h - top - bottom
         if pw <= 10 or ph <= 10:
+            p.end()
             return
         vmax = max((max(v) if v else 0.0) for _n, v in self.series) or 1.0
         vmax = vmax * 1.12
 
-        # axis + gridlines
-        axis_pen = QPen(fg)
-        axis_pen.setWidthF(1.0)
-        grid = QPen(QColor(128, 128, 128, 70))
+        grid = QPen(QColor(COL["line"]))
+        grid.setWidthF(1.0)
         for k in range(5):
             gy = top + ph - ph * k / 4.0
             p.setPen(grid)
@@ -206,25 +308,28 @@ class BarChart(QWidget):
             val = vmax * k / 4.0
             lab = f"{val * 100:.0f}%" if self.percent else _short(val)
             p.setPen(fg)
-            p.drawText(QRectF(0, gy - 8, left - 4, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, lab)
-        p.setPen(axis_pen)
-        p.drawLine(int(left), int(top + ph), int(left + pw), int(top + ph))
+            p.drawText(QRectF(0, gy - 9, left - 6, 18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, lab)
 
         n = len(self.categories)
         gw = pw / n
         ns = len(self.series)
         bw = gw * 0.72 / ns
+        p.setPen(Qt.PenStyle.NoPen)
         for ci, cat in enumerate(self.categories):
             gx = left + ci * gw + gw * 0.14
             for si, (_name, vals) in enumerate(self.series):
                 v = vals[ci] if ci < len(vals) else 0.0
                 bh = ph * (v / vmax)
-                rect = QRectF(gx + si * bw, top + ph - bh, bw - 2, bh)
-                p.fillRect(rect, QColor(PALETTE[si % len(PALETTE)]))
-            p.setPen(fg)
+                if bh <= 0:
+                    continue
+                rect = QRectF(gx + si * bw + 1, top + ph - bh, bw - 3, bh)
+                p.setBrush(QColor(PALETTE[si % len(PALETTE)]))
+                p.drawRoundedRect(rect, min(5.0, rect.width() / 2), min(5.0, rect.width() / 2))
+            p.setPen(ink)
             label = fm.elidedText(cat, Qt.TextElideMode.ElideRight, int(gw) - 2)
-            p.drawText(QRectF(left + ci * gw, top + ph + 4, gw, 36),
+            p.drawText(QRectF(left + ci * gw, top + ph + 6, gw, 36),
                        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap, label)
+            p.setPen(Qt.PenStyle.NoPen)
         p.end()
 
 

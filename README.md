@@ -1,4 +1,6 @@
-# Water Profiler — مدیریت مصرف آب کارخانه
+# CEPWater — مدیریت مصرف آب کارخانه
+
+محصول **کنترل انرژی پاسارگاد** (Control Energy Pasargad)
 
 Desktop software for industrial plant water management: subsystem water balance,
 true cost of water, savings analysis, data reconciliation, Excel and PDF reports.
@@ -11,8 +13,8 @@ Bilingual (Persian default, English), right-to-left, offline, Windows installer.
 ## نصب (کاربر نهایی) / Install
 
 1. در صفحهٔ **Actions** همین مخزن، آخرین اجرای موفق «Build Windows installer» را باز کنید.
-2. از بخش Artifacts فایل **WaterProfiler-Setup** را دانلود و اجرا کنید.
-   (اگر نسخهٔ Release منتشر شده باشد، `WaterProfiler-Setup-x.y.z.exe` در بخش Releases هم هست.)
+2. از بخش Artifacts فایل **CEPWater-Setup** را دانلود و اجرا کنید.
+   (اگر نسخهٔ Release منتشر شده باشد، `CEPWater-Setup-x.y.z.exe` در بخش Releases هم هست.)
 
 ## کار با برنامه / Workflow
 
@@ -23,6 +25,8 @@ Bilingual (Persian default, English), right-to-left, offline, Windows installer.
 4. **هزینهٔ واقعی آب**: خرید، تصفیه، پمپاژ، پساب و گرمای هدررفته؛ اولویت‌بندی.
 5. **صرفه‌جویی**: افزایش چرخهٔ تغلیظ، بازگشت میعانات، رفع نشتی و دورهٔ بازگشت سرمایه.
 6. **تطبیق داده**: اصلاح وزنی جریان‌ها تا بیلان ببندد.
+
+ورود داده از Excel: *پرونده ← ذخیرهٔ الگوی Excel* را بزنید، الگو را پر کنید و با *ورود داده از Excel* بخوانید.
 
 Use *File → Load demo plant* for a worked example. Project files are `.wpj` (JSON).
 

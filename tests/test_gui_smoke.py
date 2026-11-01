@@ -106,3 +106,35 @@ def test_savings_tab_computes(app):
     st._calc_leak()
     assert st.lk_out.text()
     w.close()
+
+
+def test_import_from_excel_and_sidebar_navigation(app, tmp_path):
+    from waterprofiler.importer import export_input_workbook
+    from waterprofiler.sample import demo_plant
+    w = _win("fa")
+    p = str(tmp_path / "in.xlsx")
+    export_input_workbook(demo_plant("fa"), p, "fa")
+    assert w.import_from(p) == []
+    assert len(w.plant.subsystems) == 5
+    for i in range(w.tabs.count()):
+        w.tabs.setCurrentIndex(i)
+        app.processEvents()
+        assert w.nav[i].isChecked()
+        assert w.page_title.text() == w.t(w._pages[i][1])
+    w.nav[3].click()
+    assert w.tabs.currentIndex() == 3
+    assert w.cost_tab.c_true.value.text() not in ("", "—")
+    w.close()
+
+
+def test_about_dialog_and_branding(app):
+    from waterprofiler.gui.dialogs import AboutDialog
+    from waterprofiler.i18n import Translator
+    for lang in ("fa", "en"):
+        d = AboutDialog(Translator(lang))
+        d.show()
+        d.close()
+    w = _win("en")
+    assert "CEPWater" in w.windowTitle()
+    assert not w.windowIcon().isNull()
+    w.close()

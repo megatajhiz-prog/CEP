@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-    QPushButton, QScrollArea, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QScrollArea, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .. import savings as sv
@@ -16,13 +16,15 @@ from ..analysis import Analysis
 from ..cost import COMPONENTS
 from ..estimators import InputError
 from ..i18n import Translator
+from ..messages import localize, localize_all
 from ..model import Plant, Subsystem
 from ..reconcile import ReconcileResult, reconcile
-from .widgets import BarChart, dspin
+from .theme import COL
+from .widgets import BarChart, StatCard, button, card, dspin
 
 RIGHT = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-WARN_BG = QColor(255, 236, 200)
-BAD_BG = QColor(255, 210, 210)
+WARN_BG = QColor("#FFF1D6")
+BAD_BG = QColor("#FBDADA")
 
 
 def _fmt(v: Optional[float], d: int = 0) -> str:
@@ -40,8 +42,38 @@ def make_table(headers: List[str]) -> QTableWidget:
     tb.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     tb.setAlternatingRowColors(True)
     tb.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    tb.setShowGrid(False)
+    tb.verticalHeader().setVisible(False)
+    tb.verticalHeader().setDefaultSectionSize(36)
     return tb
 
+
+def stat_row(*cards: StatCard) -> QHBoxLayout:
+    row = QHBoxLayout()
+    row.setSpacing(14)
+    for c in cards:
+        row.addWidget(c, 1)
+    return row
+
+
+def _message_label() -> QLabel:
+    lab = QLabel()
+    lab.setObjectName("msg")
+    lab.setWordWrap(True)
+    return lab
+
+
+def _warn_label() -> QLabel:
+    lab = QLabel()
+    lab.setObjectName("warnbox")
+    lab.setWordWrap(True)
+    lab.setVisible(False)
+    return lab
+
+
+def _set_visible_text(lab: QLabel, text: str) -> None:
+    lab.setText(text)
+    lab.setVisible(bool(text))
 
 LRM = "\u200e"   # left-to-right mark. Qt's text engine ignores the newer isolates (U+2066..2069),
                  # which left signs on the wrong side of numbers ("950+"); a leading LRM makes the
@@ -65,33 +97,55 @@ def put(tb: QTableWidget, r: int, c: int, text: str, number: bool = False, bg: O
     tb.setItem(r, c, it)
 
 
+class ResultLabel(QLabel):
+    """Green result box that only shows while it has text."""
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("result")
+        self.setWordWrap(True)
+        self.setVisible(False)
+
+    def setText(self, text: str) -> None:  # noqa: N802 (Qt API)
+        super().setText(text)
+        self.setVisible(bool(text))
+
+
 class _Scroll(QScrollArea):
     def __init__(self):
         super().__init__()
         self.setWidgetResizable(True)
+        self.setFrameShape(QScrollArea.Shape.NoFrame)
         self.body = QWidget()
         self.setWidget(self.body)
         self.lay = QVBoxLayout(self.body)
+        self.lay.setContentsMargins(26, 22, 26, 26)
+        self.lay.setSpacing(16)
 
 
 class BalanceTab(_Scroll):
     def __init__(self, t: Translator):
         super().__init__()
         self.t = t
-        self.msg = QLabel()
-        self.msg.setWordWrap(True)
+        self.msg = _message_label()
         self.lay.addWidget(self.msg)
+        self.c_intake = StatCard(t("sum_intake") + " (m³)", COL["blue"])
+        self.c_disch = StatCard(t("sum_discharge") + " (m³)", COL["navy"])
+        self.c_cons = StatCard(t("series_consumptive") + " (m³)", COL["green"])
+        self.c_loss = StatCard(t("unknown_loss") + " (m³)", COL["orange"])
+        self.lay.addLayout(stat_row(self.c_intake, self.c_disch, self.c_cons, self.c_loss))
         self.table = make_table([t("subsystem"), t("inflow"), t("outflow"), t("unknown_loss"), t("loss_pct"), t("status")])
-        self.table.setMinimumHeight(190)
-        self.lay.addWidget(self.table)
-        box = QGroupBox(t("plant_totals"))
-        self.totals = QFormLayout(box)
-        self.lay.addWidget(box)
+        self.table.setMinimumHeight(230)
+        self.lay.addWidget(card(t("tab_balance") + " — " + t("subsystem"), self.table))
+        self.totals_box = QGroupBox(t("plant_totals"))
+        self.totals = QFormLayout(self.totals_box)
+        self.totals.setHorizontalSpacing(30)
+        self.totals.setVerticalSpacing(8)
+        self.lay.addWidget(self.totals_box)
         self.chart = BarChart()
-        self.chart.setMinimumHeight(280)
-        self.lay.addWidget(self.chart)
-        self.warn = QLabel()
-        self.warn.setWordWrap(True)
+        self.chart.setMinimumHeight(300)
+        self.lay.addWidget(card("", self.chart))
+        self.warn = _warn_label()
         self.lay.addWidget(self.warn)
         self.lay.addStretch(1)
 
@@ -99,10 +153,18 @@ class BalanceTab(_Scroll):
         self.msg.setText(text)
         self.table.setRowCount(0)
         self.chart.set_data("", [], [])
+        for c in (self.c_intake, self.c_disch, self.c_cons, self.c_loss):
+            c.set("—")
 
     def refresh(self, a: Analysis) -> None:
         t, b = self.t, a.balance
         self.msg.setText("" if a.plant.subsystems else t("no_data"))
+        self.c_intake.set(_fmt(b.sum_intake))
+        self.c_disch.set(_fmt(b.sum_discharge))
+        self.c_cons.set(_fmt(b.sum_evaporation + b.sum_product))
+        pct = (100.0 * b.unknown_loss / b.sum_intake) if b.sum_intake else 0.0
+        bad = abs(pct) > 2.0
+        self.c_loss.set(_fmt(b.unknown_loss), f"{pct:.1f}%", COL["red"] if bad else COL["green"])
         self.table.setRowCount(len(b.subsystems))
         for r, s in enumerate(b.subsystems):
             bg = None if s.status == "balanced" else (WARN_BG if s.status == "unaccounted loss" else BAD_BG)
@@ -126,6 +188,7 @@ class BalanceTab(_Scroll):
         for lab, val in rows:
             lbl = QLabel(ltr(val))
             lbl.setAlignment(RIGHT)
+            lbl.setStyleSheet("font-weight:600;")
             self.totals.addRow(lab + " (m³)" if "%" not in val else lab, lbl)
 
         names = [s.name for s in b.subsystems]
@@ -135,42 +198,53 @@ class BalanceTab(_Scroll):
             [(t("series_intake"), [sub[n].total_intake for n in names]),
              (t("series_consumptive"), [sub[n].evaporation + sub[n].product for n in names]),
              (t("series_discharge"), [sub[n].total_discharge for n in names])])
-        self.warn.setText("\n".join("⚠ " + w for w in b.warnings))
+        _set_visible_text(self.warn, "\n".join("⚠ " + w for w in localize_all(b.warnings, t.lang)))
 
 
 class CostTab(_Scroll):
     def __init__(self, t: Translator):
         super().__init__()
         self.t = t
-        self.msg = QLabel()
-        self.msg.setWordWrap(True)
+        self.msg = _message_label()
         self.lay.addWidget(self.msg)
+        self.c_true = StatCard(t("tab_cost"), COL["navy"])
+        self.c_direct = StatCard(t("direct_cost"), COL["blue"])
+        self.c_ratio = StatCard(t("true_direct"), COL["orange"])
+        self.c_m3 = StatCard(t("cost_per_m3"), COL["green"])
+        self.lay.addLayout(stat_row(self.c_true, self.c_direct, self.c_ratio, self.c_m3))
         heads = [t("subsystem")] + [t("comp_" + c) for c in COMPONENTS] + [
             t("total"), t("cost_per_m3"), t("water_share"), t("cost_share"), t("priority")]
         self.table = make_table(heads)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setMinimumHeight(220)
-        self.lay.addWidget(self.table)
+        self.table.setMinimumHeight(250)
+        self.lay.addWidget(card(t("tab_cost"), self.table))
         self.kpi = make_table([t("indicator"), t("value")])
-        self.kpi.setMinimumHeight(330)
-        self.lay.addWidget(self.kpi)
+        self.kpi.setMinimumHeight(380)
+        self.lay.addWidget(card(t("kpi"), self.kpi))
         self.chart_share = BarChart()
-        self.chart_share.setMinimumHeight(280)
+        self.chart_share.setMinimumHeight(290)
         self.chart_comp = BarChart()
-        self.chart_comp.setMinimumHeight(300)
-        self.lay.addWidget(self.chart_share)
-        self.lay.addWidget(self.chart_comp)
+        self.chart_comp.setMinimumHeight(310)
+        self.lay.addWidget(card("", self.chart_share))
+        self.lay.addWidget(card("", self.chart_comp))
         self.lay.addStretch(1)
 
     def show_error(self, text: str) -> None:
         self.msg.setText(text)
         self.table.setRowCount(0)
         self.kpi.setRowCount(0)
+        for c in (self.c_true, self.c_direct, self.c_ratio, self.c_m3):
+            c.set("—")
 
     def refresh(self, a: Analysis) -> None:
         t, c, k = self.t, a.cost, a.kpi
         cur = a.plant.currency
         self.msg.setText("" if a.plant.subsystems else t("no_data"))
+        self.c_true.set(_fmt(c.total), cur)
+        self.c_direct.set(_fmt(c.direct_billed_cost), cur)
+        self.c_ratio.set("—" if c.true_to_direct_ratio is None else f"×{c.true_to_direct_ratio:.2f}",
+                         t("true_direct_hint"))
+        self.c_m3.set(_fmt(c.true_cost_per_m3_intake, 2), f"{cur} / m³")
         rank = {r.name: r for r in a.ranking}
         n = len(c.subsystems)
         self.table.setRowCount(n + 1)
@@ -246,9 +320,8 @@ class SavingsTab(_Scroll):
         self.ct_new = dspin(maximum=100, decimals=2, minimum=1.01, step=0.5)
         self.ct_new.setValue(6.0)
         self.ct_capex = dspin(decimals=2)
-        self.ct_out = QLabel()
-        self.ct_out.setWordWrap(True)
-        b1 = QPushButton(t("calculate"))
+        self.ct_out = ResultLabel()
+        b1 = button(t("calculate"), "primary")
         b1.clicked.connect(self._calc_ct)
         f.addRow(t("subsystem"), self.ct_sub)
         f.addRow(t("sv_new_coc"), self.ct_new)
@@ -266,9 +339,8 @@ class SavingsTab(_Scroll):
         self.bo_cond = dspin(maximum=100, decimals=1, step=5)
         self.bo_cond.setValue(70.0)
         self.bo_capex = dspin(decimals=2)
-        self.bo_out = QLabel()
-        self.bo_out.setWordWrap(True)
-        b2 = QPushButton(t("calculate"))
+        self.bo_out = ResultLabel()
+        b2 = button(t("calculate"), "primary")
         b2.clicked.connect(self._calc_boiler)
         f.addRow(t("subsystem"), self.bo_sub)
         f.addRow(t("sv_new_coc"), self.bo_coc)
@@ -288,9 +360,8 @@ class SavingsTab(_Scroll):
         self.lk_frac = dspin(maximum=1.0, decimals=2, step=0.1)
         self.lk_frac.setValue(1.0)
         self.lk_capex = dspin(decimals=2)
-        self.lk_out = QLabel()
-        self.lk_out.setWordWrap(True)
-        b3 = QPushButton(t("calculate"))
+        self.lk_out = ResultLabel()
+        b3 = button(t("calculate"), "primary")
         b3.clicked.connect(self._calc_leak)
         f.addRow(t("subsystem"), self.lk_sub)
         f.addRow(t("sv_leak_rate"), self.lk_rate)
@@ -345,7 +416,7 @@ class SavingsTab(_Scroll):
         try:
             r = sv.cooling_tower_coc(s.evaporation, s.total_intake, self.ct_new.value(), w, d, tr)
         except InputError as e:
-            self.ct_out.setText(str(e))
+            self.ct_out.setText(localize(str(e), t.lang))
             return
         self._report(self.ct_out, r, self.ct_capex.value(), self.plant.currency)
 
@@ -365,7 +436,7 @@ class SavingsTab(_Scroll):
                 bhp=p["bhp"], baseline_blowdown_m3=s.total_discharge,
                 water_unit_cost=w, discharge_unit_cost=d, treatment_unit_cost=tr)
         except InputError as e:
-            self.bo_out.setText(str(e))
+            self.bo_out.setText(localize(str(e), t.lang))
             return
         self._report(self.bo_out, r, self.bo_capex.value(), self.plant.currency)
 
@@ -387,31 +458,39 @@ class ReconcileTab(_Scroll):
         self.t = t
         self.plant: Optional[Plant] = None
         self.result: Optional[ReconcileResult] = None
-        note = QLabel(t("rc_note"))
-        note.setWordWrap(True)
-        self.lay.addWidget(note)
+        self.lay.addWidget(card(t("tab_reconcile"), note=t("rc_note")))
         form = QFormLayout()
         self.sigma = dspin(maximum=100, decimals=1, minimum=0.1, step=1)
         self.sigma.setValue(15.0)
         form.addRow(t("rc_sigma"), self.sigma)
-        self.lay.addLayout(form)
         row = QHBoxLayout()
-        self.run = QPushButton(t("rc_run"))
-        self.apply = QPushButton(t("rc_apply"))
+        self.run = button(t("rc_run"), "primary")
+        self.apply = button(t("rc_apply"))
         self.apply.setEnabled(False)
         self.run.clicked.connect(self._run)
         self.apply.clicked.connect(self._apply)
         row.addWidget(self.run)
         row.addWidget(self.apply)
         row.addStretch(1)
-        self.lay.addLayout(row)
+        ctl = QWidget()
+        cl = QVBoxLayout(ctl)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.addLayout(form)
+        cl.addLayout(row)
+        self.lay.addWidget(card("", ctl))
         self.info = QLabel()
+        self.info.setObjectName("result")
         self.info.setWordWrap(True)
+        self.info.setVisible(False)
         self.lay.addWidget(self.info)
         self.table = make_table([t("subsystem"), t("rc_flow"), t("rc_orig"), t("rc_adj"), t("rc_delta")])
         self.table.setMinimumHeight(450)
-        self.lay.addWidget(self.table)
+        self.lay.addWidget(card(t("rc_adj"), self.table))
         self.lay.addStretch(1)
+
+    def _say(self, text: str) -> None:
+        self.info.setText(text)
+        self.info.setVisible(bool(text))
 
     def refresh(self, plant: Plant) -> None:
         self.plant = plant
@@ -430,19 +509,19 @@ class ReconcileTab(_Scroll):
         self.apply.setEnabled(False)
         self.table.setRowCount(0)
         if self.plant is None or not self.plant.subsystems:
-            self.info.setText(t("no_data"))
+            self._say(t("no_data"))
             return
         try:
             res = reconcile(self.plant, default_rel_sigma=self.sigma.value() / 100.0)
         except Exception as e:  # noqa: BLE001 - surfaced to the user
-            self.info.setText(f"{t('analysis_error')}: {e}")
+            self._say(f"{t('analysis_error')}: {localize(str(e), t.lang)}")
             return
         self.result = res
         lines = [f"{t('rc_chi')}: {ltr(f'{res.chi_square:,.2f}')}",
                  f"{t('rc_resid')}: {ltr(f'{res.residual_before:,.1f}')}  /  {ltr(f'{res.residual_after:.3g}')}"]
         if not res.adjustments:
             lines.append(t("rc_none"))
-        self.info.setText("\n".join(lines))
+        self._say("\n".join(lines))
         self.table.setRowCount(len(res.adjustments))
         for r, adj in enumerate(res.adjustments):
             pct = adj.delta_pct
@@ -459,4 +538,4 @@ class ReconcileTab(_Scroll):
             self.result = None
             self.apply.setEnabled(False)
             self.table.setRowCount(0)
-            self.info.setText("")
+            self._say("")

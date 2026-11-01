@@ -36,3 +36,13 @@ def test_dynamic_translation_families_complete():
 
 def test_all_strings_have_both_languages():
     assert missing_translations() == []
+
+
+def test_brand_assets_and_name():
+    import os
+    from waterprofiler import branding
+    assert branding.APP_NAME == "CEPWater"
+    for k in ("full", "mark"):
+        assert os.path.getsize(branding.logo_path(k)) > 5000
+    for f in ("app.ico", "chevron.png"):
+        assert os.path.exists(branding.asset("brand", f))

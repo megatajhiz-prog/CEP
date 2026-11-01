@@ -5,10 +5,11 @@ from __future__ import annotations
 from html import escape
 from typing import Optional
 
-from . import __version__
+from . import __version__, branding
 from .analysis import Analysis
 from .cost import COMPONENTS
 from .i18n import Translator
+from .messages import localize_all
 
 
 def _n(v: Optional[float], d: int = 0) -> str:
@@ -19,7 +20,8 @@ def _pct(v: Optional[float]) -> str:
     return "—" if v is None else f"{100 * v:.1f}%"
 
 
-def build_report_html(a: Analysis, lang: str = "fa") -> str:
+def build_report_html(a: Analysis, lang: str = "fa", logo: Optional[str] = None) -> str:
+    """``logo`` is an image source (URL or Qt resource name) for the report header; omit for none."""
     t = Translator(lang)
     d = "rtl" if t.rtl else "ltr"
     k, b, c = a.kpi, a.balance, a.cost
@@ -44,18 +46,23 @@ def build_report_html(a: Analysis, lang: str = "fa") -> str:
         (t("kpi_unacc"), _pct(k.unaccounted_fraction)),
     ]
 
+    img = f"<td width='130'><img src='{escape(logo)}' width='120'></td>" if logo else ""
+    header = (f"<table width='100%' style='margin:0 0 6px 0'><tr>{img}<td>"
+              f"<h1>{escape(branding.APP_NAME)}</h1>"
+              f"<span class='small'>{escape(branding.COMPANY[lang])} — {escape(branding.TAGLINE[lang])}</span>"
+              f"</td></tr></table>")
     parts = [f"""<html dir="{d}"><head><meta charset="utf-8"><style>
 body {{ font-family: 'Vazirmatn','Tahoma','Segoe UI',sans-serif; font-size: 10pt; color:#1b1b1b; }}
-h1 {{ color:#1F4E79; font-size:18pt; margin-bottom:2px; }}
-h2 {{ color:#1F4E79; font-size:13pt; border-bottom:1px solid #1F4E79; margin-top:16px; }}
+h1 {{ color:#0B3D78; font-size:20pt; margin-bottom:2px; }}
+h2 {{ color:#0B3D78; font-size:13pt; border-bottom:2px solid #0A74C8; margin-top:16px; }}
 table {{ border-collapse:collapse; width:100%; margin-top:6px; }}
-th {{ background:#1F4E79; color:#fff; padding:4px 6px; font-weight:bold; }}
-td {{ border:1px solid #bbb; padding:3px 6px; }}
+th {{ background:#0B3D78; color:#fff; padding:4px 6px; font-weight:bold; }}
+td {{ border:1px solid #cfd8e3; padding:3px 6px; }}
 td.n {{ text-align:right; direction:ltr; }}
 .warn {{ color:#9c4a00; }}
 .small {{ color:#666; font-size:8pt; }}
 </style></head><body>
-<h1>{escape(t('app_title'))}</h1>
+{header}
 <p><b>{escape(a.plant.name)}</b> &nbsp;·&nbsp; {escape(t('production'))}: {_n(a.plant.production_per_year)} {escape(a.plant.production_unit)}</p>
 <h2>{escape(t('kpi'))}</h2><table>"""]
     for lab, val in kpi_rows:
@@ -89,7 +96,7 @@ td.n {{ text-align:right; direction:ltr; }}
 
     if a.warnings:
         parts.append(f"<h2 class='warn'>{escape(t('warnings'))}</h2><ul>"
-                     + "".join(f"<li class='warn'>{escape(w)}</li>" for w in a.warnings) + "</ul>")
+                     + "".join(f"<li class='warn'>{escape(w)}</li>" for w in localize_all(a.warnings, lang)) + "</ul>")
 
-    parts.append(f"<p class='small'>Water Profiler {__version__} · ORNL/TM-2021/1918 methodology</p></body></html>")
+    parts.append(f"<p class='small'>{escape(branding.APP_NAME)} {__version__} · {escape(branding.COMPANY[lang])} · ORNL/TM-2021/1918</p></body></html>")
     return "".join(parts)

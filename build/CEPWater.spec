@@ -1,9 +1,12 @@
-# PyInstaller spec. Build with:  pyinstaller build/WaterProfiler.spec --noconfirm
+# PyInstaller spec. Build with:  pyinstaller build/CEPWater.spec --noconfirm
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = []
+brand = os.path.join(ROOT, "assets", "brand")
+if os.path.isdir(brand):
+    datas.append((brand, os.path.join("assets", "brand")))
 fonts = os.path.join(ROOT, "assets", "fonts")
 if os.path.isdir(fonts):
     datas.append((fonts, os.path.join("assets", "fonts")))
@@ -29,9 +32,10 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="WaterProfiler",
+    name="CEPWater",
+    icon=os.path.join(ROOT, "assets", "brand", "app.ico"),
     console=False,
     disable_windowed_traceback=False,
     upx=False,
 )
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="WaterProfiler")
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="CEPWater")
