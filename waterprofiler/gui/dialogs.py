@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QMessageBox, QVBoxLayout,
+    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QLabel, QMessageBox, QVBoxLayout,
 )
 
+from .. import __version__, branding
 from ..estimate_apply import PARAMS, estimate
 from ..estimators import InputError
 from ..i18n import Translator
-from .widgets import dspin
+from ..messages import localize
+from .widgets import button, dspin
 
 PARAM_LABEL = {
     "units": "est_units", "g": "est_g", "r": "est_r", "p": "est_p",
@@ -84,9 +88,52 @@ class EstimateDialog(QDialog):
         try:
             estimate(self.kind, self.values())   # validate before closing
         except (InputError, KeyError) as e:
-            QMessageBox.warning(self, self.t("error"), str(e))
+            QMessageBox.warning(self, self.t("error"), localize(str(e), self.t.lang))
             return
         if not self.selected_source():
             QMessageBox.warning(self, self.t("error"), self.t("catalog_hint"))
             return
         self.accept()
+
+
+class AboutDialog(QDialog):
+    """Product and company information with the logo."""
+
+    def __init__(self, t: Translator, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("about"))
+        self.setMinimumWidth(460)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(34, 28, 34, 24)
+        lay.setSpacing(8)
+        logo = QLabel()
+        pm = QPixmap(branding.logo_path("full"))
+        if not pm.isNull():
+            logo.setPixmap(pm.scaledToWidth(230, Qt.TransformationMode.SmoothTransformation))
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(logo)
+        bar = QFrame()
+        bar.setObjectName("accent")
+        bar.setFixedHeight(3)
+        lay.addWidget(bar)
+        name = QLabel(branding.APP_NAME)
+        name.setObjectName("appname")
+        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(name)
+        sub = QLabel(branding.APP_SUBTITLE[t.lang])
+        sub.setObjectName("appsub")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(sub)
+        body = QLabel(t("about_text", v=__version__))
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(body)
+        lines = branding.contact_lines(t.lang)
+        if lines:
+            c = QLabel("\n".join(lines))
+            c.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            c.setObjectName("appsub")
+            lay.addWidget(c)
+        ok = button(t("ok"), "primary", self.accept)
+        lay.addSpacing(8)
+        lay.addWidget(ok, 0, Qt.AlignmentFlag.AlignCenter)

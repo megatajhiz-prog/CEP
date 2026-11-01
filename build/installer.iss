@@ -5,14 +5,16 @@
 
 [Setup]
 AppId={{6D1F3A52-7B64-4C2E-9A0E-5C3B8F4A21D7}
-AppName=Water Profiler
+AppName=CEPWater
 AppVersion={#AppVersion}
-AppPublisher=Water Profiler
-DefaultDirName={autopf}\WaterProfiler
-DefaultGroupName=Water Profiler
-UninstallDisplayName=Water Profiler
+AppPublisher=Control Energy Pasargad
+SetupIconFile=..\assets\brand\app.ico
+UninstallDisplayIcon={app}\CEPWater.exe
+DefaultDirName={autopf}\CEPWater
+DefaultGroupName=CEPWater
+UninstallDisplayName=CEPWater
 OutputDir=..\Output
-OutputBaseFilename=WaterProfiler-Setup-{#AppVersion}
+OutputBaseFilename=CEPWater-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -29,11 +31,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist\WaterProfiler\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\CEPWater\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Water Profiler"; Filename: "{app}\WaterProfiler.exe"
-Name: "{autodesktop}\Water Profiler"; Filename: "{app}\WaterProfiler.exe"; Tasks: desktopicon
+Name: "{group}\CEPWater"; Filename: "{app}\CEPWater.exe"
+Name: "{autodesktop}\CEPWater"; Filename: "{app}\CEPWater.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\WaterProfiler.exe"; Description: "{cm:LaunchProgram,Water Profiler}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CEPWater.exe"; Description: "{cm:LaunchProgram,CEPWater}"; Flags: nowait postinstall skipifsilent

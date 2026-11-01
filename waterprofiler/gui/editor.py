@@ -6,14 +6,14 @@ from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLineEdit, QPushButton, QScrollArea,
+    QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QScrollArea,
     QVBoxLayout, QWidget,
 )
 
 from ..i18n import Translator
 from ..model import Outlet, Plant, Pump, Source, Subsystem, Treatment
 from ..numparse import fmt_float, parse_float
-from .widgets import DataTable, dspin, table_box
+from .widgets import DataTable, button, card, dspin, table_box
 
 KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "other"]
 
@@ -36,7 +36,7 @@ def _sum_dict(rows: List[list]) -> Dict[str, float]:
     return out
 
 
-class PlantPanel(QWidget):
+class PlantPanel(QScrollArea):
     """Plant name, unit prices, sources, outlets, treatments."""
 
     changed = Signal()
@@ -44,8 +44,13 @@ class PlantPanel(QWidget):
     def __init__(self, t: Translator):
         super().__init__()
         self.t = t
-        outer = QVBoxLayout(self)
-        form = QFormLayout()
+        self.setWidgetResizable(True)
+        self.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget()
+        self.setWidget(body)
+        outer = QVBoxLayout(body)
+        outer.setContentsMargins(26, 22, 26, 26)
+        outer.setSpacing(16)
         self.name = QLineEdit()
         self.currency = QLineEdit()
         self.production = dspin(decimals=2)
@@ -53,16 +58,28 @@ class PlantPanel(QWidget):
         self.elec = dspin(decimals=6, step=0.01)
         self.fuel = dspin(decimals=6, step=0.01)
         self.heat_eff = dspin(maximum=1.0, decimals=3, step=0.01)
+        left, right = QFormLayout(), QFormLayout()
+        for form in (left, right):
+            form.setHorizontalSpacing(16)
+            form.setVerticalSpacing(10)
         for label, w in (("plant_name", self.name), ("currency", self.currency), ("production", self.production),
-                         ("production_unit", self.prod_unit), ("elec_cost", self.elec), ("fuel_cost", self.fuel),
-                         ("heat_eff", self.heat_eff)):
-            form.addRow(t(label), w)
-        outer.addLayout(form)
+                         ("production_unit", self.prod_unit)):
+            left.addRow(t(label), w)
+        for label, w in (("elec_cost", self.elec), ("fuel_cost", self.fuel), ("heat_eff", self.heat_eff)):
+            right.addRow(t(label), w)
+        info = QWidget()
+        il = QHBoxLayout(info)
+        il.setContentsMargins(0, 0, 0, 0)
+        il.setSpacing(40)
+        il.addLayout(left, 1)
+        il.addLayout(right, 1)
+        outer.addWidget(card(t("plant_info"), info, note=t("plant_info_note")))
 
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
         self.outlets = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
         self.treatments = DataTable([t("col_name"), t("col_unit_cost"), t("col_wastewater")], ["text", "num", "bool"])
         row = QHBoxLayout()
+        row.setSpacing(16)
         row.addWidget(table_box(t("sources"), self.sources, t("add"), t("remove"), lambda: ["", 0.0, None]))
         row.addWidget(table_box(t("outlets"), self.outlets, t("add"), t("remove"), lambda: ["", 0.0, None]))
         outer.addLayout(row, 1)
@@ -125,22 +142,31 @@ class SubsystemEditor(QScrollArea):
         self.t = t
         self.setWidgetResizable(True)
         self.catalog = ([], [], [])   # sources, outlets, treatments (names)
+        self.setFrameShape(QScrollArea.Shape.NoFrame)
         body = QWidget()
         self.setWidget(body)
         lay = QVBoxLayout(body)
+        lay.setContentsMargins(8, 4, 8, 18)
+        lay.setSpacing(16)
 
         form = QFormLayout()
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
         self.name = QLineEdit()
         self.kind = QComboBox()
         for k in KINDS:
             self.kind.addItem(t("kind_" + k), k)
         form.addRow(t("col_name"), self.name)
         form.addRow(t("kind"), self.kind)
-        lay.addLayout(form)
-
-        self.est_btn = QPushButton(t("estimate"))
+        self.est_btn = button(t("estimate"), "primary")
         self.est_btn.clicked.connect(self.estimate_requested)
-        lay.addWidget(self.est_btn)
+        head = QWidget()
+        hl = QHBoxLayout(head)
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(24)
+        hl.addLayout(form, 1)
+        hl.addWidget(self.est_btn, 0, Qt.AlignmentFlag.AlignBottom)
+        lay.addWidget(card(t("sub_basic"), head))
 
         self.intake = DataTable([t("sources"), t("amount_m3")], ["combo", "num"])
         self.discharge = DataTable([t("outlets"), t("amount_m3")], ["combo", "num"])
@@ -174,9 +200,9 @@ class SubsystemEditor(QScrollArea):
             ["text", "num", "num", "num", "num", "num", "num", "num", "num"])
         lay.addWidget(table_box(t("pumps"), self.pumps, t("add"), t("remove"),
                                 lambda: ["", 0.0, None, 0.9, 1.0, None, None, 0.85, 3.0]))
-        hint = QLineEdit(t("pump_hint"))
-        hint.setReadOnly(True)
-        hint.setFrame(False)
+        hint = QLabel(t("pump_hint"))
+        hint.setObjectName("cardnote")
+        hint.setWordWrap(True)
         lay.addWidget(hint)
 
         temps = QFormLayout()
@@ -184,7 +210,9 @@ class SubsystemEditor(QScrollArea):
         self.t_ww = OptNum()
         temps.addRow(t("t_in"), self.t_in)
         temps.addRow(t("t_ww"), self.t_ww)
-        lay.addLayout(temps)
+        tw = QWidget()
+        tw.setLayout(temps)
+        lay.addWidget(card(t("temps"), tw))
         lay.addStretch(1)
 
     # ---------------------------------------------------------------- catalog

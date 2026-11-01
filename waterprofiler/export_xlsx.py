@@ -9,8 +9,9 @@ from openpyxl.utils import get_column_letter
 from .analysis import Analysis
 from .cost import COMPONENTS
 from .i18n import Translator
+from .messages import localize_all
 
-HEAD_FILL = PatternFill("solid", fgColor="1F4E79")
+HEAD_FILL = PatternFill("solid", fgColor="0B3D78")
 HEAD_FONT = Font(bold=True, color="FFFFFF")
 
 
@@ -125,7 +126,7 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
     if a.warnings:
         ws = wb.create_sheet(t("warnings")[:31])
         ws.sheet_view.rightToLeft = rtl
-        for i, w in enumerate(a.warnings, 1):
+        for i, w in enumerate(localize_all(a.warnings, lang), 1):
             ws.cell(row=i, column=1, value=w)
         _autowidth(ws)
 

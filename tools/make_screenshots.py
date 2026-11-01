@@ -63,7 +63,7 @@ def main(out: str) -> int:
         win._set_plant(demo_plant("fa"), None)
         win.tabs.setCurrentIndex(0)
         shot(win, "01_plant")
-        shot(win.plant_panel, "01_plant_panel")
+        shot(win.plant_panel.widget(), "01_plant_panel")
 
     def file_menu():
         menu = win.menuBar().actions()[0].menu()
@@ -136,6 +136,13 @@ def main(out: str) -> int:
         shot(win, "09_reconcile")
         shot(win.reconcile_tab.widget(), "09_reconcile_full")
 
+    def about():
+        from waterprofiler.gui.dialogs import AboutDialog
+        dlg = AboutDialog(win.t, win)
+        dlg.show()
+        shot(dlg, "11_about")
+        dlg.close()
+
     def english():
         win.set_language("en")
         win._set_plant(demo_plant("en"), None)
@@ -144,7 +151,7 @@ def main(out: str) -> int:
         shot(win, "10_english_cost")
 
     for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, cost,
-               savings, leak_balance, reconcile, english):
+               savings, leak_balance, reconcile, about, english):
         step(fn)
 
     print("saved:", ", ".join(done))
