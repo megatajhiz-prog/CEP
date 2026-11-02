@@ -185,6 +185,12 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawLine(P(10, 12.5), P(12.5, 9.8))
         p.drawLine(P(14, 12), P(16, 12))
         p.drawLine(P(8.5, 17), P(16, 17))
+    elif name == "econ":
+        p.drawLine(P(4, 20), P(20, 20))
+        p.drawLine(P(4, 20), P(4, 4))
+        p.drawPolyline(QPolygonF([P(7, 15), P(11, 11), P(14, 13.5), P(19, 7)]))
+        p.drawLine(P(15.5, 7), P(19, 7))
+        p.drawLine(P(19, 7), P(19, 10.5))
     elif name == "reconcile":
         for y, kx in ((6, 9), (12, 15), (18, 8)):
             p.drawLine(P(4, y), P(20, y))

@@ -148,6 +148,46 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
         ws.cell(row=n + 2, column=2, value=res.capex).number_format = "#,##0"
         _autowidth(ws)
 
+    # --- Economic evaluation (one summary sheet + the yearly cash flows of every measure)
+    if p.plan:
+        from . import economics as _ec
+        items = _ec.evaluate_plan_economics(p)
+        ws = wb.create_sheet(t("sheet_econ")[:31])
+        ws.sheet_view.rightToLeft = rtl
+        _header(ws, 1, [t("ms_measure"), t("ec_saving_col"), t("ec_price"), t("ec_capex"), t("ec_opex"), t("ec_life"),
+                        t("ec_rate"), t("ec_npv"), t("ec_irr"), t("ec_spb"), t("ec_dpb"), t("ec_bcr"), t("ec_lcow"),
+                        t("ec_verdict")])
+        for i, ie in enumerate(items, 2):
+            m = _ms.get(ie.item.measure_id)
+            r = ie.result
+            if r is None:
+                ws.cell(row=i, column=1, value=f"{m.id}. {m.name(lang)}")
+                continue
+            q = r.inputs
+            vals = [f"{m.id}. {m.name(lang)}", q.saving_m3, q.price, q.capex, q.opex, q.life, q.rate_pct, r.npv, r.irr,
+                    r.payback, r.dpayback, r.bcr, r.lcow, t("ec_v_short_" + r.verdict)]
+            for j, v in enumerate(vals, 1):
+                c = ws.cell(row=i, column=j, value=v)
+                if isinstance(v, float):
+                    c.number_format = "#,##0.00"
+        row = len(items) + 4
+        for ie in items:
+            r = ie.result
+            if r is None:
+                continue
+            m = _ms.get(ie.item.measure_id)
+            ws.cell(row=row, column=1, value=f"{m.id}. {m.name(lang)}").font = Font(bold=True)
+            row += 1
+            _header(ws, row, [t("ec_year"), t("ec_vol"), t("ec_benefit"), t("ec_cost"), t("ec_net"), t("ec_cum"), t("ec_dcum")])
+            for y in r.years:
+                row += 1
+                for j, v in enumerate([y, r.volume[y], r.benefit[y], r.cost[y], r.net[y], r.cum[y], r.dcum[y]], 1):
+                    c = ws.cell(row=row, column=j, value=v)
+                    if j > 1:
+                        c.number_format = "#,##0"
+            row += 2
+        _autowidth(ws)
+
     # --- Warnings
     if a.warnings:
         ws = wb.create_sheet(t("warnings")[:31])

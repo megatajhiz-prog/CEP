@@ -114,6 +114,22 @@ td.n {{ text-align:right; direction:ltr; }}
                      f"<td class='n'><b>{_n(res.saving)}</b></td><td class='n'><b>{_n(res.annual_value)}</b></td>"
                      f"<td class='n'><b>{_n(res.capex)}</b></td><td class='n'><b>{pt}</b></td></tr></table>")
         parts.append(f"<p class='small'>{escape(t('ms_disclaimer'))}</p>")
+        from . import economics as _ec
+        ecs = [ie for ie in _ec.evaluate_plan_economics(a.plant) if ie.result is not None]
+        if ecs:
+            parts.append(f"<h2>{escape(t('sheet_econ'))}</h2><table><tr>"
+                         + "".join(f"<th>{escape(t(x))}</th>" for x in ("ms_measure", "ec_capex", "ec_npv", "ec_irr", "ec_spb",
+                                                                          "ec_dpb", "ec_bcr", "ec_lcow", "ec_verdict"))
+                         + "</tr>")
+            for ie in ecs:
+                r = ie.result
+                m = _ms.get(ie.item.measure_id)
+                f1 = lambda v, d=1: "—" if v is None else f"{v:.{d}f}"
+                parts.append(f"<tr><td>{m.id}. {escape(m.name(lang))}</td><td class='n'>{_n(r.inputs.capex)}</td>"
+                             f"<td class='n'>{_n(r.npv)}</td><td class='n'>{f1(r.irr)}%</td><td class='n'>{f1(r.payback, 2)}</td>"
+                             f"<td class='n'>{f1(r.dpayback, 2)}</td><td class='n'>{f1(r.bcr, 2)}</td>"
+                             f"<td class='n'>{f1(r.lcow, 3)}</td><td>{escape(t('ec_v_short_' + r.verdict))}</td></tr>")
+            parts.append("</table>")
 
 
     if a.warnings:

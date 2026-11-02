@@ -260,3 +260,49 @@ def test_flow_diagram_interactive_editing(app, monkeypatch):
     QTest.mouseRelease(ft.diagram, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(int(t.x()), int(t.y())))
     assert plant.subsystems[2].intake.get(well, 0.0) == cur + 500.0
     w.close()
+
+
+def test_econ_tab_shows_indicators_edits_and_exports(app, tmp_path):
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.econ_tab)
+    et = w.econ_tab
+    assert et.combo.count() == len(w.plant.plan) > 0
+    assert et.cmp.rowCount() == len(w.plant.plan)
+    assert et.flows.rowCount() == int(w.plant.plan[0].life_years) + 1
+    assert et.verdict.isVisible() or et.verdict.text()
+    assert "%" in et.c_irr.value.text() or "—" in et.c_irr.value.text()
+    # editing an input changes the shared plan item and the indicators
+    before = et.c_npv.value.text()
+    et.spins["capex"].setValue(w.plant.plan[0].capex * 10)
+    assert w.plant.plan[0].capex == et.spins["capex"].value()
+    assert et.c_npv.value.text() != before
+    et.spins["life_years"].setValue(30)
+    assert et.flows.rowCount() == 31
+    et.spins["repl_year"].setValue(99)                 # outside the life: rejected, no crash
+    assert et.msg.text()
+    et.spins["repl_year"].setValue(0)
+    # another measure through the comparison table
+    et.cmp.cellClicked.emit(1, 0)
+    assert et.combo.currentIndex() == 1
+    # all tabs still switch and the exports carry the economics
+    for i in range(w.tabs.count()):
+        w.tabs.setCurrentIndex(i)
+    w.export_xlsx_to(str(tmp_path / "e.xlsx"))
+    from openpyxl import load_workbook
+    names = load_workbook(tmp_path / "e.xlsx").sheetnames
+    assert w.t("sheet_econ") in names
+    w.export_pdf_to(str(tmp_path / "e.pdf"))
+    assert (tmp_path / "e.pdf").stat().st_size > 2000
+    w.close()
+
+
+def test_econ_tab_empty_plan_and_english(app):
+    w = _win("en")
+    w.action_new()
+    w.tabs.setCurrentWidget(w.econ_tab)
+    assert w.econ_tab.combo.count() == 0 and w.econ_tab.msg.text()
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.econ_tab)
+    assert w.econ_tab.combo.count() > 0 and "NPV" in w.econ_tab.c_npv.title.text()
+    w.close()

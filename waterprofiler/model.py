@@ -109,6 +109,15 @@ class PlanItem:
     life_years: float = 15.0
     rate_pct: float = 10.0          # discount rate, %
     note: str = ""
+    # --- economic evaluation inputs (see economics.py); zeros keep the simple behaviour
+    water_price: float = 0.0        # value of a saved m3, currency; 0 = derive from the plant's prices
+    price_esc_pct: float = 0.0      # yearly rise of water value and other benefits, %
+    opex_esc_pct: float = 0.0       # yearly rise of operating cost, %
+    degradation_pct: float = 0.0    # yearly loss of the saving, %
+    other_benefit: float = 0.0      # other annual benefit (energy, chemicals ...), currency
+    salvage: float = 0.0            # residual value at the end of the life
+    repl_year: float = 0.0          # year of a one-off replacement (0 = none)
+    repl_cost: float = 0.0
 
 
 @dataclass
