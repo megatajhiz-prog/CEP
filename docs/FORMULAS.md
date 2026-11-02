@@ -84,3 +84,22 @@ Flows with larger relative uncertainty move more.
 
 Industry-average comparison tables (EIO-LCA, STATCAN) are not in the report and
 are not bundled. Drift loss in cooling towers is ignored, as in the report.
+
+## Water-saving measures database and plan (v0.3)
+
+The database (`waterprofiler/measures_data.py`) holds 80 measures in 9 groups taken from the supplied study
+"comprehensive list of industrial water-saving measures". Percentages are engineering screening ranges, not
+guarantees; investment is a qualitative level (low / medium / high / very high), never an invented price.
+
+Plan economics, with `Qs` the combined saving in m3/day, `N` the life in years and `i` the discount rate:
+
+    I1  = CAPEX / Qs                         [currency per (m3/day)]
+    I2  = CAPEX / (Qs * 365 * N)             [currency per m3 over the life]
+    CRF = i (1+i)^N / ((1+i)^N - 1)
+    LCC = (CRF * CAPEX + OPEX) / (Qs * 365)  [currency per m3]
+    payback = CAPEX / (annual value - OPEX)
+
+Measures acting on the same target combine as `1 - prod(1 - p_k)` (never added); plant-wide measures act on
+the intake left after subsystem-level savings. The annual value of saved water uses the source price plus water
+treatment of the target (discharge price excluded). Worked example of the study: 500 000 currency, 200 m3/day,
+15 years -> I1 = 2500, I2 = 0.457.

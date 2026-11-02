@@ -162,6 +162,20 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawPath(path)
         p.drawLine(P(9, 15), P(11.2, 17.2))
         p.drawLine(P(11.2, 17.2), P(15.2, 12.8))
+    elif name == "measures":
+        p.drawEllipse(QRectF(6, 3, 12, 12))
+        p.drawLine(P(9.5, 18), P(14.5, 18))
+        p.drawLine(P(10.5, 21), P(13.5, 21))
+        p.drawLine(P(12, 15), P(12, 9.5))
+        p.drawLine(P(9.5, 7.5), P(12, 9.5))
+        p.drawLine(P(14.5, 7.5), P(12, 9.5))
+    elif name == "plan":
+        p.drawRoundedRect(QRectF(5, 4, 14, 17), 2, 2)
+        p.drawRoundedRect(QRectF(9, 2.5, 6, 3.5), 1.2, 1.2)
+        p.drawLine(P(8.5, 11), P(10, 12.5))
+        p.drawLine(P(10, 12.5), P(12.5, 9.8))
+        p.drawLine(P(14, 12), P(16, 12))
+        p.drawLine(P(8.5, 17), P(16, 17))
     elif name == "reconcile":
         for y, kx in ((6, 9), (12, 15), (18, 8)):
             p.drawLine(P(4, y), P(20, y))

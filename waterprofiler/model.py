@@ -99,6 +99,19 @@ class UnitCosts:
 
 
 @dataclass
+class PlanItem:
+    """One water-saving measure selected for the implementation plan."""
+    measure_id: int
+    target: str = ""                # subsystem name, or "" for plant-wide
+    saving_pct: float = 0.0         # expected saving, % of the target's baseline intake
+    capex: float = 0.0              # currency
+    opex: float = 0.0               # currency per year
+    life_years: float = 15.0
+    rate_pct: float = 10.0          # discount rate, %
+    note: str = ""
+
+
+@dataclass
 class Plant:
     name: str = "Plant"
     period: str = "year"
@@ -110,6 +123,7 @@ class Plant:
     treatments: List[Treatment] = field(default_factory=list)
     subsystems: List[Subsystem] = field(default_factory=list)
     costs: UnitCosts = field(default_factory=UnitCosts)
+    plan: List[PlanItem] = field(default_factory=list)
 
     def source(self, name: str) -> Source:
         for s in self.sources:
@@ -150,4 +164,5 @@ class Plant:
             treatments=[Treatment(**t) for t in d.get("treatments", [])],
             subsystems=subs,
             costs=UnitCosts(**d.get("costs", {})),
+            plan=[PlanItem(**p) for p in d.get("plan", [])],
         )

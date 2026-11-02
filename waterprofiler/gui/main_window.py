@@ -27,6 +27,7 @@ from ..sample import demo_plant
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import PlantPanel, SubsystemEditor
+from .measures_tabs import MeasuresTab, PlanTab
 from .tabs import BalanceTab, CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
 from .widgets import NavButton, button, card
@@ -78,6 +79,9 @@ class MainWindow(QMainWindow):
         self.balance_tab = BalanceTab(t)
         self.cost_tab = CostTab(t)
         self.savings_tab = SavingsTab(t)
+        self.measures_tab = MeasuresTab(t)
+        self.plan_tab = PlanTab(t)
+        self.measures_tab.plan_requested.connect(self._to_plan)
         self.reconcile_tab = ReconcileTab(t)
         self.reconcile_tab.applied.connect(self._apply_reconciled)
 
@@ -110,6 +114,8 @@ class MainWindow(QMainWindow):
             ("balance", "tab_balance", "desc_balance", self.balance_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("savings", "tab_savings", "desc_savings", self.savings_tab),
+            ("measures", "tab_measures", "desc_measures", self.measures_tab),
+            ("plan", "tab_plan", "desc_plan", self.plan_tab),
             ("reconcile", "tab_reconcile", "desc_reconcile", self.reconcile_tab),
         ]
         for _icon, name_key, _desc, w in self._pages:
@@ -310,6 +316,10 @@ class MainWindow(QMainWindow):
             self._run_analysis()
         elif w is self.savings_tab:
             self.savings_tab.refresh(self.plant)
+        elif w is self.measures_tab:
+            self.measures_tab.refresh(self.plant)
+        elif w is self.plan_tab:
+            self.plan_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
         elif w is not self.plant_panel:
@@ -317,6 +327,12 @@ class MainWindow(QMainWindow):
             self.sub_editor.set_catalog(*self._catalog())
             if 0 <= self._cur < len(self.plant.subsystems):
                 self.sub_editor.load(self.plant.subsystems[self._cur])
+
+    def _to_plan(self, measure_id: int, target: str) -> None:
+        self.collect()
+        self.plan_tab.refresh(self.plant)
+        self.plan_tab.add(measure_id, target)
+        self.tabs.setCurrentWidget(self.plan_tab)
 
     def _analyse(self) -> Analysis:
         return analyse(self.plant)
