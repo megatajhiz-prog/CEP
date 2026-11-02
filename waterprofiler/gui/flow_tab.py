@@ -241,7 +241,7 @@ class FlowTab(_Scroll):
         legend.setTextFormat(Qt.TextFormat.RichText)
         items = [("intake", t("flow_l_intake")), ("transfer", t("flow_l_transfer")), ("discharge", t("flow_l_discharge")),
                  ("evap", t("flow_l_evap")), ("product", t("flow_l_product")), ("loss", t("flow_l_loss"))]
-        legend.setText("&nbsp;&nbsp;&nbsp;".join(f"<span style='color:{EDGE_COLOR[k]}'>■</span> {txt}" for k, txt in items))
+        legend.setText("&nbsp;&nbsp;&nbsp;".join(f"<span style='background-color:{EDGE_COLOR[k]}'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> {txt}" for k, txt in items))
         legend.setObjectName("cardnote")
         hint = QLabel(t("flow_hint"))
         hint.setObjectName("cardnote")
