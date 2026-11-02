@@ -138,6 +138,15 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
     elif name == "subsystems":
         for x, y in ((4, 4), (13, 4), (4, 13), (13, 13)):
             p.drawRoundedRect(QRectF(x, y, 7, 7), 1.8, 1.8)
+    elif name == "flow":
+        for x, y in ((3, 5), (3, 15)):
+            p.drawRoundedRect(QRectF(x, y, 4.5, 4.5), 1.2, 1.2)
+        p.drawRoundedRect(QRectF(16.5, 9.5, 4.5, 4.5), 1.2, 1.2)
+        for y in (7.2, 17.2):
+            path = QPainterPath()
+            path.moveTo(7.5, y)
+            path.cubicTo(12, y, 12, 11.8, 16.5, 11.8)
+            p.drawPath(path)
     elif name == "balance":
         p.drawLine(P(12, 4), P(12, 20))
         p.drawLine(P(7, 20), P(17, 20))

@@ -112,6 +112,14 @@ class PlanItem:
 
 
 @dataclass
+class Transfer:
+    """Water sent from one subsystem to another (m3/year); used by the flow diagram."""
+    src: str
+    dst: str
+    volume: float = 0.0
+
+
+@dataclass
 class Plant:
     name: str = "Plant"
     period: str = "year"
@@ -124,6 +132,7 @@ class Plant:
     subsystems: List[Subsystem] = field(default_factory=list)
     costs: UnitCosts = field(default_factory=UnitCosts)
     plan: List[PlanItem] = field(default_factory=list)
+    links: List[Transfer] = field(default_factory=list)
 
     def source(self, name: str) -> Source:
         for s in self.sources:
@@ -165,4 +174,14 @@ class Plant:
             subsystems=subs,
             costs=UnitCosts(**d.get("costs", {})),
             plan=[PlanItem(**p) for p in d.get("plan", [])],
+            links=[Transfer(**x) for x in d.get("links", [])],
         )
+
+
+def sync_transfers(plant: Plant, touched=()) -> None:
+    """Set R'_out / R'_in of every subsystem named in ``plant.links`` (or in ``touched``) to the link sums."""
+    names = {x.src for x in plant.links} | {x.dst for x in plant.links} | set(touched)
+    for s in plant.subsystems:
+        if s.name in names:
+            s.to_other = sum(x.volume for x in plant.links if x.src == s.name)
+            s.from_other = sum(x.volume for x in plant.links if x.dst == s.name)

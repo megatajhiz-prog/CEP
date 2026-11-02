@@ -102,7 +102,7 @@ class NavButton(QPushButton):
         self.setObjectName("nav")
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(46)
+        self.setMinimumHeight(42)
         self.icon_name = icon_name
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 0, 16, 0)

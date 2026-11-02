@@ -21,7 +21,7 @@ def _pct(v: Optional[float]) -> str:
     return "—" if v is None else f"{100 * v:.1f}%"
 
 
-def build_report_html(a: Analysis, lang: str = "fa", logo: Optional[str] = None) -> str:
+def build_report_html(a: Analysis, lang: str = "fa", logo: Optional[str] = None, flow: Optional[str] = None) -> str:
     """``logo`` is an image source (URL or Qt resource name) for the report header; omit for none."""
     t = Translator(lang)
     d = "rtl" if t.rtl else "ltr"
@@ -69,6 +69,9 @@ td.n {{ text-align:right; direction:ltr; }}
     for lab, val in kpi_rows:
         parts.append(f"<tr><td>{escape(lab)}</td><td class='n'>{escape(val)}</td></tr>")
     parts.append("</table>")
+
+    if flow:
+        parts.append(f"<h2>{escape(t('tab_flow'))}</h2><p><img src='{escape(flow)}' width='640'></p>")
 
     parts.append(f"<h2>{escape(t('tab_balance'))}</h2><table><tr>"
                  + "".join(f"<th>{escape(t(x))}</th>" for x in
