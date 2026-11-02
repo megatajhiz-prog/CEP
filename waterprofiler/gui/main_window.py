@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
         self.flow_tab = FlowTab(t)
         self.flow_tab.subsystem_requested.connect(self._open_subsystem)
         self.flow_tab.links_changed.connect(self._links_changed)
+        self.flow_tab.plant_edited.connect(self._flow_edited)
         self.balance_tab = BalanceTab(t)
         self.cost_tab = CostTab(t)
         self.savings_tab = SavingsTab(t)
@@ -349,6 +350,13 @@ class MainWindow(QMainWindow):
                 self.tabs.setCurrentIndex(1)
                 self.sub_list.setCurrentRow(i)
                 return
+
+    def _flow_edited(self) -> None:
+        """The diagram changed the plant: reload the subsystem editor and recompute everything."""
+        if 0 <= self._cur < len(self.plant.subsystems):
+            self.sub_editor.load(self.plant.subsystems[self._cur])
+        a = self._run_analysis()
+        self.flow_tab.refresh(self.plant, a)
 
     def _links_changed(self) -> None:
         try:

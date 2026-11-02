@@ -133,6 +133,7 @@ class Plant:
     costs: UnitCosts = field(default_factory=UnitCosts)
     plan: List[PlanItem] = field(default_factory=list)
     links: List[Transfer] = field(default_factory=list)
+    layout: Dict[str, float] = field(default_factory=dict)   # flow-diagram node id -> vertical sort key
 
     def source(self, name: str) -> Source:
         for s in self.sources:
@@ -175,6 +176,7 @@ class Plant:
             costs=UnitCosts(**d.get("costs", {})),
             plan=[PlanItem(**p) for p in d.get("plan", [])],
             links=[Transfer(**x) for x in d.get("links", [])],
+            layout={str(k): float(v) for k, v in d.get("layout", {}).items()},
         )
 
 
