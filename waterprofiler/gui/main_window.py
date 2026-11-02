@@ -412,6 +412,7 @@ class MainWindow(QMainWindow):
         self.plant = plant
         self.path = path
         self._load_all()
+        self._tab_changed(self.tabs.currentIndex())     # the open page must show the new project, not the old one
         self._mark_clean()
         self._update_title()
 
