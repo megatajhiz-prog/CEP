@@ -98,7 +98,7 @@ def test_add_remove_subsystem_and_reconcile(app):
 def test_savings_tab_computes(app):
     w = _win("en")
     w.action_demo()
-    w.tabs.setCurrentIndex(4)
+    w.tabs.setCurrentWidget(w.savings_tab)
     st = w.savings_tab
     st._calc_ct()
     assert "Water saved" in st.ct_out.text() or "صرفه" in st.ct_out.text()
@@ -184,4 +184,29 @@ def test_cost_tab_suggests_measures(app):
     w.tabs.setCurrentWidget(w.cost_tab)
     app.processEvents()
     assert w.cost_tab.sugg.rowCount() == 8
+    w.close()
+
+
+def test_flow_tab_draws_edits_links_and_exports(app, tmp_path):
+    from waterprofiler.gui.flow_tab import render_png
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.flow_tab)
+    ft = w.flow_tab
+    assert ft.diagram.graph.nodes and ft.diagram.graph.edges
+    out = tmp_path / "flow.png"
+    assert render_png(ft.diagram.graph, str(out), True, w.t)
+    assert out.stat().st_size > 5000
+    names = [s.name for s in w.plant.subsystems]
+    ft.table.add_row([names[1], names[4], 500.0])
+    assert [(x.src, x.dst, x.volume) for x in w.plant.links] == [(names[1], names[4], 500.0)]
+    assert w.plant.subsystems[1].to_other == 500.0 and w.plant.subsystems[4].from_other == 500.0
+    assert any(e.kind == "transfer" for e in ft.diagram.graph.edges)
+    ft.table.setCurrentCell(0, 0)
+    ft.table.remove_selected()
+    assert w.plant.links == [] and w.plant.subsystems[1].to_other == 0.0
+    ft.subsystem_requested.emit(names[2])
+    assert w.tabs.currentIndex() == 1 and w.sub_list.currentRow() == 2
+    w.export_pdf_to(str(tmp_path / "r.pdf"))
+    assert (tmp_path / "r.pdf").stat().st_size > 2000
     w.close()

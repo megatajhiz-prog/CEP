@@ -28,6 +28,7 @@ from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import PlantPanel, SubsystemEditor
 from .measures_tabs import MeasuresTab, PlanTab
+from .flow_tab import FlowTab, labels_for, render_image
 from .tabs import BalanceTab, CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
 from .widgets import NavButton, button, card
@@ -76,6 +77,9 @@ class MainWindow(QMainWindow):
         self.sub_editor = SubsystemEditor(t)
         self.sub_editor.estimate_requested.connect(self._estimate)
         self.sub_list = QListWidget()
+        self.flow_tab = FlowTab(t)
+        self.flow_tab.subsystem_requested.connect(self._open_subsystem)
+        self.flow_tab.links_changed.connect(self._links_changed)
         self.balance_tab = BalanceTab(t)
         self.cost_tab = CostTab(t)
         self.savings_tab = SavingsTab(t)
@@ -111,6 +115,7 @@ class MainWindow(QMainWindow):
         self._pages = [
             ("plant", "tab_plant", "desc_plant", self.plant_panel),
             ("subsystems", "tab_subsystems", "desc_subsystems", subs),
+            ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("balance", "tab_balance", "desc_balance", self.balance_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("savings", "tab_savings", "desc_savings", self.savings_tab),
@@ -154,8 +159,8 @@ class MainWindow(QMainWindow):
         bar.setObjectName("sidebar")
         bar.setFixedWidth(250)
         lay = QVBoxLayout(bar)
-        lay.setContentsMargins(16, 20, 16, 14)
-        lay.setSpacing(6)
+        lay.setContentsMargins(16, 16, 16, 12)
+        lay.setSpacing(4)
         logo = QLabel()
         pm = QPixmap(branding.logo_path("full"))
         if not pm.isNull():
@@ -314,6 +319,9 @@ class MainWindow(QMainWindow):
         w = self.tabs.widget(idx)
         if w is self.balance_tab or w is self.cost_tab:
             self._run_analysis()
+        elif w is self.flow_tab:
+            a = self._run_analysis()
+            self.flow_tab.refresh(self.plant, a)
         elif w is self.savings_tab:
             self.savings_tab.refresh(self.plant)
         elif w is self.measures_tab:
@@ -334,6 +342,21 @@ class MainWindow(QMainWindow):
         self.plan_tab.add(measure_id, target)
         self.tabs.setCurrentWidget(self.plan_tab)
 
+    def _open_subsystem(self, name: str) -> None:
+        self.collect()
+        for i, s in enumerate(self.plant.subsystems):
+            if s.name == name:
+                self.tabs.setCurrentIndex(1)
+                self.sub_list.setCurrentRow(i)
+                return
+
+    def _links_changed(self) -> None:
+        try:
+            a = self._analyse()
+        except Exception:  # noqa: BLE001 - the balance tab shows the details
+            a = None
+        self.flow_tab.update_analysis(a)
+
     def _analyse(self) -> Analysis:
         return analyse(self.plant)
 
@@ -345,11 +368,13 @@ class MainWindow(QMainWindow):
             msg = t("missing_ref", name=str(e).strip("'\""))
             self.balance_tab.show_error(msg)
             self.cost_tab.show_error(msg)
+            self.flow_tab.show_error(msg)
             return None
         except Exception as e:  # noqa: BLE001 - shown to the user, never crash
             msg = f"{t('analysis_error')}: {localize(str(e), t.lang)}"
             self.balance_tab.show_error(msg)
             self.cost_tab.show_error(msg)
+            self.flow_tab.show_error(msg)
             return None
         self.balance_tab.refresh(a)
         self.cost_tab.refresh(a)
@@ -442,8 +467,16 @@ class MainWindow(QMainWindow):
 
     def export_pdf_to(self, path: str) -> None:
         a = self._analyse_or_raise()
-        html = build_report_html(a, self.t.lang, logo="logo")
+        flow_img = None
+        try:
+            from ..flow import build_flow
+            flow_img = render_image(build_flow(a, labels_for(self.t)), self.t.rtl, self.t, 1400, 760)
+        except Exception:  # noqa: BLE001 - the report is still useful without the picture
+            flow_img = None
+        html = build_report_html(a, self.t.lang, logo="logo", flow="flow" if flow_img is not None else None)
         doc = QTextDocument()
+        if flow_img is not None:
+            doc.addResource(QTextDocument.ResourceType.ImageResource, QUrl("flow"), flow_img)
         img = QImage(branding.logo_path("full"))
         if not img.isNull():
             doc.addResource(QTextDocument.ResourceType.ImageResource, QUrl("logo"), img)
