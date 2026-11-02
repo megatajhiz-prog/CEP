@@ -254,7 +254,9 @@ def test_flow_diagram_interactive_editing(app, monkeypatch):
     cur = plant.subsystems[2].intake.get(well, 0.0)
     QTest.mouseMove(ft.diagram, QPoint(int(c.x()), int(c.y())))
     QTest.mousePress(ft.diagram, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(int(c.x()), int(c.y())))
+    assert ft.diagram._mode == "connect", (c, hits[src_n.id], ft.diagram._node_at(c), ft.diagram.size())
     QTest.mouseMove(ft.diagram, QPoint(int(t.x()), int(t.y())))
+    assert ft.diagram._node_at(t) is not None and ft.diagram._node_at(t).id == f"subsystem:{boiler.name}", (t, ft.diagram.size())
     QTest.mouseRelease(ft.diagram, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(int(t.x()), int(t.y())))
     assert plant.subsystems[2].intake.get(well, 0.0) == cur + 500.0
     w.close()
