@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QTableWidget, QWidget,
+    QAbstractItemView, QAbstractSpinBox, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QTableWidget, QWidget,
 )
 
 from .. import measures as M
@@ -69,9 +69,10 @@ class MeasuresTab(_Scroll):
         self.table = make_table([t("ms_id"), t("ms_measure"), t("ms_use"), t("ms_fresh"), t("ms_capex"), t("ms_est")])
         hh = self.table.horizontalHeader()
         from PySide6.QtWidgets import QHeaderView
-        hh.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for c in range(6):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 1 else QHeaderView.ResizeMode.ResizeToContents)
+        hh.setMinimumSectionSize(60)
+        self.table.setWordWrap(True)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setMinimumHeight(430)
         self.lay.addWidget(card(t("tab_measures"), self.table))
@@ -97,7 +98,7 @@ class MeasuresTab(_Scroll):
         from .. import measures_data as D
         src = _label(t.rtl)
         lines = [f"<b>{escape(a)}</b> — {escape(b)}" for a, b, _fa in D.SOURCES]
-        sec = [f"{escape(fa if t.lang == 'fa' else en)}: {lo}–{hi}٪" if t.lang == "fa"
+        sec = [f"{escape(fa)}: {lo} تا {hi} درصد" if t.lang == "fa"
                else f"{escape(en)}: {lo}–{hi}%" for fa, en, lo, hi in D.SECTOR_POTENTIAL]
         src.setText("<br>".join(lines) + f"<br><br><i>{escape(t('ms_sector'))}</i><br>" + "<br>".join(sec))
         self.lay.addWidget(card(t("ms_sources"), src))
@@ -244,8 +245,9 @@ class PlanTab(_Scroll):
         self.inputs.setHorizontalHeaderLabels(heads)
         from PySide6.QtWidgets import QHeaderView
         hh = self.inputs.horizontalHeader()
-        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hh.setMinimumSectionSize(40)
         self.inputs.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.inputs.setAlternatingRowColors(True)
         self.inputs.setShowGrid(False)
@@ -253,7 +255,7 @@ class PlanTab(_Scroll):
         self.inputs.verticalHeader().setDefaultSectionSize(44)
         self.inputs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.inputs.setMinimumHeight(260)
-        for c, w in ((1, 150), (2, 100), (3, 130), (4, 130), (5, 90), (6, 100), (7, 48)):
+        for c, w in ((1, 130), (2, 82), (3, 118), (4, 118), (5, 66), (6, 74), (7, 46)):
             self.inputs.setColumnWidth(c, w)
         clr = button(t("pl_clear"), "danger", self._clear)
         row = QWidget()
@@ -269,10 +271,13 @@ class PlanTab(_Scroll):
         self.warn.setVisible(False)
         self.lay.addWidget(self.warn)
 
-        rh = [t("ms_measure"), t("pl_saved"), t("pl_val_col"), t("pl_i1"), t("pl_i2"), t("pl_lcc"), t("pl_pay"), t("pl_flags")]
+        rh = [t("ms_measure"), t("pl_saved"), t("pl_val_col"), "I1", "I2", "LCC", t("pl_pay"), t("pl_flags")]
         self.results = make_table(rh)
         self.results.setMinimumHeight(260)
-        self.lay.addWidget(card(t("pl_results"), self.results))
+        rh2 = self.results.horizontalHeader()
+        for c in range(len(rh)):
+            rh2.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 0 else QHeaderView.ResizeMode.ResizeToContents)
+        self.lay.addWidget(card(t("pl_results"), self.results, note=t("pl_legend")))
         self.lay.addStretch(1)
 
     # ------------------------------------------------------------------ data
@@ -304,10 +309,15 @@ class PlanTab(_Scroll):
             for col, attr, mx, dec in ((2, "saving_pct", 100, 2), (3, "capex", 1e13, 0), (4, "opex", 1e13, 0),
                                        (5, "life_years", 100, 0), (6, "rate_pct", 100, 1)):
                 sp = dspin(maximum=mx, decimals=dec, step=1 if col != 3 else 1000)
+                sp.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+                sp.setMinimumWidth(0)
+                sp.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                sp.setStyleSheet("QDoubleSpinBox{padding:3px 4px; min-height:22px; margin:3px 3px;}")
                 sp.setValue(getattr(it, attr))
                 sp.valueChanged.connect(lambda v, it=it, a=attr: self._set(it, a, v))
                 self.inputs.setCellWidget(r, col, sp)
-            rm = button("✕", "danger")
+            rm = button("×", "danger")
+            rm.setStyleSheet("QPushButton{padding:0; min-width:30px; max-width:30px; font-size:16px; margin:5px 4px;}")
             rm.setToolTip(t("pl_remove"))
             rm.clicked.connect(lambda _=False, it=it: self._remove_item(it))
             self.inputs.setCellWidget(r, 7, rm)

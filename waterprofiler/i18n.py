@@ -341,6 +341,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "pl_note": {"fa": "درصد اولیه نقطهٔ میانی دامنهٔ پایگاه است؛ آن را با شرایط کارخانه اصلاح کنید. سرمایه‌گذاری و هزینهٔ بهره‌برداری را از برآورد واقعی وارد کنید. LCC و I2 هزینهٔ آب مصرفی/پساب و انرژی را شامل نمی‌شوند مگر در هزینهٔ بهره‌برداری بیاورید.", "en": "The initial percentage is the mid-point of the database range; adjust it to your plant. Enter investment and operating cost from real quotes. LCC and I2 exclude water, wastewater and energy costs unless you include them in the operating cost."},
     "cost_suggest": {"fa": "راهکارهای پیشنهادی (برآورد غربالگری)", "en": "Suggested measures (screening estimate)"},
     "cost_suggest_note": {"fa": "بر اساس زیرسیستم‌های شما، از بزرگ‌ترین صرفه‌جویی میانی. برای افزودن به طرح به «پایگاه راهکارها» بروید.", "en": "Based on your subsystems, largest mid-point saving first. Open the Measures database to add one to the plan."},
+    "pl_legend": {"fa": "I1: سرمایه‌گذاری به ازای هر m³/روز ظرفیت صرفه‌جویی؛ I2: سرمایه‌گذاری به ازای هر m³ آب صرفه‌جویی‌شده در کل عمر پروژه؛ LCC: هزینهٔ سالانه‌شدهٔ سرمایه و بهره‌برداری به ازای هر m³.", "en": "I1: investment per m³/day of saving capacity; I2: investment per cumulative m³ saved over the project life; LCC: annualised capital plus operating cost per m³."},
     "sheet_plan": {"fa": "طرح صرفه‌جویی", "en": "Saving plan"},
 }
 
