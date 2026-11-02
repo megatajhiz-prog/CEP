@@ -245,8 +245,8 @@ def test_flow_diagram_interactive_editing(app, monkeypatch):
     ft._reset_layout()
     assert plant.layout == {}
     # real mouse drag from a source handle onto the boiler node creates / increases the intake
-    ft.diagram.resize(1100, 620)
-    ft.diagram.grab()
+    app.processEvents()
+    ft.diagram.repaint()           # refresh the hit boxes for the widget's real size
     hits = {n.id: r for r, n in ft.diagram._hits}
     src_n = next(n for n in ft.diagram.graph.nodes if n.id == f"source:{well}")
     c = port_center(hits[src_n.id], src_n, True)
