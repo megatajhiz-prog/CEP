@@ -240,7 +240,11 @@ class PlanTab(_Scroll):
         self.c_pay = StatCard(t("pl_payback"), COL["orange"])
         self.lay.addLayout(stat_row(self.c_save, self.c_value, self.c_capex, self.c_pay))
 
-        heads = [t("ms_measure"), t("pl_target"), t("pl_pct"), t("pl_capex"), t("pl_opex"), t("pl_life"), t("pl_rate"), ""]
+        def two_lines(txt: str) -> str:
+            return txt.replace(" (", "\n(") if " (" in txt else (txt.replace(" ", "\n", 1) if len(txt) > 14 else txt)
+
+        heads = [t("ms_measure"), t("pl_target"), two_lines(t("pl_pct")), two_lines(t("pl_capex")),
+                 two_lines(t("pl_opex")), two_lines(t("pl_life")), two_lines(t("pl_rate")), ""]
         self.inputs = QTableWidget(0, len(heads))
         self.inputs.setHorizontalHeaderLabels(heads)
         from PySide6.QtWidgets import QHeaderView
@@ -248,6 +252,7 @@ class PlanTab(_Scroll):
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         hh.setMinimumSectionSize(40)
+        hh.setFixedHeight(54)
         self.inputs.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.inputs.setAlternatingRowColors(True)
         self.inputs.setShowGrid(False)
@@ -255,7 +260,7 @@ class PlanTab(_Scroll):
         self.inputs.verticalHeader().setDefaultSectionSize(44)
         self.inputs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.inputs.setMinimumHeight(260)
-        for c, w in ((1, 130), (2, 82), (3, 118), (4, 118), (5, 66), (6, 74), (7, 46)):
+        for c, w in ((1, 130), (2, 92), (3, 118), (4, 124), (5, 62), (6, 78), (7, 46)):
             self.inputs.setColumnWidth(c, w)
         clr = button(t("pl_clear"), "danger", self._clear)
         row = QWidget()
@@ -293,6 +298,8 @@ class PlanTab(_Scroll):
         t = self.t
         self._loading = True
         plan = self.plant.plan if self.plant else []
+        self.inputs.clearContents()
+        self.inputs.setRowCount(0)
         self.inputs.setRowCount(len(plan))
         targets = self._targets()
         for r, it in enumerate(plan):
