@@ -72,3 +72,49 @@ def test_report_embeds_flow_picture():
     from waterprofiler.report_html import build_report_html
     html = build_report_html(analyse(demo_plant("fa")), "fa", flow="flow")
     assert "src='flow'" in html
+
+
+# ---------------------------------------------------------------- interactive editing (engine part)
+def test_set_add_delete_flow_and_transfer_sync():
+    import pytest
+    from waterprofiler import flow as F
+    p = demo_plant("en")
+    boiler, ct = p.subsystems[2], p.subsystems[1]
+    src = next(iter(boiler.intake))
+    base = boiler.intake[src]
+    F.set_flow(p, "intake", boiler.name, src, base + 100)
+    assert boiler.intake[src] == base + 100
+    F.add_flow(p, "intake", boiler.name, src, 50)
+    assert boiler.intake[src] == base + 150
+    F.delete_flow(p, "intake", boiler.name, src)
+    assert src not in boiler.intake
+    F.add_flow(p, "transfer", ct.name, boiler.name, 700)
+    F.add_flow(p, "transfer", ct.name, boiler.name, 300)
+    assert [(x.src, x.dst, x.volume) for x in p.links] == [(ct.name, boiler.name, 1000.0)]
+    assert ct.to_other == 1000 and boiler.from_other == 1000
+    F.delete_flow(p, "transfer", ct.name, boiler.name)
+    assert p.links == [] and ct.to_other == 0 and boiler.from_other == 0
+    F.set_flow(p, "evap", ct.name, "", 123.0)
+    assert ct.evaporation == 123.0
+    with pytest.raises(KeyError):
+        F.set_flow(p, "intake", boiler.name, "no such source", 1.0)
+    with pytest.raises(ValueError):
+        F.set_flow(p, "transfer", ct.name, ct.name, 5.0)
+    with pytest.raises(ValueError):
+        F.set_flow(p, "evap", ct.name, "", -1.0)
+
+
+def test_edge_identity_and_layout_roundtrip(tmp_path):
+    from waterprofiler import flow as F
+    p = _moved_plant()
+    g = build_flow(analyse(p), LAB)
+    tr = [e for e in g.edges if e.kind == "transfer"]
+    assert tr and tr[0].sub == p.subsystems[1].name and tr[0].ref == p.subsystems[4].name
+    for e in g.edges:
+        if e.editable:
+            assert abs(F.current_volume(p, e.kind, e.sub, e.ref) - e.volume) < 1e-6 or e.kind == "transfer"
+    p.layout = {"subsystem:" + p.subsystems[0].name: 900.0}
+    f = tmp_path / "x.wpj"
+    save_project(p, str(f))
+    assert load_project(str(f)).layout == p.layout
+    assert build_flow(analyse(p), LAB).layout == p.layout

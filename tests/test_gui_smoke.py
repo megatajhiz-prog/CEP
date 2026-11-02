@@ -210,3 +210,53 @@ def test_flow_tab_draws_edits_links_and_exports(app, tmp_path):
     w.export_pdf_to(str(tmp_path / "r.pdf"))
     assert (tmp_path / "r.pdf").stat().st_size > 2000
     w.close()
+
+
+def test_flow_diagram_interactive_editing(app, monkeypatch):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QInputDialog
+    from waterprofiler.gui.flow_tab import port_center
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.flow_tab)
+    ft = w.flow_tab
+    plant = w.plant
+    boiler = plant.subsystems[2]
+    well = plant.sources[1].name
+    monkeypatch.setattr(QInputDialog, "getDouble", staticmethod(lambda *a, **k: (500.0, True)))
+    # context-menu path: new intake from the second source into the boiler
+    before = boiler.intake.get(well, 0.0)
+    ft._add_flow(f"source:{well}", f"subsystem:{boiler.name}")
+    assert boiler.intake[well] == before + 500.0
+    assert ft.undo_btn.isEnabled()
+    ft.undo()
+    assert plant.subsystems[2].intake.get(well, 0.0) == before
+    # edit and delete through edge indices
+    i = next(k for k, e in enumerate(ft.diagram.graph.edges) if e.kind == "discharge")
+    e = ft.diagram.graph.edges[i]
+    ft._edit_edge(i)
+    assert plant.subsystems[[s.name for s in plant.subsystems].index(e.sub)].discharge[e.ref] == 500.0
+    ft._delete_edge(next(k for k, x in enumerate(ft.diagram.graph.edges) if x.kind == "discharge" and x.sub == e.sub and x.ref == e.ref))
+    assert e.ref not in plant.subsystems[[s.name for s in plant.subsystems].index(e.sub)].discharge
+    # node reorder is stored in the layout and survives a redraw
+    ft._layout_changed({f"subsystem:{plant.subsystems[0].name}": 10_000.0})
+    assert plant.layout
+    ft._reset_layout()
+    assert plant.layout == {}
+    # real mouse drag from a source handle onto the boiler node creates / increases the intake
+    app.processEvents()
+    ft.diagram.repaint()           # refresh the hit boxes for the widget's real size
+    hits = {n.id: r for r, n in ft.diagram._hits}
+    src_n = next(n for n in ft.diagram.graph.nodes if n.id == f"source:{well}")
+    c = port_center(hits[src_n.id], src_n, True)
+    t = hits[f"subsystem:{boiler.name}"].center()
+    cur = plant.subsystems[2].intake.get(well, 0.0)
+    QTest.mouseMove(ft.diagram, QPoint(int(c.x()), int(c.y())))
+    QTest.mousePress(ft.diagram, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(int(c.x()), int(c.y())))
+    assert ft.diagram._mode == "connect", (c, hits[src_n.id], ft.diagram._node_at(c), ft.diagram.size())
+    QTest.mouseMove(ft.diagram, QPoint(int(t.x()), int(t.y())))
+    assert ft.diagram._node_at(t) is not None and ft.diagram._node_at(t).id == f"subsystem:{boiler.name}", (t, ft.diagram.size())
+    QTest.mouseRelease(ft.diagram, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(int(t.x()), int(t.y())))
+    assert plant.subsystems[2].intake.get(well, 0.0) == cur + 500.0
+    w.close()
