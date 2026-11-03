@@ -306,3 +306,53 @@ def test_econ_tab_empty_plan_and_english(app):
     w.tabs.setCurrentWidget(w.econ_tab)
     assert w.econ_tab.combo.count() > 0 and "NPV" in w.econ_tab.c_npv.title.text()
     w.close()
+
+
+def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.ind_tab)
+    it = w.ind_tab
+    from waterprofiler import indicators as K
+    assert it.heads[0].value.text() != "—"
+    assert sum(tb.rowCount() for tb in it.tables.values()) == len(K.compute(w.plant).items)
+    assert it.sub_tb.rowCount() == len(w.plant.subsystems)
+    assert it.prod_tb.rowCount() == len(w.plant.subsystems)
+    # entering a missing input fills the indicators that need it, and writes into the project
+    r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
+    tb = it.tables["supply"]
+    assert tb.item(r_permit, 1).text() == "—"
+    it.spins["permit_m3"].setValue(100000.0)
+    assert w.plant.profile.permit_m3 == 100000.0
+    assert tb.item(r_permit, 1).text() != "—"
+    # production per subsystem
+    first = w.plant.subsystems[0].name
+    it.prod_tb.item(0, 1).setText("50000")
+    assert w.plant.profile.sub_production[first] == 50000.0
+    assert it.sub_tb.item(0, 10).text() != "—"            # "intake per unit" column
+    # the alternative-source flag survives the Plant page round trip
+    w.tabs.setCurrentWidget(w.plant_panel)
+    w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
+    w.collect()
+    assert w.plant.sources[0].alternative is True
+    w.tabs.setCurrentWidget(w.ind_tab)
+    assert w.ind_tab.tables["supply"].item([i.id for i in K.compute(w.plant).by_group("supply")].index("sup_alt_share"), 1).text() != "0"
+    w.export_xlsx_to(str(tmp_path / "i.xlsx"))
+    from openpyxl import load_workbook
+    assert w.t("sheet_ind") in load_workbook(tmp_path / "i.xlsx").sheetnames
+    w.export_pdf_to(str(tmp_path / "i.pdf"))
+    assert (tmp_path / "i.pdf").stat().st_size > 2000
+    for i in range(w.tabs.count()):
+        w.tabs.setCurrentIndex(i)
+    w.close()
+
+
+def test_indicators_tab_english_and_blank(app):
+    w = _win("en")
+    w.action_new()
+    w.tabs.setCurrentWidget(w.ind_tab)
+    assert w.ind_tab.heads[0].title.text() == "Water intensity"
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.ind_tab)
+    assert "Supply" in [c.text() for c in w.ind_tab.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+    w.close()

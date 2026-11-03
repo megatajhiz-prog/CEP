@@ -29,6 +29,7 @@ from .dialogs import AboutDialog, EstimateDialog
 from .editor import PlantPanel, SubsystemEditor
 from .measures_tabs import MeasuresTab, PlanTab
 from .econ_tab import EconTab
+from .indicators_tab import IndicatorsTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .tabs import BalanceTab, CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
         self.measures_tab = MeasuresTab(t)
         self.plan_tab = PlanTab(t)
         self.econ_tab = EconTab(t)
+        self.ind_tab = IndicatorsTab(t)
         self.measures_tab.plan_requested.connect(self._to_plan)
         self.reconcile_tab = ReconcileTab(t)
         self.reconcile_tab.applied.connect(self._apply_reconciled)
@@ -125,6 +127,7 @@ class MainWindow(QMainWindow):
             ("measures", "tab_measures", "desc_measures", self.measures_tab),
             ("plan", "tab_plan", "desc_plan", self.plan_tab),
             ("econ", "tab_econ", "desc_econ", self.econ_tab),
+            ("ind", "tab_ind", "desc_ind", self.ind_tab),
             ("reconcile", "tab_reconcile", "desc_reconcile", self.reconcile_tab),
         ]
         for _icon, name_key, _desc, w in self._pages:
@@ -334,6 +337,8 @@ class MainWindow(QMainWindow):
             self.plan_tab.refresh(self.plant)
         elif w is self.econ_tab:
             self.econ_tab.refresh(self.plant)
+        elif w is self.ind_tab:
+            self.ind_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
         elif w is not self.plant_panel:

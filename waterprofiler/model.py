@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from typing import Dict, List, Optional
 
 SQRT3 = math.sqrt(3.0)
@@ -45,6 +45,7 @@ class Source:
     name: str
     unit_cost: float = 0.0              # currency per m3
     metered_m3: Optional[float] = None  # plant-level meter / bill, m3/year
+    alternative: bool = False           # non-conventional source: reclaimed, rain, seawater, ...
 
 
 @dataclass
@@ -129,6 +130,35 @@ class Transfer:
 
 
 @dataclass
+class Profile:
+    """Optional plant-level inputs for the indicators page. 0 means "not entered"."""
+    employees: float = 0.0
+    working_days: float = 0.0
+    building_area_m2: float = 0.0
+    green_area_m2: float = 0.0
+    revenue: float = 0.0               # currency per year
+    value_added: float = 0.0
+    production_cost: float = 0.0
+    steam_t: float = 0.0               # steam produced, t/year
+    permit_m3: float = 0.0             # licensed abstraction, m3/year
+    storage_m3: float = 0.0
+    outage_hours: float = 0.0          # hours per year without supply
+    network_km: float = 0.0            # water mains length
+    connections: float = 0.0
+    pressure_m: float = 0.0            # average operating pressure, m of water
+    ef_el: float = 0.0                 # kg CO2 per kWh electricity
+    ef_th: float = 0.0                 # kg CO2 per kWh thermal
+    cod_raw: float = 0.0               # mg/L, wastewater before treatment
+    cod_out: float = 0.0               # mg/L, discharged
+    tds_intake: float = 0.0            # mg/L
+    tds_discharge: float = 0.0
+    target_intake_per_unit: float = 0.0
+    target_recirc_pct: float = 0.0
+    target_loss_pct: float = 0.0
+    sub_production: Dict[str, float] = field(default_factory=dict)   # subsystem -> product units per year
+
+
+@dataclass
 class Plant:
     name: str = "Plant"
     period: str = "year"
@@ -143,6 +173,7 @@ class Plant:
     plan: List[PlanItem] = field(default_factory=list)
     links: List[Transfer] = field(default_factory=list)
     layout: Dict[str, float] = field(default_factory=dict)   # flow-diagram node id -> vertical sort key
+    profile: Profile = field(default_factory=Profile)
 
     def source(self, name: str) -> Source:
         for s in self.sources:
@@ -186,7 +217,15 @@ class Plant:
             plan=[PlanItem(**p) for p in d.get("plan", [])],
             links=[Transfer(**x) for x in d.get("links", [])],
             layout={str(k): float(v) for k, v in d.get("layout", {}).items()},
+            profile=_profile_from(d.get("profile", {})),
         )
+
+
+def _profile_from(d: dict) -> Profile:
+    names = {f.name for f in fields(Profile)}
+    kw = {k: v for k, v in (d or {}).items() if k in names and k != "sub_production"}
+    kw["sub_production"] = {str(k): float(v) for k, v in (d or {}).get("sub_production", {}).items()}
+    return Profile(**kw)
 
 
 def sync_transfers(plant: Plant, touched=()) -> None:

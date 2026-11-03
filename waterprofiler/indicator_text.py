@@ -1,0 +1,237 @@
+"""Names, formulas and reading notes of every indicator (fa / en). Formulas are language neutral."""
+
+from __future__ import annotations
+
+from typing import Dict, Tuple
+
+# id -> (name_fa, name_en, formula, note_fa, note_en)
+TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
+    # ------------------------------------------------------------------ supply
+    "sup_intake": ("آب برداشتی از منابع", "Intake from sources", "ΣI",
+                   "کل آب تازه‌ای که از همهٔ منابع وارد کارخانه می‌شود.", "Total fresh water entering the plant."),
+    "sup_largest_share": ("سهم بزرگ‌ترین منبع", "Largest source share", "max(I_s) / ΣI",
+                          "هرچه بالاتر، وابستگی به یک منبع بیشتر و ریسک تأمین بزرگ‌تر است.",
+                          "Higher means more dependence on a single source and more supply risk."),
+    "sup_hhi": ("شاخص تمرکز منابع (هرفیندال)", "Source concentration (HHI)", "Σ (I_s / ΣI)²",
+                "بین ۰ و ۱؛ ۱ یعنی فقط یک منبع. مقدار کمتر یعنی تنوع بیشتر.",
+                "Between 0 and 1; 1 means a single source. Lower is more diverse."),
+    "sup_alt_share": ("سهم منابع غیرمتعارف", "Alternative-source share", "ΣI_alt / ΣI",
+                      "سهم پساب بازیافتی، آب باران، آب دریا و مانند آن؛ منابع را در صفحهٔ کارخانه علامت بزنید.",
+                      "Share of reclaimed water, rain, seawater, etc.; flag such sources on the Plant page."),
+    "sup_avg_cost": ("متوسط وزنی بهای تأمین آب", "Average supply price", "Σ($_s · I_s) / ΣI",
+                     "فقط بهای خرید یا برداشت، بدون هزینهٔ تصفیه و پمپاژ.", "Purchase or abstraction price only, without treatment and pumping."),
+    "sup_meter_cover": ("پوشش کنتور منابع", "Source metering coverage", "ΣI(metered sources) / ΣI",
+                        "سهم برداشتی که کنتور یا قبض دارد؛ برای اعتماد به تراز لازم است.",
+                        "Share of intake backed by a meter or bill; needed to trust the balance."),
+    "sup_permit_use": ("درصد استفاده از پروانهٔ برداشت", "Abstraction permit utilisation", "ΣI / permit",
+                       "نزدیک ۱۰۰٪ یعنی ظرفیت مجاز تمام شده و رشد تولید به منبع جدید نیاز دارد.",
+                       "Near 100 % means the licensed capacity is used up and growth needs a new source."),
+    "sup_storage_days": ("روزهای خودکفایی مخازن", "Storage autonomy", "storage / (ΣI / 365)",
+                         "چند روز می‌توان با ذخیره، بدون ورودی آب ادامه داد.", "Days the plant can run on storage alone."),
+    "sup_availability": ("دسترس‌پذیری تأمین", "Supply availability", "1 − outage hours / 8760",
+                         "از ساعات قطعی سالانه؛ صفر در ورودی یعنی «واردنشده».", "From yearly outage hours; 0 means not entered."),
+    "sup_pump_kwh": ("انرژی پمپاژ", "Pumping energy", "Σ kWh(pumps)",
+                     "از توان، ساعات کار و بار پمپ‌های واردشده.", "From the pumps entered (power, hours, load)."),
+    "sup_pump_specific": ("انرژی ویژهٔ پمپاژ", "Specific pumping energy", "Σ kWh(pumps) / ΣI",
+                          "kWh به‌ازای هر m³ آب برداشتی؛ مقدار زیاد یعنی پمپ‌های پرمصرف یا بازچرخانی سنگین.",
+                          "kWh per m³ of intake; high values point to inefficient or recirculation-heavy pumping."),
+    "sup_ili": ("شاخص تلفات زیرساخت (ILI)", "Infrastructure leakage index (ILI)", "L / UARL",
+                "تقریبی: تمام تلفات ناشناخته را نشت فیزیکی فرض می‌کند. UARL=(۱۸·طول+۰٫۸·انشعاب)·فشار.",
+                "Approximate: treats all unaccounted loss as physical leakage. UARL = (18·length + 0.8·connections)·pressure."),
+    # --------------------------------------------------------------------- use
+    "use_gross": ("مصرف ناخالص آب", "Gross water use", "ΣI + ΣR + ΣR'in",
+                  "کل آبی که در تجهیزات می‌گردد، شامل بازچرخانی و آب منتقل‌شده.", "All water passing through equipment, including recirculated and transferred water."),
+    "use_reuse_factor": ("ضریب استفادهٔ مجدد", "Reuse factor", "(ΣI + ΣR + ΣR'in) / ΣI",
+                         "هر m³ آب برداشتی به‌طور متوسط چند بار استفاده می‌شود.", "How many times each m³ of intake is used on average."),
+    "use_recirc_ratio": ("نسبت بازچرخانی", "Recirculation ratio", "(ΣR + ΣR'in) / gross",
+                         "سهم آب مصرفی که از جریان‌های برگشتی یا منتقل‌شده تأمین می‌شود.", "Share of the water used that comes from recirculated or transferred streams."),
+    "use_internal_share": ("سهم بازچرخانی داخلی", "Internal recirculation share", "ΣR / gross",
+                           "بازچرخانی درون هر زیرسیستم، مانند برج خنک‌کن.", "Recirculation inside a subsystem, e.g. a cooling tower."),
+    "use_transfer_share": ("سهم آب منتقل‌شده بین زیرسیستم‌ها", "Inter-subsystem transfer share", "ΣR'in / gross",
+                           "استفادهٔ مجدد از پساب یک زیرسیستم در زیرسیستم دیگر.", "Reuse of one subsystem's outflow in another."),
+    "use_consumption": ("مصرف آب (تعریف GRI 303-5)", "Water consumption (GRI 303-5)", "ΣI − ΣW",
+                        "برداشت منهای تخلیه؛ شامل تبخیر، آب در محصول و تلفات ناشناخته.", "Withdrawal minus discharge; includes evaporation, product water and unaccounted loss."),
+    "use_consumptive_fraction": ("کسر مصرفی", "Consumptive fraction", "(ΣE + ΣP) / ΣI",
+                                 "سهم آبی که از چرخهٔ کارخانه خارج و به محیط یا محصول می‌رود.", "Share of intake that leaves the plant as vapour or product."),
+    "use_evap_share": ("سهم تبخیر", "Evaporation share", "ΣE / ΣI",
+                       "عمدتاً برج‌های خنک‌کن و فضای سبز.", "Mostly cooling towers and landscaping."),
+    "use_product_share": ("سهم آب در محصول", "Product-water share", "ΣP / ΣI",
+                          "آبی که در محصول باقی می‌ماند.", "Water that stays in the product."),
+    "use_loss_m3": ("تلفات ناشناخته", "Unaccounted loss", "L = ΣI − ΣW − ΣE − ΣP",
+                    "نشت، خطای اندازه‌گیری یا مصرف ثبت‌نشده. مقدار منفی یعنی خروجی‌ها بیش از ورودی ثبت شده‌اند.",
+                    "Leakage, metering error or unrecorded use. A negative value means recorded outflows exceed recorded inflows."),
+    "use_loss_fraction": ("سهم تلفات ناشناخته", "Unaccounted-loss fraction", "L / ΣI",
+                          "هدف معمول کاهش آن با کنتورگذاری و نشت‌یابی است.", "Usually reduced by metering and leak detection."),
+    "use_per_unit": ("شدت مصرف آب", "Water intensity", "ΣI / Q",
+                     "m³ آب برداشتی به‌ازای هر واحد محصول.", "m³ of intake per product unit."),
+    "use_gross_per_unit": ("مصرف ناخالص به‌ازای واحد محصول", "Gross use per unit", "gross / Q",
+                           "شامل آب بازچرخانی‌شده.", "Includes recirculated water."),
+    "use_consumption_per_unit": ("مصرف خالص به‌ازای واحد محصول", "Consumption per unit", "(ΣI − ΣW) / Q",
+                                 "ردپای آب آبی ساده‌شدهٔ کارخانه به‌ازای هر واحد.", "Simplified blue-water footprint of the plant per unit."),
+    "use_lpd": ("مصرف سرانهٔ بهداشتی", "Sanitary use per person", "1000 · I_san / (employees · days)",
+                "لیتر به‌ازای هر نفر در روز؛ از زیرسیستم بهداشتی.", "Litres per person per day, from the sanitary subsystem."),
+    "use_per_building": ("مصرف به‌ازای سطح بنا", "Use per built area", "ΣI / building area",
+                         "m³ در سال به‌ازای هر m² زیربنا.", "m³ per year per m² of built area."),
+    "use_irrigation_depth": ("عمق آبیاری سالانه", "Irrigation depth", "1000 · I_irr / green area",
+                             "میلی‌متر در سال روی فضای سبز؛ با نیاز گیاه مقایسه شود.", "mm per year over the green area; compare with plant demand."),
+    "use_per_revenue": ("شدت آب نسبت به درآمد", "Water per revenue", "ΣI / (revenue / 10⁶)",
+                        "m³ به‌ازای هر میلیون واحد پولی درآمد.", "m³ per million currency units of revenue."),
+    "use_productivity": ("بهره‌وری ریالی آب", "Water productivity", "value added / ΣI",
+                         "ارزش افزودهٔ تولیدشده به‌ازای هر m³ آب برداشتی.", "Value added per m³ of intake."),
+    "use_water_per_steam": ("آب به‌ازای بخار", "Water per steam", "I_boiler / steam",
+                            "m³ آب جبرانی بویلر به‌ازای هر تن بخار؛ مقدار زیاد یعنی برگشت میعانات ضعیف.",
+                            "m³ of boiler make-up per tonne of steam; high values mean poor condensate return."),
+    # ------------------------------------------------------------- wastewater
+    "ww_total": ("پساب تخلیه‌شده", "Discharged wastewater", "ΣW", "کل آبی که از نقاط تخلیه خارج می‌شود.", "Total water leaving through outlets."),
+    "ww_fraction": ("نسبت پساب به برداشت", "Discharge fraction", "ΣW / ΣI", "", ""),
+    "ww_per_unit": ("پساب به‌ازای واحد محصول", "Wastewater per unit", "ΣW / Q", "", ""),
+    "ww_treated_share": ("سهم پسابِ تصفیه‌شده", "Treated wastewater share", "Σ min(1, Σf_t) · W_x / ΣW",
+                         "بر پایهٔ کسر تصفیهٔ هر زیرسیستم.", "Based on each subsystem's treated fraction."),
+    "ww_largest_outlet": ("سهم بزرگ‌ترین مقصد تخلیه", "Largest outlet share", "max(W_o) / ΣW", "", ""),
+    "ww_avg_cost": ("متوسط وزنی بهای تخلیه", "Average discharge price", "Σ($_o · W_o) / ΣW", "", ""),
+    "ww_cod_raw_load": ("بار COD پیش از تصفیه", "Raw COD load", "COD_raw · ΣW / 1000",
+                        "کیلوگرم در سال؛ غلظت پساب خام را وارد کنید.", "kg per year; enter the raw wastewater concentration."),
+    "ww_cod_out_load": ("بار COD تخلیه‌شده", "Discharged COD load", "COD_out · ΣW / 1000", "", ""),
+    "ww_cod_removal": ("راندمان حذف COD", "COD removal", "1 − COD_out / COD_raw", "", ""),
+    "ww_tds_load": ("بار نمک افزوده‌شده (TDS)", "Salt load added (TDS)", "(TDS_out · ΣW − TDS_in · ΣI) / 1000",
+                    "کیلوگرم در سال؛ نمکی که فرایندهای کارخانه به آب می‌افزایند.", "kg per year added to the water by the plant."),
+    "ww_tds_factor": ("ضریب تغلیظ شوری", "Salinity concentration factor", "TDS_out / TDS_in", "", ""),
+    "ww_cod_per_unit": ("بار COD به‌ازای واحد محصول", "COD load per unit", "COD_out · ΣW / 1000 / Q", "", ""),
+    # ---------------------------------------------------------- cost / energy
+    "cost_total": ("هزینهٔ واقعی آب", "True cost of water", "Σ $", "مجموع خرید، تصفیه، پمپاژ، تصفیهٔ پساب، تخلیه و گرمایش.",
+                   "Sum of purchase, treatment, pumping, wastewater treatment, discharge and heating."),
+    "cost_per_m3": ("هزینهٔ واقعی هر m³", "True cost per m³", "Σ $ / ΣI", "", ""),
+    "cost_per_unit": ("هزینهٔ آب به‌ازای واحد محصول", "Water cost per unit", "Σ $ / Q", "", ""),
+    "cost_true_to_direct": ("نسبت هزینهٔ واقعی به مستقیم", "True-to-direct cost ratio", "Σ $ / ($_intake + $_discharge)",
+                            "نشان می‌دهد قبض آب چند برابر کمتر از هزینهٔ واقعی را نشان می‌دهد.", "Shows how much the water bill understates the real cost."),
+    "cost_share_intake": ("سهم هزینهٔ خرید آب", "Share: purchase", "$_intake / Σ $", "", ""),
+    "cost_share_water_treatment": ("سهم هزینهٔ تصفیهٔ آب", "Share: water treatment", "$_treat / Σ $", "", ""),
+    "cost_share_pumping": ("سهم هزینهٔ پمپاژ", "Share: pumping", "$_pump / Σ $", "", ""),
+    "cost_share_wastewater_treatment": ("سهم هزینهٔ تصفیهٔ پساب", "Share: wastewater treatment", "$_ww / Σ $", "", ""),
+    "cost_share_discharge": ("سهم هزینهٔ تخلیه", "Share: discharge", "$_disch / Σ $", "", ""),
+    "cost_share_heat": ("سهم هزینهٔ گرمای از دست‌رفته", "Share: heat loss", "$_heat / Σ $", "", ""),
+    "cost_of_production": ("سهم آب از هزینهٔ تولید", "Water share of production cost", "Σ $ / production cost", "", ""),
+    "cost_of_revenue": ("سهم هزینهٔ آب از درآمد", "Water cost share of revenue", "Σ $ / revenue", "", ""),
+    "cost_energy_share": ("سهم انرژی از هزینهٔ آب", "Energy share of water cost", "($_pump + $_heat) / Σ $", "", ""),
+    "en_heat_kwh": ("گرمای از دست‌رفته در پساب", "Heat lost in wastewater", "ρ·W·c_p·ΔT / η",
+                    "kWh حرارتی در سال، از دمای ورودی و پساب.", "Thermal kWh per year from intake and wastewater temperatures."),
+    "en_heat_per_m3": ("گرمای از دست‌رفته به‌ازای هر m³", "Heat lost per m³", "kWh_th / ΣI", "", ""),
+    "en_total_kwh": ("انرژی مرتبط با آب (برق + حرارت)", "Water-related energy", "kWh_el + kWh_th", "", ""),
+    "en_co2": ("انتشار CO₂ مرتبط با آب", "Water-related CO₂", "kWh_el·EF_el + kWh_th·EF_th",
+               "ضرایب انتشار را وارد کنید.", "Enter the emission factors."),
+    "en_co2_per_m3": ("انتشار CO₂ به‌ازای هر m³", "CO₂ per m³", "CO₂ / ΣI", "", ""),
+    # ------------------------------------------------------------ data quality
+    "q_closure": ("درصد بسته‌شدن تراز کارخانه", "Plant balance closure", "(metered I − metered W − ΣE − ΣP) / metered I",
+                  "نزدیک صفر یعنی داده‌ها سازگارند.", "Close to zero means the data are consistent."),
+    "q_source_gap": ("اختلاف مصرف ثبت‌شده با کنتور منابع", "Source-side gap", "(metered I − ΣI_x) / metered I", "", ""),
+    "q_discharge_gap": ("اختلاف پساب ثبت‌شده با کنتور تخلیه", "Discharge-side gap", "(metered W − ΣW_x) / metered W", "", ""),
+    "q_outlet_meter_cover": ("پوشش کنتور مقاصد تخلیه", "Outlet metering coverage", "ΣW(metered outlets) / ΣW", "", ""),
+    "q_balanced_share": ("سهم زیرسیستم‌های دارای تراز بسته", "Balanced-subsystem share", "n(balanced) / n", "", ""),
+    "q_completeness": ("کامل‌بودن ورودی‌های شاخص‌ها", "Indicator input completeness", "entered / total",
+                       "سهم ورودی‌های اختیاری که پر شده‌اند.", "Share of the optional inputs that are filled."),
+    # ------------------------------------------------------------------ targets
+    "tg_intake_unit": ("فاصله شدت مصرف تا هدف", "Intensity gap to target", "ΣI/Q − target",
+                       "مثبت یعنی بالاتر از هدف.", "Positive means above the target."),
+    "tg_intake_unit_pct": ("فاصلهٔ نسبی شدت مصرف تا هدف", "Relative intensity gap", "ΣI/Q / target − 1", "", ""),
+    "tg_recirc": ("فاصلهٔ نسبت بازچرخانی تا هدف", "Recirculation gap", "ratio − target",
+                  "منفی یعنی کمتر از هدف.", "Negative means below the target."),
+    "tg_loss": ("فاصلهٔ تلفات تا هدف", "Loss gap", "L/ΣI − target", "مثبت یعنی تلفات بیش از هدف.", "Positive means losses above target."),
+    # --------------------------------------------------------------------- plan
+    "pl_saving": ("صرفه‌جویی طرح (ترکیبی)", "Plan saving (combined)", "1 − Π(1 − p_i)", "بدون شمارش مضاعف.", "Without double counting."),
+    "pl_saving_pct": ("صرفه‌جویی طرح، درصد برداشت", "Plan saving, % of intake", "saving / ΣI", "", ""),
+    "pl_intake_after": ("برداشت پس از اجرای طرح", "Intake after plan", "ΣI − saving", "", ""),
+    "pl_unit_after": ("شدت مصرف پس از اجرای طرح", "Intensity after plan", "(ΣI − saving) / Q", "", ""),
+    "pl_value": ("ارزش سالانهٔ صرفه‌جویی", "Annual value of saving", "Σ saving · $/m³", "", ""),
+    "pl_capex": ("سرمایه‌گذاری کل طرح", "Plan capital cost", "Σ capex", "", ""),
+    "pl_capex_per_daily": ("سرمایه‌گذاری به‌ازای هر m³/روز", "Capital per m³/day saved", "capex / (saving / 365)",
+                           "شاخص I1 گزارش ORNL.", "Indicator I1 of the ORNL report."),
+    "pl_payback": ("بازگشت ساده سرمایهٔ طرح", "Simple payback of the plan", "capex / (value − opex)", "", ""),
+}
+
+GROUP_TITLE = {
+    "supply": ("عرضه و تأمین آب", "Supply"),
+    "use": ("مصرف و استفادهٔ مجدد", "Use and reuse"),
+    "waste": ("پساب و بار آلودگی", "Wastewater and load"),
+    "cost": ("هزینه، انرژی و کربن", "Cost, energy and carbon"),
+    "quality": ("کیفیت داده و تراز", "Data quality and balance"),
+    "target": ("فاصله تا اهداف", "Gap to targets"),
+    "plan": ("طرح صرفه‌جویی", "Savings plan"),
+}
+
+# profile field -> (fa label, en label, unit fa, unit en, maximum, decimals)
+PROFILE_LABEL = {
+    "employees": ("تعداد پرسنل", "Employees", "نفر", "people", 1e7, 0),
+    "working_days": ("روز کاری در سال", "Working days per year", "روز", "days", 366, 0),
+    "building_area_m2": ("زیربنای ساختمان‌ها", "Built area", "m²", "m²", 1e9, 0),
+    "green_area_m2": ("مساحت فضای سبز", "Green area", "m²", "m²", 1e9, 0),
+    "revenue": ("درآمد سالانه", "Annual revenue", "واحد پول", "currency", 1e15, 0),
+    "value_added": ("ارزش افزودهٔ سالانه", "Annual value added", "واحد پول", "currency", 1e15, 0),
+    "production_cost": ("هزینهٔ کل تولید در سال", "Annual production cost", "واحد پول", "currency", 1e15, 0),
+    "steam_t": ("بخار تولیدی", "Steam produced", "t/سال", "t/yr", 1e9, 0),
+    "permit_m3": ("پروانهٔ برداشت", "Abstraction permit", "m³/سال", "m³/yr", 1e12, 0),
+    "storage_m3": ("حجم مخازن ذخیره", "Storage volume", "m³", "m³", 1e9, 0),
+    "outage_hours": ("ساعات قطعی تأمین", "Supply outage hours", "ساعت/سال", "h/yr", 8760, 0),
+    "network_km": ("طول شبکهٔ توزیع", "Mains length", "km", "km", 1e5, 2),
+    "connections": ("تعداد انشعاب‌ها", "Service connections", "عدد", "count", 1e6, 0),
+    "pressure_m": ("فشار متوسط شبکه", "Average pressure", "m", "m", 500, 0),
+    "ef_el": ("ضریب انتشار برق", "Electricity emission factor", "kg CO₂/kWh", "kg CO₂/kWh", 5, 3),
+    "ef_th": ("ضریب انتشار حرارت", "Thermal emission factor", "kg CO₂/kWh", "kg CO₂/kWh", 5, 3),
+    "cod_raw": ("COD پساب خام", "Raw wastewater COD", "mg/L", "mg/L", 1e6, 0),
+    "cod_out": ("COD پساب تخلیه‌شده", "Discharged COD", "mg/L", "mg/L", 1e6, 0),
+    "tds_intake": ("TDS آب ورودی", "Intake TDS", "mg/L", "mg/L", 1e6, 0),
+    "tds_discharge": ("TDS پساب", "Discharge TDS", "mg/L", "mg/L", 1e6, 0),
+    "target_intake_per_unit": ("هدف شدت مصرف آب", "Water-intensity target", "m³/واحد", "m³/unit", 1e9, 3),
+    "target_recirc_pct": ("هدف نسبت بازچرخانی", "Recirculation target", "٪", "%", 100, 1),
+    "target_loss_pct": ("هدف تلفات ناشناخته", "Loss target", "٪", "%", 100, 1),
+}
+
+PROFILE_GROUPS = (
+    ("پرسنل، ساختمان و فضای سبز", "People, buildings and green area", ("employees", "working_days", "building_area_m2", "green_area_m2")),
+    ("اقتصاد", "Economics", ("revenue", "value_added", "production_cost")),
+    ("تأمین و شبکه", "Supply and network",
+     ("steam_t", "permit_m3", "storage_m3", "outage_hours", "network_km", "connections", "pressure_m")),
+    ("کیفیت پساب و کربن", "Wastewater quality and carbon",
+     ("cod_raw", "cod_out", "tds_intake", "tds_discharge", "ef_el", "ef_th")),
+    ("اهداف", "Targets", ("target_intake_per_unit", "target_recirc_pct", "target_loss_pct")),
+)
+
+# per-subsystem table columns: key -> (fa, en, unit code)
+SUB_COLS = (
+    ("intake", "برداشت", "Intake", "m3"),
+    ("intake_share", "سهم از برداشت", "Share of intake", "pct"),
+    ("cost_share", "سهم از هزینه", "Share of cost", "pct"),
+    ("cost_per_m3", "هزینهٔ هر m³", "Cost per m³", "cur_m3"),
+    ("loss_pct", "تلفات ناشناخته", "Unaccounted loss", "pct"),
+    ("consumptive", "کسر مصرفی", "Consumptive", "pct"),
+    ("discharge", "نسبت پساب", "Discharge ratio", "pct"),
+    ("reuse", "سهم آب منتقل‌شده", "Transferred share", "pct"),
+    ("recirc", "سهم بازچرخانی", "Recirculation", "pct"),
+    ("per_unit", "شدت مصرف", "Intake per unit", "m3_unit"),
+    ("cycles", "دور تکرار (CoC)", "Cycles (CoC)", "x"),
+    ("blowdown", "بلودان به آب جبرانی", "Blowdown / make-up", "pct"),
+    ("lpd", "لیتر/نفر/روز", "L/person/day", "lpd"),
+)
+
+
+# unit code -> (fa, en, decimals); {cur} = currency, {u} = product unit
+UNITS = {
+    "m3": ("m³/سال", "m³/yr", 0), "pct": ("٪", "%", 1), "x": ("", "", 2), "kwh": ("kWh/سال", "kWh/yr", 0),
+    "kwh_m3": ("kWh/m³", "kWh/m³", 2), "cur": ("{cur}/سال", "{cur}/yr", 0), "cur_m3": ("{cur}/m³", "{cur}/m³", 2),
+    "cur_unit": ("{cur}/{u}", "{cur}/{u}", 2), "kg": ("kg/سال", "kg/yr", 0), "kg_m3": ("kg/m³", "kg/m³", 3),
+    "kg_unit": ("kg/{u}", "kg/{u}", 3), "lpd": ("L/نفر/روز", "L/person/day", 0), "mm": ("mm/سال", "mm/yr", 0),
+    "days": ("روز", "days", 1), "m3_unit": ("m³/{u}", "m³/{u}", 3), "m3_mcur": ("m³ / میلیون {cur}", "m³ / million {cur}", 0),
+    "m3_t": ("m³/t", "m³/t", 2), "m3_m2": ("m³/m²", "m³/m²", 2), "cur_m3day": ("{cur} / (m³/روز)", "{cur} / (m³/day)", 0),
+    "pp": ("امتیاز درصد", "pp", 1), "years": ("سال", "years", 2),
+}
+
+
+def format_value(v, unit: str) -> str:
+    """Number with the decimals of its unit; a leading LRM keeps the sign on the left in RTL text."""
+    if v is None:
+        return "—"
+    return "\u200e" + f"{v:,.{UNITS[unit][2]}f}"
+
+
+def unit_label(unit: str, lang: str, currency: str = "", prod_unit: str = "") -> str:
+    fa, en, _d = UNITS[unit]
+    return (fa if lang == "fa" else en).format(cur=currency, u=prod_unit)
