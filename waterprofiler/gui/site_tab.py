@@ -162,6 +162,7 @@ class SiteTab(_Scroll):
     def _load_assign(self, plant: Plant) -> None:
         names = [""] + self._area_names()
         self.assign_rows = [s.name for s in plant.subsystems]
+        self.assign.clearContents()
         self.assign.setRowCount(len(plant.subsystems))
         total = sum(s.total_intake for s in plant.subsystems)
         for r, s in enumerate(plant.subsystems):

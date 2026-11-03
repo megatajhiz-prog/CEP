@@ -165,7 +165,7 @@ class TsChart(QWidget):
                        "‎" + _short(v))
         n = len(self.values)
         gw = pw / n
-        step = max(1, int(n / max(1, pw // 62)))
+        step = max(1, -(-n // max(1, int(pw // 78))))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(COL["blue"]))
         for i, v in enumerate(self.values):
@@ -272,8 +272,8 @@ class TimeTab(_Scroll):
 
         # ---- variables
         self.var_list = QListWidget()
-        self.var_list.setMinimumHeight(190)
-        self.var_list.setMaximumHeight(240)
+        self.var_list.setMinimumHeight(330)
+        self.var_list.setMaximumHeight(460)
         self.var_list.itemChanged.connect(self._vars_changed)
         self.lay.addWidget(card(t("ts_vars"), self.var_list, note=t("ts_vars_note")))
 
