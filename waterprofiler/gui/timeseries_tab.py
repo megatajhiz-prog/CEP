@@ -514,7 +514,10 @@ class TimeTab(_Scroll):
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         for c in range(2, 2 + len(self.cols)):
-            self.tb.setColumnWidth(c, 130)
+            self.tb.setColumnWidth(c, 190)
+            hi = self.tb.horizontalHeaderItem(c)
+            if hi is not None:
+                hi.setToolTip(self.cols[c - 2].label(t.lang))
         for r, s in enumerate(self.slices):
             lab = QTableWidgetItem(s.label + ("  *" if s.partial else ""))
             lab.setFlags(Qt.ItemFlag.ItemIsEnabled)
