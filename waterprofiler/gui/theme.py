@@ -191,6 +191,17 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawPolyline(QPolygonF([P(7, 15), P(11, 11), P(14, 13.5), P(19, 7)]))
         p.drawLine(P(15.5, 7), P(19, 7))
         p.drawLine(P(19, 7), P(19, 10.5))
+    elif name == "site":
+        p.drawRect(QRectF(4, 11, 16, 9))
+        p.drawPolyline(QPolygonF([P(4, 11), P(9, 7), P(9, 11), P(14, 7), P(14, 11)]))
+        p.drawRect(QRectF(16, 4, 3, 7))
+        p.drawLine(P(8, 20), P(8, 15))
+        p.drawLine(P(12, 20), P(12, 15))
+    elif name == "ts":
+        p.drawLine(P(4, 20), P(20, 20))
+        p.drawLine(P(4, 20), P(4, 4))
+        for x, h in ((8, 6), (12, 10), (16, 7)):
+            p.drawRect(QRectF(x - 1.5, 20 - h, 3, h))
     elif name == "ind":
         p.drawRoundedRect(QRectF(4, 4, 16, 16), 3, 3)
         p.drawLine(P(4, 9.5), P(20, 9.5))

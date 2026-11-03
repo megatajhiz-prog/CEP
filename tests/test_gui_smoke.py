@@ -50,7 +50,7 @@ def test_edit_roundtrip_does_not_change_plant(app):
     w = _win("en")
     w.action_demo()
     before = demo_plant().to_dict()
-    w.tabs.setCurrentIndex(1)
+    w.tabs.setCurrentWidget(w.subs_page)
     for r in range(w.sub_list.count()):
         w.sub_list.setCurrentRow(r)
     w.tabs.setCurrentIndex(0)
@@ -121,8 +121,8 @@ def test_import_from_excel_and_sidebar_navigation(app, tmp_path):
         app.processEvents()
         assert w.nav[i].isChecked()
         assert w.page_title.text() == w.t(w._pages[i][1])
-    w.nav[3].click()
-    assert w.tabs.currentIndex() == 3
+    w.nav[w.tabs.indexOf(w.balance_tab)].click()
+    assert w.tabs.currentWidget() is w.balance_tab
     assert w.cost_tab.c_true.value.text() not in ("", "—")
     w.close()
 
@@ -206,7 +206,7 @@ def test_flow_tab_draws_edits_links_and_exports(app, tmp_path):
     ft.table.remove_selected()
     assert w.plant.links == [] and w.plant.subsystems[1].to_other == 0.0
     ft.subsystem_requested.emit(names[2])
-    assert w.tabs.currentIndex() == 1 and w.sub_list.currentRow() == 2
+    assert w.tabs.currentWidget() is w.subs_page and w.sub_list.currentRow() == 2
     w.export_pdf_to(str(tmp_path / "r.pdf"))
     assert (tmp_path / "r.pdf").stat().st_size > 2000
     w.close()

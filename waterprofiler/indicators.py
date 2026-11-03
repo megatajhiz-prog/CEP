@@ -19,7 +19,7 @@ from .cost import COMPONENTS
 from .measures import evaluate_plan
 from .model import Plant
 
-GROUPS = ("supply", "use", "waste", "cost", "quality", "target", "plan")
+GROUPS = ("supply", "use", "waste", "cost", "quality", "target", "plan", "time")
 
 # unit codes, rendered by the GUI: "m3", "pct", "x", "kwh", "kwh_m3", "cur", "cur_m3", "cur_unit", "kg", "kg_m3",
 # "lpd", "mm", "days", "m3_unit", "m3_mcur", "m3_t", "m3_m2", "cur_m3day", "pp", "years", "kg_unit"
@@ -40,7 +40,7 @@ class Indicator:
     unit: str
     value: Optional[float] = None
     needs: List[str] = field(default_factory=list)       # missing profile fields
-    reason: str = ""                                    # "" | "inputs" | "data" (denominator is zero)
+    reason: str = ""                                    # "" | "inputs" | "data" (too little data) | "series" (no time series)
     approx: bool = False
 
 
@@ -226,6 +226,14 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
     add("pl_capex", "plan", "cur", pr.capex if have and pr.capex > 0 else None)
     add("pl_capex_per_daily", "plan", "cur_m3day", pr.capex / (pr.saving / 365.0) if have and pr.saving > 0 and pr.capex > 0 else None)
     add("pl_payback", "plan", "years", pr.payback if have else None)
+
+    # -------------------------------------------------------------- time series
+    from . import timeseries as _ts
+    for i_id, i_unit, i_val, i_reason in _ts.time_indicators(plant):
+        if i_val is None:
+            out.append(Indicator(i_id, "time", i_unit, None, [], i_reason or "series"))
+        else:
+            out.append(Indicator(i_id, "time", i_unit, float(i_val)))
 
     # ---------------------------------------------------------- per subsystem
     bal = {x.name: x for x in b.subsystems}

@@ -146,6 +146,36 @@ TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
     "pl_capex_per_daily": ("سرمایه‌گذاری به‌ازای هر m³/روز", "Capital per m³/day saved", "capex / (saving / 365)",
                            "شاخص I1 گزارش ORNL.", "Indicator I1 of the ORNL report."),
     "pl_payback": ("بازگشت ساده سرمایهٔ طرح", "Simple payback of the plan", "capex / (value - opex)", "", ""),
+    # -------------------------------------------------------------- time series
+    "ts_months": ("تعداد ماه‌های دارای داده", "Months with data", "n(months with intake data)",
+                  "از سری‌های زمانی برداشت در بازهٔ تحلیل.", "From the intake time series in the analysis window."),
+    "ts_coverage": ("پوشش داده‌های زمانی", "Time-series coverage", "months with data / months in window", "", ""),
+    "ts_intake_mean": ("میانگین برداشت ماهانه", "Mean monthly intake", "mean(I_month)", "", ""),
+    "ts_peak_factor": ("ضریب اوج ماهانه", "Monthly peaking factor", "max(I_month) / mean(I_month)",
+                       "مقدار زیاد یعنی فصل‌بودن یا تقاضای اوج شدید؛ برای ظرفیت منبع و مخزن مهم است.",
+                       "High values mean strong seasonality or peak demand; matters for source and storage capacity."),
+    "ts_min_ratio": ("نسبت کمینهٔ ماهانه به میانگین", "Minimum month / mean", "min(I_month) / mean(I_month)", "", ""),
+    "ts_cv": ("ضریب تغییرات ماهانه", "Monthly variation (CV)", "std(I_month) / mean(I_month)", "", ""),
+    "ts_trend": ("روند سالانهٔ برداشت", "Yearly intake trend", "12 · slope / mean",
+                 "شیب خط روند، درصد میانگین در سال؛ حداقل ۱۲ ماه داده لازم است.", "Slope of the trend line as % of the mean per year; needs at least 12 months."),
+    "ts_yoy": ("تغییر ۱۲ ماه اخیر نسبت به ۱۲ ماه قبل", "Last 12 months vs the 12 before", "sum(last 12) / sum(previous 12) - 1",
+               "نیازمند ۲۴ ماه داده کامل.", "Needs 24 complete months."),
+    "ts_intensity": ("شدت مصرف آب (از سری زمانی)", "Water intensity (time series)", "sum(I) / sum(Q), months with both",
+                     "نسبت مجموع برداشت به مجموع تولید در ماه‌هایی که هر دو داده دارند.", "Total intake over total production in months that have both."),
+    "ts_intensity_max": ("بیشینهٔ شدت مصرف ماهانه", "Highest monthly intensity", "max(I_month / Q_month)", "", ""),
+    "ts_intensity_min": ("کمینهٔ شدت مصرف ماهانه", "Lowest monthly intensity", "min(I_month / Q_month)", "", ""),
+    "ts_base_load": ("مصرف پایه (بدون تولید)", "Base load (no production)", "a in I = a + b·Q",
+                     "برازش خطی ماهانه؛ مقدار زیاد نشانهٔ نشت، مصارف دائمی یا تجهیزات روشن در زمان توقف است.",
+                     "Monthly linear fit; a large value points to leaks, constant uses or equipment left running."),
+    "ts_base_share": ("سهم مصرف پایه از برداشت", "Base-load share of intake", "a / mean(I_month)", "", ""),
+    "ts_slope": ("آب متغیر به‌ازای واحد محصول", "Variable water per unit", "b in I = a + b·Q", "", ""),
+    "ts_r2": ("ضریب تعیین مدل مصرف-تولید", "Fit quality (R²) of intake vs production", "R2", "نزدیک ۱ یعنی مصرف آب عمدتاً با تولید توضیح داده می‌شود.",
+              "Close to 1 means production explains most of the intake."),
+    "ts_anomalies": ("ماه‌های ناهنجار", "Anomalous months", "n(|residual| > 2 sigma)",
+                     "ماه‌هایی که مصرف بیش از ۲ انحراف معیار از مدل مصرف-تولید فاصله دارد.", "Months more than 2 standard deviations off the intake-production fit."),
+    "ts_energy_per_m3": ("انرژی برق به‌ازای هر m³ برداشتی", "Electricity per m³ of intake", "sum(kWh) / sum(I)", "", ""),
+    "ts_temp_corr": ("همبستگی برداشت با دمای هوا", "Intake vs air temperature (r)", "corr(I_month, T_month)",
+                     "نزدیک ۱ یعنی تابستان‌محور (برج خنک‌کن، آبیاری)؛ ضریب پیرسون.", "Close to 1 means summer-driven use (cooling, irrigation); Pearson r."),
 }
 
 GROUP_TITLE = {
@@ -156,6 +186,7 @@ GROUP_TITLE = {
     "quality": ("کیفیت داده و تراز", "Data quality and balance"),
     "target": ("فاصله تا اهداف", "Gap to targets"),
     "plan": ("طرح صرفه‌جویی", "Savings plan"),
+    "time": ("سری زمانی و روند", "Time series and trends"),
 }
 
 # profile field -> (fa label, en label, unit fa, unit en, maximum, decimals)
@@ -215,7 +246,7 @@ SUB_COLS = (
 
 # unit code -> (fa, en, decimals); {cur} = currency, {u} = product unit
 UNITS = {
-    "m3": ("m³/سال", "m³/yr", 0), "pct": ("٪", "%", 1), "x": ("", "", 2), "kwh": ("kWh/سال", "kWh/yr", 0),
+    "m3": ("m³/سال", "m³/yr", 0), "n": ("", "", 0), "m3_mo": ("m³/ماه", "m³/month", 0), "pct": ("٪", "%", 1), "x": ("", "", 2), "kwh": ("kWh/سال", "kWh/yr", 0),
     "kwh_m3": ("kWh/m³", "kWh/m³", 2), "cur": ("{cur}/سال", "{cur}/yr", 0), "cur_m3": ("{cur}/m³", "{cur}/m³", 2),
     "cur_unit": ("{cur}/{u}", "{cur}/{u}", 2), "kg": ("kg/سال", "kg/yr", 0), "kg_m3": ("kg/m³", "kg/m³", 3),
     "kg_unit": ("kg/{u}", "kg/{u}", 3), "lpd": ("L/نفر/روز", "L/person/day", 0), "mm": ("mm/سال", "mm/yr", 0),

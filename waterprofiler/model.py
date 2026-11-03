@@ -67,6 +67,7 @@ class Subsystem:
     name: str
     kind: str = "process"               # process, cooling_tower, boiler, sanitary, irrigation, other
     # --- flows, m3/year
+    area: str = ""                      # site area (department) this subsystem belongs to
     intake: Dict[str, float] = field(default_factory=dict)         # by source name
     recirculated: float = 0.0           # R_x, recirculated inside the subsystem
     from_other: float = 0.0             # R'_in
@@ -159,6 +160,63 @@ class Profile:
 
 
 @dataclass
+class Area:
+    """A department of the site (production hall, utilities, administration, landscape ...)."""
+    name: str
+    kind: str = "production"            # production, utility, services, landscape, other
+    note: str = ""
+
+
+@dataclass
+class Product:
+    name: str
+    unit: str = "t"
+    note: str = ""
+
+
+@dataclass
+class Meter:
+    name: str
+    tag: str = ""                       # time-series key the meter feeds, e.g. "source:Well"
+    kind: str = "flow"                  # flow, energy, quality, level, other
+    unit: str = "m3"
+    accuracy_pct: float = 0.0
+    installed: str = ""                 # ISO date
+    calibrated: str = ""                # ISO date of the last calibration
+    note: str = ""
+
+
+@dataclass
+class Site:
+    """Descriptive data of the industrial site."""
+    name: str = ""
+    owner: str = ""
+    sector: str = ""
+    province: str = ""
+    city: str = ""
+    address: str = ""
+    latitude: float = 0.0
+    longitude: float = 0.0
+    land_area_m2: float = 0.0
+    commissioning_year: int = 0
+    shifts_per_day: int = 0
+    operating_days: int = 0
+    calendar: str = "jalali"            # jalali | gregorian: how periods are labelled and sliced
+    note: str = ""
+    areas: List[Area] = field(default_factory=list)
+    products: List[Product] = field(default_factory=list)
+    meters: List[Meter] = field(default_factory=list)
+
+
+@dataclass
+class Point:
+    """One observation of a time series: a value valid for the whole interval start..end (ISO dates, inclusive)."""
+    start: str
+    end: str
+    value: float
+
+
+@dataclass
 class Plant:
     name: str = "Plant"
     period: str = "year"
@@ -174,6 +232,9 @@ class Plant:
     links: List[Transfer] = field(default_factory=list)
     layout: Dict[str, float] = field(default_factory=dict)   # flow-diagram node id -> vertical sort key
     profile: Profile = field(default_factory=Profile)
+    site: Site = field(default_factory=Site)
+    series: Dict[str, List[Point]] = field(default_factory=dict)    # time series by variable key
+    window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
 
     def source(self, name: str) -> Source:
         for s in self.sources:
@@ -218,6 +279,9 @@ class Plant:
             links=[Transfer(**x) for x in d.get("links", [])],
             layout={str(k): float(v) for k, v in d.get("layout", {}).items()},
             profile=_profile_from(d.get("profile", {})),
+            site=_site_from(d.get("site", {})),
+            series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
+            window={str(k): str(v) for k, v in d.get("window", {}).items()},
         )
 
 
@@ -226,6 +290,14 @@ def _profile_from(d: dict) -> Profile:
     kw = {k: v for k, v in (d or {}).items() if k in names and k != "sub_production"}
     kw["sub_production"] = {str(k): float(v) for k, v in (d or {}).get("sub_production", {}).items()}
     return Profile(**kw)
+
+
+def _site_from(d: dict) -> Site:
+    d = dict(d or {})
+    names = {f.name for f in fields(Site)}
+    kw = {k: v for k, v in d.items() if k in names and k not in ("areas", "products", "meters")}
+    return Site(**kw, areas=[Area(**a) for a in d.get("areas", [])], products=[Product(**p) for p in d.get("products", [])],
+                meters=[Meter(**m) for m in d.get("meters", [])])
 
 
 def sync_transfers(plant: Plant, touched=()) -> None:
