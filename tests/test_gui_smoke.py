@@ -319,7 +319,7 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
 
     assert txt(it.heads[0].value) != "—"
     assert sum(tb.rowCount() for tb in it.tables.values()) == len(K.compute(w.plant).items)
-    assert it.sub_tb.rowCount() == len(w.plant.subsystems)
+    assert it.sub_tb.columnCount() == len(w.plant.subsystems) + 1
     assert it.prod_tb.rowCount() == len(w.plant.subsystems)
     # entering a missing input fills the indicators that need it, and writes into the project
     r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
@@ -332,7 +332,7 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     first = w.plant.subsystems[0].name
     it.prod_tb.item(0, 1).setText("50000")
     assert w.plant.profile.sub_production[first] == 50000.0
-    assert txt(it.sub_tb.item(0, 10)) != "—"            # "intake per unit" column
+    assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
     w.tabs.setCurrentWidget(w.plant_panel)
     w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)

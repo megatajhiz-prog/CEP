@@ -127,9 +127,8 @@ class IndicatorsTab(_Scroll):
             title = GROUP_TITLE[g][0 if fa else 1]
             self.lay.addWidget(card(title, tb))
 
-        self.sub_tb = make_table([t("subsystem")] + [(c[1] if fa else c[2]) for c in SUB_COLS])
+        self.sub_tb = make_table([t("subsystem")])
         self.sub_tb.setWordWrap(True)
-        self.sub_tb.horizontalHeader().setFixedHeight(54)
         self.sub_tb.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.lay.addWidget(card(t("in_sub_title"), self.sub_tb, note=t("in_sub_note")))
 
@@ -214,7 +213,7 @@ class IndicatorsTab(_Scroll):
                 put(tb, r, 0, name, bold=not missing)
                 put(tb, r, 1, format_value(ind.value, ind.unit), True, bold=not missing)
                 put(tb, r, 2, unit_label(ind.unit, t.lang, cur, unit))
-                put(tb, r, 3, tx[2])
+                put(tb, r, 3, tx[2], True)
                 if ind.reason == "inputs":
                     names = [PROFILE_LABEL[n][0 if fa else 1] for n in ind.needs]
                     note = t("in_needs", x=("، " if fa else ", ").join(names))
@@ -230,10 +229,17 @@ class IndicatorsTab(_Scroll):
                             it.setForeground(MUTED)
             _fit(tb)
 
-        self.sub_tb.setRowCount(len(res.subsystems))
-        for r, srow in enumerate(res.subsystems):
-            put(self.sub_tb, r, 0, srow.name, bold=True)
-            for c, (key, _fa, _en, u) in enumerate(SUB_COLS, start=1):
+        # metrics down the side, one column per subsystem (readable with any number of subsystems)
+        self.sub_tb.setColumnCount(1 + len(res.subsystems))
+        self.sub_tb.setHorizontalHeaderLabels([t("in_col_name")] + [r.name for r in res.subsystems])
+        self.sub_tb.setRowCount(len(SUB_COLS))
+        hh = self.sub_tb.horizontalHeader()
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        for r, (key, f_, e_, u) in enumerate(SUB_COLS):
+            put(self.sub_tb, r, 0, (f_ if fa else e_) + "  (" + unit_label(u, t.lang, cur, unit) + ")" if unit_label(u, t.lang, cur, unit)
+                else (f_ if fa else e_), bold=True)
+            for c, srow in enumerate(res.subsystems, start=1):
                 put(self.sub_tb, r, c, format_value(srow.values.get(key), u), True)
         _fit(self.sub_tb)
 
