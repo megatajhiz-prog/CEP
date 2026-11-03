@@ -314,29 +314,33 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     w.tabs.setCurrentWidget(w.ind_tab)
     it = w.ind_tab
     from waterprofiler import indicators as K
-    assert it.heads[0].value.text() != "—"
+    def txt(x):
+        return x.text().replace("\u200e", "").strip()
+
+    assert txt(it.heads[0].value) != "—"
     assert sum(tb.rowCount() for tb in it.tables.values()) == len(K.compute(w.plant).items)
     assert it.sub_tb.rowCount() == len(w.plant.subsystems)
     assert it.prod_tb.rowCount() == len(w.plant.subsystems)
     # entering a missing input fills the indicators that need it, and writes into the project
     r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
     tb = it.tables["supply"]
-    assert tb.item(r_permit, 1).text() == "—"
+    assert txt(tb.item(r_permit, 1)) == "—"
     it.spins["permit_m3"].setValue(100000.0)
     assert w.plant.profile.permit_m3 == 100000.0
-    assert tb.item(r_permit, 1).text() != "—"
+    assert txt(tb.item(r_permit, 1)) != "—"
     # production per subsystem
     first = w.plant.subsystems[0].name
     it.prod_tb.item(0, 1).setText("50000")
     assert w.plant.profile.sub_production[first] == 50000.0
-    assert it.sub_tb.item(0, 10).text() != "—"            # "intake per unit" column
+    assert txt(it.sub_tb.item(0, 10)) != "—"            # "intake per unit" column
     # the alternative-source flag survives the Plant page round trip
     w.tabs.setCurrentWidget(w.plant_panel)
     w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     w.collect()
     assert w.plant.sources[0].alternative is True
     w.tabs.setCurrentWidget(w.ind_tab)
-    assert w.ind_tab.tables["supply"].item([i.id for i in K.compute(w.plant).by_group("supply")].index("sup_alt_share"), 1).text() != "0"
+    r_alt = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_alt_share")
+    assert float(txt(w.ind_tab.tables["supply"].item(r_alt, 1)).replace(",", "")) > 0
     w.export_xlsx_to(str(tmp_path / "i.xlsx"))
     from openpyxl import load_workbook
     assert w.t("sheet_ind") in load_workbook(tmp_path / "i.xlsx").sheetnames
