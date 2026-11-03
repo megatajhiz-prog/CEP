@@ -103,3 +103,21 @@ Measures acting on the same target combine as `1 - prod(1 - p_k)` (never added);
 the intake left after subsystem-level savings. The annual value of saved water uses the source price plus water
 treatment of the target (discharge price excluded). Worked example of the study: 500 000 currency, 200 m3/day,
 15 years -> I1 = 2500, I2 = 0.457.
+
+## Economic evaluation of a measure (`waterprofiler/economics.py`)
+
+Year-end cash flows; `Qs` first-year saving (m3), `p` value of a saved m3 (purchase + treatment + wastewater,
+automatic unless entered), `g` price escalation, `e` cost escalation, `d` yearly loss of the saving, `r` discount rate.
+
+    CF_0 = -CAPEX
+    CF_t = (Qs (1-d)^(t-1) p + other) (1+g)^(t-1) - OPEX (1+e)^(t-1) - [t = T_r] REPL      t = 1..N   (+ SALVAGE at t = N)
+
+    NPV  = sum_t CF_t / (1+r)^t                       IRR: rate with NPV = 0 (None without a sign change)
+    SPB  = first t with sum CF >= 0 (linear in the year)       DPB = same on discounted flows
+    BCR  = PV(benefits + salvage) / PV(CAPEX + OPEX + REPL)     PI = NPV / CAPEX
+    LCOW = PV(CAPEX + OPEX + REPL - SALVAGE) / PV(saved volume)   (cost of one saved m3)
+
+Check values used in the tests: CAPEX 1000, 300 per year for 5 years at 10 % gives NPV 137.24, IRR 15.24 %,
+simple payback 3.33 y, discounted payback 4.26 y, BCR 1.137. The study's example (500 000 for 200 m3/day,
+15 years, 10 %) gives an undiscounted cost of 0.4566 per m3 (I2) and a levelised cost of 0.9005 per m3.
+Tax, loans and depreciation are not modelled.
