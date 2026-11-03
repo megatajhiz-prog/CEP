@@ -23,6 +23,19 @@ VERDICT_STYLE = {
 }
 
 
+def _two_line_table(headers):
+    """make_table with long headers broken over two lines (no clipped titles)."""
+    def brk(h):
+        if len(h) <= 11 or " " not in h:
+            return h
+        words = h.split(" ")
+        best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
+        return " ".join(words[:best]) + "\n" + " ".join(words[best:])
+    tb = make_table([brk(h) for h in headers])
+    tb.horizontalHeader().setFixedHeight(54)
+    return tb
+
+
 class CashFlowChart(QWidget):
     """Net cash flow per year (bars) and cumulative discounted cash flow (line)."""
 
@@ -87,7 +100,7 @@ class CashFlowChart(QWidget):
             p.drawLine(QPointF(left, Y(v)), QPointF(left + pw, Y(v)))
             p.setPen(QColor(COL["sub"]))
             from .widgets import _short
-            p.drawText(QRectF(0, Y(v) - 9, left - 6, 18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, _short(v))
+            p.drawText(QRectF(0, Y(v) - 9, left - 6, 18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, "\u200e" + _short(v))
         p.setPen(QPen(QColor(COL["sub"]), 1.4))
         p.drawLine(QPointF(left, Y(0)), QPointF(left + pw, Y(0)))
         n = len(r.years)
@@ -188,13 +201,13 @@ class EconTab(_Scroll):
 
         self.chart = CashFlowChart(t)
         self.lay.addWidget(card("", self.chart))
-        self.flows = make_table([t("ec_year"), t("ec_vol"), t("ec_benefit"), t("ec_cost"), t("ec_net"), t("ec_cum"), t("ec_dcum")])
+        self.flows = _two_line_table([t("ec_year"), t("ec_vol"), t("ec_benefit"), t("ec_cost"), t("ec_net"), t("ec_cum"), t("ec_dcum")])
         self.flows.setMinimumHeight(300)
         self.lay.addWidget(card(t("ec_flows"), self.flows))
-        self.sens = make_table([t("ec_var"), t("ec_npv_low"), t("ec_npv_high"), t("ec_swing")])
+        self.sens = _two_line_table([t("ec_var"), t("ec_npv_low"), t("ec_npv_high"), t("ec_swing")])
         self.sens.setMinimumHeight(250)
         self.lay.addWidget(card(t("ec_sens"), self.sens, note=t("ec_sens_note")))
-        self.cmp = make_table([t("ms_measure"), t("ec_saving_col"), t("ec_capex"), t("ec_npv"), t("ec_irr"), t("ec_spb"),
+        self.cmp = _two_line_table([t("ms_measure"), t("ec_saving_col"), t("ec_capex"), t("ec_npv"), t("ec_irr"), t("ec_spb"),
                                t("ec_bcr"), t("ec_lcow"), t("ec_verdict")])
         self.cmp.setMinimumHeight(240)
         self.cmp.cellClicked.connect(lambda r, _c: self.combo.setCurrentIndex(r) if r < self.combo.count() else None)
