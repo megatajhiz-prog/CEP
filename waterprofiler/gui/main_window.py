@@ -23,7 +23,7 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant
+from ..sample import demo_plant, demo_with_history
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import PlantPanel, SubsystemEditor
@@ -449,7 +449,7 @@ class MainWindow(QMainWindow):
 
     def action_demo(self) -> None:
         if self._confirm_discard():
-            self._set_plant(demo_plant(self.t.lang), None)
+            self._set_plant(demo_with_history(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_open(self) -> None:

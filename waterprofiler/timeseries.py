@@ -418,7 +418,8 @@ def monthly_slices(plant: Plant) -> List[cal.Slice]:
     w = window_of(plant)
     if w is None:
         return []
-    return cal.slices(w[0], w[1], "month", plant.site.calendar if plant.site.calendar in cal.CALENDARS else "jalali", "en")
+    sl = cal.slices(w[0], w[1], "month", plant.site.calendar if plant.site.calendar in cal.CALENDARS else "jalali", "en")
+    return [x for x in sl if not x.partial]       # clipped first / last months would look like a drop in use
 
 
 def time_indicators(plant: Plant) -> List[Tuple[str, str, Optional[float], str]]:

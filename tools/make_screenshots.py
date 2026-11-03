@@ -156,6 +156,16 @@ def main(out: str) -> int:
         shot(win, "15_econ")
         shot(win.econ_tab.widget(), "15_econ_full")
 
+    def site_and_series():
+        from waterprofiler.sample import demo_with_history
+        win._set_plant(demo_with_history("fa"), None)
+        go(win.site_tab)
+        shot(win, "17_site")
+        shot(win.site_tab.widget(), "17_site_full")
+        go(win.ts_tab)
+        shot(win, "18_timeseries")
+        shot(win.ts_tab.widget(), "18_timeseries_full")
+
     def indicators():
         go(win.ind_tab)
         shot(win, "16_indicators")
@@ -180,7 +190,7 @@ def main(out: str) -> int:
         go(win.cost_tab)
         shot(win, "10_english_cost")
 
-    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, flow, cost, measures, plan, econ, indicators,
+    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, flow, cost, measures, plan, econ, site_and_series, indicators,
                savings, leak_balance, reconcile, about, english):
         step(fn)
 

@@ -230,3 +230,18 @@ def test_trend_of_a_linear_series_is_exact():
     assert r.get("ts_trend").value == pytest.approx(100 * 10.0 * 12 / mean)       # 10 m3 per month, per year
     assert r.get("ts_yoy").value == pytest.approx(100 * (sum(vals[12:]) / sum(vals[:12]) - 1))
     assert r.get("ts_peak_factor").value == pytest.approx(max(vals) / mean)
+
+
+def test_demo_with_history_is_consistent():
+    from waterprofiler.sample import demo_with_history
+    from waterprofiler.storage import load_project, save_project  # noqa: F401
+    for lang in ("fa", "en"):
+        p = demo_with_history(lang)
+        assert p.site.areas and p.site.products and p.site.meters
+        assert all(s.area for s in p.subsystems)
+        keys = {sp.key for sp in T.catalog(p)}
+        assert set(p.series) <= keys                          # every series belongs to a catalogued variable
+        span = T.data_span(p)
+        assert span and (span[1] - span[0]).days > 540
+        ind = {i: v for i, _u, v, _r in T.time_indicators(p)}
+        assert ind["ts_months"] >= 18 and ind["ts_anomalies"] >= 1 and 1.0 < ind["ts_peak_factor"] < 2.0
