@@ -91,3 +91,54 @@ def demo_plant(lang: str = "en") -> Plant:
             PlanItem(33, n["process"], 15.0, capex=20000, opex=1500, life_years=15, rate_pct=10),  # filter and reuse process water
         ],
     )
+
+
+def demo_with_history(lang: str = "en") -> Plant:
+    """The demo plant plus site data and 19 months (Jalali 1404-01 .. 1405-07) of monthly time series.
+
+    Deterministic, seasonal (summer cooling load) and with one leak episode, so that the time-series page, the
+    time-based indicators and the anomaly finder have something to show. Not real measurements."""
+    import math
+
+    from . import jcalendar as cal
+    from . import timeseries as TS
+    from .model import Area, Meter, Product, Site
+
+    p = demo_plant(lang)
+    n = _NAMES.get(lang, _NAMES["en"])
+    fa = lang == "fa"
+    p.site = Site(
+        name="کارخانهٔ نمونه" if fa else "Demo plant site", owner="شرکت نمونه" if fa else "Demo Co.",
+        sector="صنایع غذایی" if fa else "Food and beverage", province="البرز" if fa else "Alborz",
+        city="کرج" if fa else "Karaj", land_area_m2=60_000, commissioning_year=1392 if fa else 2013,
+        shifts_per_day=2, operating_days=300, calendar="jalali" if fa else "gregorian",
+        areas=[Area("سالن تولید" if fa else "Production hall", "production"),
+               Area("تأسیسات" if fa else "Utilities", "utility"),
+               Area("اداری و رفاهی" if fa else "Administration", "services"),
+               Area("فضای سبز" if fa else "Landscape", "landscape")],
+        products=[Product("محصول الف" if fa else "Product A", n["unit"]), Product("محصول ب" if fa else "Product B", n["unit"])],
+        meters=[Meter("کنتور چاه" if fa else "Well meter", f"source:{n['well']}", "flow", "m3", 1.0, "", "2026-03-10"),
+                Meter("کنتور شهری" if fa else "City meter", f"source:{n['city']}", "flow", "m3", 1.0, "", "2026-03-10"),
+                Meter("کنتور برق" if fa else "Power meter", "energy:el", "energy", "kwh", 0.5, "", "2025-11-02")])
+    for s in p.subsystems:
+        s.area = {n["process"]: p.site.areas[0].name, n["ct"]: p.site.areas[1].name, n["boiler"]: p.site.areas[1].name,
+                  n["sanitary"]: p.site.areas[2].name, n["land"]: p.site.areas[3].name}.get(s.name, "")
+    months = cal.slices(cal.make_date("jalali", 1404, 1, 1), cal.make_date("jalali", 1405, 7, 30), "month", "jalali", lang)
+    city, well, sewer = n["city"], n["well"], n["sewer"]
+    sub = {s.name: s for s in p.subsystems}
+    for i, m in enumerate(months):
+        frac = m.days / 365.0
+        season = math.cos(2 * math.pi * (m.start.timetuple().tm_yday - 200) / 365.0)       # peak in July
+        prod = p.production_per_year * frac * (1.0 + 0.06 * math.sin(i * 1.7))
+        leak = 1.0 + (0.60 if i in (12, 13, 14) else 0.0)                                   # a leak episode
+        city_m = sum(sub[x].intake.get(city, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac)) * leak
+        well_m = sum(sub[x].intake.get(well, 0.0) for x in sub) * frac * (1.0 + 0.30 * season)
+        sew_m = sum(sub[x].discharge.get(sewer, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac))
+        rows = {"production": prod, f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
+                f"sub:{n['ct']}:intake": sub[n["ct"]].total_intake * frac * (1.0 + 0.30 * season),
+                f"sub:{n['process']}:intake": sub[n["process"]].total_intake * frac * (prod / (p.production_per_year * frac)),
+                "energy:el": 90_000.0 * (1.0 + 0.15 * season) + 6_000.0 * math.sin(i),
+                "env:temp": 17.0 + 16.0 * season, "site:employees": 250.0 + (i % 4)}
+        for k, v in rows.items():
+            TS.put(p, k, m.start, m.end, round(v, 2))
+    return p

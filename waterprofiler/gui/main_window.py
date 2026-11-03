@@ -23,12 +23,15 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant
+from ..sample import demo_plant, demo_with_history
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import PlantPanel, SubsystemEditor
 from .measures_tabs import MeasuresTab, PlanTab
 from .econ_tab import EconTab
+from .indicators_tab import IndicatorsTab
+from .site_tab import SiteTab
+from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .tabs import BalanceTab, CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
@@ -88,6 +91,10 @@ class MainWindow(QMainWindow):
         self.measures_tab = MeasuresTab(t)
         self.plan_tab = PlanTab(t)
         self.econ_tab = EconTab(t)
+        self.ind_tab = IndicatorsTab(t)
+        self.site_tab = SiteTab(t)
+        self.ts_tab = TimeTab(t)
+        self.ts_tab.model_changed.connect(self._series_applied)
         self.measures_tab.plan_requested.connect(self._to_plan)
         self.reconcile_tab = ReconcileTab(t)
         self.reconcile_tab.applied.connect(self._apply_reconciled)
@@ -115,9 +122,12 @@ class MainWindow(QMainWindow):
         split.setSizes([230, 900])
         sh.addWidget(split)
 
+        self.subs_page = subs
         self._pages = [
             ("plant", "tab_plant", "desc_plant", self.plant_panel),
+            ("site", "tab_site", "desc_site", self.site_tab),
             ("subsystems", "tab_subsystems", "desc_subsystems", subs),
+            ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("balance", "tab_balance", "desc_balance", self.balance_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
@@ -125,6 +135,7 @@ class MainWindow(QMainWindow):
             ("measures", "tab_measures", "desc_measures", self.measures_tab),
             ("plan", "tab_plan", "desc_plan", self.plan_tab),
             ("econ", "tab_econ", "desc_econ", self.econ_tab),
+            ("ind", "tab_ind", "desc_ind", self.ind_tab),
             ("reconcile", "tab_reconcile", "desc_reconcile", self.reconcile_tab),
         ]
         for _icon, name_key, _desc, w in self._pages:
@@ -281,6 +292,7 @@ class MainWindow(QMainWindow):
     def collect(self) -> Plant:
         """Pull every editor's content into self.plant."""
         self.plant_panel.store(self.plant)
+        self.site_tab.store(self.plant)
         if 0 <= self._cur < len(self.plant.subsystems):
             self.sub_editor.store(self.plant.subsystems[self._cur])
             item = self.sub_list.item(self._cur)
@@ -304,6 +316,7 @@ class MainWindow(QMainWindow):
 
     def _load_all(self, select: int = 0) -> None:
         self.plant_panel.load(self.plant)
+        self.site_tab.load(self.plant)
         self.sub_editor.set_catalog(*self._catalog())
         self._refresh_sub_list(select)
 
@@ -334,6 +347,12 @@ class MainWindow(QMainWindow):
             self.plan_tab.refresh(self.plant)
         elif w is self.econ_tab:
             self.econ_tab.refresh(self.plant)
+        elif w is self.ind_tab:
+            self.ind_tab.refresh(self.plant)
+        elif w is self.site_tab:
+            self.site_tab.refresh(self.plant)
+        elif w is self.ts_tab:
+            self.ts_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
         elif w is not self.plant_panel:
@@ -352,9 +371,14 @@ class MainWindow(QMainWindow):
         self.collect()
         for i, s in enumerate(self.plant.subsystems):
             if s.name == name:
-                self.tabs.setCurrentIndex(1)
+                self.tabs.setCurrentWidget(self.subs_page)
                 self.sub_list.setCurrentRow(i)
                 return
+
+    def _series_applied(self) -> None:
+        """A period of the time series was written into the annual model: reload the editors."""
+        self._load_all(select=max(0, self._cur))
+        self.reconcile_tab.refresh(self.plant)
 
     def _flow_edited(self) -> None:
         """The diagram changed the plant: reload the subsystem editor and recompute everything."""
@@ -425,7 +449,7 @@ class MainWindow(QMainWindow):
 
     def action_demo(self) -> None:
         if self._confirm_discard():
-            self._set_plant(demo_plant(self.t.lang), None)
+            self._set_plant(demo_with_history(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_open(self) -> None:

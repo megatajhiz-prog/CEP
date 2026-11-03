@@ -38,6 +38,11 @@ def main(out: str) -> int:
     app.processEvents()
     done, failed = [], []
 
+    def go(widget):
+        idx = win.tabs.indexOf(widget)
+        win.tabs.setCurrentIndex(idx)
+        win._tab_changed(idx)
+
     def settle():
         for _ in range(3):
             app.processEvents()
@@ -80,7 +85,7 @@ def main(out: str) -> int:
         menu.hide()
 
     def subsystems():
-        win.tabs.setCurrentIndex(1)
+        go(win.subs_page)
         win.sub_list.setCurrentRow(1)
         shot(win, "03_subsystems")
         shot(win.sub_editor.widget(), "03_subsystem_editor_full")
@@ -95,17 +100,17 @@ def main(out: str) -> int:
         dlg.close()
 
     def balance_ok():
-        win.tabs.setCurrentIndex(3)
+        go(win.balance_tab)
         shot(win, "05_balance")
         shot(win.balance_tab.widget(), "05_balance_full")
 
     def cost():
-        win.tabs.setCurrentIndex(4)
+        go(win.cost_tab)
         shot(win, "06_cost")
         shot(win.cost_tab.widget(), "06_cost_full")
 
     def savings():
-        win.tabs.setCurrentIndex(5)
+        go(win.savings_tab)
         st = win.savings_tab
         st.ct_new.setValue(6.0)
         st.ct_capex.setValue(5000.0)
@@ -124,14 +129,12 @@ def main(out: str) -> int:
 
     def leak_balance():
         win._set_plant(leaky_plant("fa"), None)
-        win.tabs.setCurrentIndex(3)
-        win._tab_changed(3)
+        go(win.balance_tab)
         shot(win, "08_balance_leak")
         shot(win.balance_tab.widget(), "08_balance_leak_full")
 
     def measures():
-        win.tabs.setCurrentIndex(6)
-        win._tab_changed(6)
+        go(win.measures_tab)
         win.measures_tab.select(11)
         shot(win, "12_measures")
         shot(win.measures_tab.widget(), "12_measures_full")
@@ -139,26 +142,37 @@ def main(out: str) -> int:
     def flow():
         from scenarios import flow_plant
         win._set_plant(flow_plant("fa"), None)
-        win.tabs.setCurrentIndex(2)
-        win._tab_changed(2)
+        go(win.flow_tab)
         shot(win, "14_flow")
         shot(win.flow_tab.widget(), "14_flow_full")
 
     def plan():
-        win.tabs.setCurrentIndex(7)
-        win._tab_changed(7)
+        go(win.plan_tab)
         shot(win, "13_plan")
         shot(win.plan_tab.widget(), "13_plan_full")
 
     def econ():
-        win.tabs.setCurrentIndex(8)
-        win._tab_changed(8)
+        go(win.econ_tab)
         shot(win, "15_econ")
         shot(win.econ_tab.widget(), "15_econ_full")
 
+    def site_and_series():
+        from waterprofiler.sample import demo_with_history
+        win._set_plant(demo_with_history("fa"), None)
+        go(win.site_tab)
+        shot(win, "17_site")
+        shot(win.site_tab.widget(), "17_site_full")
+        go(win.ts_tab)
+        shot(win, "18_timeseries")
+        shot(win.ts_tab.widget(), "18_timeseries_full")
+
+    def indicators():
+        go(win.ind_tab)
+        shot(win, "16_indicators")
+        shot(win.ind_tab.widget(), "16_indicators_full")
+
     def reconcile():
-        win.tabs.setCurrentIndex(9)
-        win._tab_changed(9)
+        go(win.reconcile_tab)
         win.reconcile_tab._run()
         shot(win, "09_reconcile")
         shot(win.reconcile_tab.widget(), "09_reconcile_full")
@@ -173,11 +187,10 @@ def main(out: str) -> int:
     def english():
         win.set_language("en")
         win._set_plant(demo_plant("en"), None)
-        win.tabs.setCurrentIndex(4)
-        win._tab_changed(4)
+        go(win.cost_tab)
         shot(win, "10_english_cost")
 
-    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, flow, cost, measures, plan, econ,
+    for fn in (blank, plant_tab, file_menu, lang_menu, subsystems, estimate_dialog, balance_ok, flow, cost, measures, plan, econ, site_and_series, indicators,
                savings, leak_balance, reconcile, about, english):
         step(fn)
 

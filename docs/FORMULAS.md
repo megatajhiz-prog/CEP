@@ -121,3 +121,25 @@ Check values used in the tests: CAPEX 1000, 300 per year for 5 years at 10 % giv
 simple payback 3.33 y, discounted payback 4.26 y, BCR 1.137. The study's example (500 000 for 200 m3/day,
 15 years, 10 %) gives an undiscounted cost of 0.4566 per m3 (I2) and a levelised cost of 0.9005 per m3.
 Tax, loans and depreciation are not modelled.
+
+## Supply and consumption indicators
+
+`waterprofiler/indicators.py` derives about 80 indicators from the balance, the true-cost model, the pumps and the
+saving plan, plus optional plant-level inputs (`Plant.profile`; 0 = not entered). An indicator whose inputs are
+missing is shown as "—" together with the inputs it needs; nothing is estimated. Notation: I intake, R internal
+recirculation, R'in water received from another subsystem, W discharge, E evaporation, P water in product, L
+unaccounted loss, Q production.
+
+| Group | Main indicators and formulas |
+|---|---|
+| Supply | largest source share `max(I_s)/ΣI`; concentration `Σ(I_s/ΣI)²` (HHI); alternative-source share; average price `Σ$_s·I_s/ΣI`; metering coverage; permit use `ΣI/permit`; storage days `storage/(ΣI/365)`; availability `1 − outage/8760`; pumping kWh and kWh/m³; ILI `L/UARL` with `UARL=(18·Lm+0.8·Nc)·P·365/1000` (approximate: all unaccounted loss is taken as leakage) |
+| Use and reuse | gross use `ΣI+ΣR+ΣR'in`; reuse factor `gross/ΣI`; recirculation, internal and transfer shares; consumption `ΣI−ΣW` (GRI 303-5); consumptive, evaporation and product shares; loss; intensity `ΣI/Q`; per employee, area, revenue, value added; water per steam |
+| Wastewater | `ΣW/ΣI`; treated share; outlet share and price; COD load `COD·W/1000`, COD removal `1−COD_out/COD_raw`; TDS load `(TDS_out·W−TDS_in·I)/1000`; concentration factor |
+| Cost and energy | true cost, per m³ and per unit; component shares; heat lost; CO₂ `kWh_el·EF_el+kWh_th·EF_th` |
+| Quality | closure, source- and discharge-side gaps, metering coverage, share of balanced subsystems, input completeness |
+| Targets | gap of intensity, recirculation and loss to targets entered by the user (no industry averages) |
+| Plan | combined saving, intake and intensity after the plan, value, capital per m³/day |
+
+Per subsystem: shares of intake and cost, cost per m³, loss, consumptive / discharge / transfer / recirculation
+shares, intensity (with production entered), cycles of concentration `bc/mc`, blowdown / make-up, litres per person
+per day. Monthly indicators (peaking factors, trends, seasonality) need monthly data and are not included yet.

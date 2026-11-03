@@ -188,6 +188,47 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
             row += 2
         _autowidth(ws)
 
+    # --- Indicators (all of them; the ones without inputs list what is missing)
+    from . import indicators as _ik
+    from .indicator_text import GROUP_TITLE, PROFILE_LABEL, SUB_COLS, TEXT, UNITS, format_value, unit_label
+    ires = _ik.compute(p, a)
+    ws = wb.create_sheet(t("sheet_ind")[:31])
+    ws.sheet_view.rightToLeft = rtl
+    _header(ws, 1, [t("in_col_name"), t("in_col_value"), t("in_col_unit"), t("in_col_formula"), t("in_col_note")])
+    row = 1
+    for g in _ik.GROUPS:
+        row += 1
+        ws.cell(row=row, column=1, value=GROUP_TITLE[g][0 if lang == "fa" else 1]).font = Font(bold=True)
+        for ind in ires.by_group(g):
+            row += 1
+            tx = TEXT[ind.id]
+            ws.cell(row=row, column=1, value=tx[0] if lang == "fa" else tx[1])
+            c = ws.cell(row=row, column=2, value=ind.value)
+            if ind.value is not None:
+                c.number_format = "#,##0" if UNITS[ind.unit][2] == 0 else "#,##0." + "0" * UNITS[ind.unit][2]
+            ws.cell(row=row, column=3, value=unit_label(ind.unit, lang, p.currency, p.production_unit))
+            ws.cell(row=row, column=4, value=tx[2])
+            if ind.reason == "inputs":
+                note = t("in_needs", x=", ".join(PROFILE_LABEL[n][0 if lang == "fa" else 1] for n in ind.needs))
+            elif ind.reason == "data":
+                note = t("in_nodata")
+            else:
+                note = tx[3] if lang == "fa" else tx[4]
+            ws.cell(row=row, column=5, value=note)
+    row += 2
+    ws.cell(row=row, column=1, value=t("in_sub_title")).font = Font(bold=True)
+    row += 1
+    _header(ws, row, [t("subsystem")] + [(c[1] if lang == "fa" else c[2]) for c in SUB_COLS])
+    for sr in ires.subsystems:
+        row += 1
+        ws.cell(row=row, column=1, value=sr.name)
+        for j, (key, _fa, _en, u) in enumerate(SUB_COLS, 2):
+            v = sr.values.get(key)
+            c = ws.cell(row=row, column=j, value=v)
+            if v is not None:
+                c.number_format = "#,##0.00"
+    _autowidth(ws)
+
     # --- Warnings
     if a.warnings:
         ws = wb.create_sheet(t("warnings")[:31])

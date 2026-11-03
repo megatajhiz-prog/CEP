@@ -132,6 +132,23 @@ td.n {{ text-align:right; direction:ltr; }}
             parts.append("</table>")
 
 
+    from . import indicators as _ik
+    from .indicator_text import GROUP_TITLE, TEXT, format_value, unit_label
+    ires = _ik.compute(a.plant, a)
+    parts.append(f"<h2>{escape(t('tab_ind'))}</h2>")
+    for g in _ik.GROUPS:
+        rows = [i for i in ires.by_group(g) if i.value is not None]
+        if not rows:
+            continue
+        parts.append(f"<h3>{escape(GROUP_TITLE[g][0 if lang == 'fa' else 1])}</h3><table><tr>"
+                     + "".join(f"<th>{escape(t(x))}</th>" for x in ("in_col_name", "in_col_value", "in_col_unit")) + "</tr>")
+        for i in rows:
+            tx = TEXT[i.id]
+            parts.append(f"<tr><td>{escape(tx[0] if lang == 'fa' else tx[1])}</td>"
+                         f"<td class='n'>{escape(format_value(i.value, i.unit))}</td>"
+                         f"<td>{escape(unit_label(i.unit, lang, a.plant.currency, a.plant.production_unit))}</td></tr>")
+        parts.append("</table>")
+
     if a.warnings:
         parts.append(f"<h2 class='warn'>{escape(t('warnings'))}</h2><ul>"
                      + "".join(f"<li class='warn'>{escape(w)}</li>" for w in localize_all(a.warnings, lang)) + "</ul>")
