@@ -6,11 +6,11 @@ import csv
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
-    QListWidget, QListWidgetItem, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QListView, QListWidget, QListWidgetItem, QMessageBox, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .. import jcalendar as cal
@@ -283,8 +283,13 @@ class TimeTab(_Scroll):
         pre_w.setLayout(pre)
         pre.setContentsMargins(0, 0, 0, 0)
         self.var_list = QListWidget()
-        self.var_list.setMinimumHeight(330)
-        self.var_list.setMaximumHeight(460)
+        # items run top-to-bottom and wrap into columns, so every group is visible without scrolling
+        self.var_list.setFlow(QListView.Flow.TopToBottom)
+        self.var_list.setWrapping(True)
+        self.var_list.setResizeMode(QListView.ResizeMode.Adjust)
+        self.var_list.setGridSize(QSize(330, 32))
+        self.var_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.var_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.var_list.itemChanged.connect(self._vars_changed)
         self.lay.addWidget(card(t("ts_vars"), pre_w, self.var_list, note=t("ts_vars_note")))
 
@@ -406,6 +411,8 @@ class TimeTab(_Scroll):
             it.setData(Qt.ItemDataRole.UserRole, sp.key)
             self.var_list.addItem(it)
         self.var_list.blockSignals(False)
+        rows = -(-self.var_list.count() // 3) + 1               # three columns plus one row of slack
+        self.var_list.setFixedHeight(max(160, rows * 32 + 12))
 
     def checked_keys(self) -> List[str]:
         out = []
