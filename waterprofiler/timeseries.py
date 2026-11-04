@@ -36,6 +36,7 @@ PROFILE_MAP = {
 
 GROUP_TITLE = {
     "production": ("تولید", "Production"), "source": ("برداشت از منابع", "Source intake"),
+    "loss": ("تلفات آب", "Water losses"),
     "outlet": ("تخلیه به مقاصد", "Discharge to outlets"), "subsystem": ("جریان زیرسیستم‌ها", "Subsystem flows"),
     "energy": ("انرژی", "Energy"), "price": ("قیمت و تعرفه", "Prices and tariffs"),
     "env": ("اقلیم", "Climate"), "site": ("سایت و اقتصاد", "Site and economics"),
@@ -73,21 +74,26 @@ def catalog(plant: Plant) -> List[VarSpec]:
     v: List[VarSpec] = [VarSpec("production", "production", "تولید کل", "Total production", "units", "sum")]
     for p in plant.site.products:
         v.append(VarSpec(f"production:{p.name}", "production", f"تولید «{p.name}»", f"Production of {p.name}", "units", "sum"))
+    for s in plant.subsystems:
+        v.append(VarSpec(f"sub:{s.name}:production", "production", f"تولید واحد «{s.name}»", f"Production of unit {s.name}",
+                         "units", "sum"))
     for s in plant.sources:
         v.append(VarSpec(f"source:{s.name}", "source", f"برداشت از «{s.name}»", f"Intake from {s.name}", "m3", "sum"))
     for o in plant.outlets:
         v.append(VarSpec(f"outlet:{o.name}", "outlet", f"تخلیه به «{o.name}»", f"Discharge to {o.name}", "m3", "sum"))
+    v.append(VarSpec("loss:measured", "loss", "تلفات اندازه‌گیری‌شده (نشت / آب بدون درآمد)",
+                     "Measured losses (leaks / non-revenue water)", "m3", "sum"))
+    for s in plant.sources:
+        v.append(VarSpec(f"price:source:{s.name}", "price", f"قیمت آب «{s.name}»", f"Water price of {s.name}", "cur_m3", "mean"))
+    for o in plant.outlets:
+        v.append(VarSpec(f"price:outlet:{o.name}", "price", f"تعرفهٔ تخلیه به «{o.name}»", f"Discharge tariff of {o.name}", "cur_m3", "mean"))
+    v += [VarSpec("price:electricity", "price", "قیمت برق", "Electricity price", "cur_kwh", "mean"),
+          VarSpec("price:fuel", "price", "قیمت انرژی حرارتی", "Thermal energy price", "cur_kwh", "mean")]
     for s in plant.subsystems:
         for f, fa, en in SUB_FIELDS:
             v.append(VarSpec(f"sub:{s.name}:{f}", "subsystem", f"{s.name} — {fa}", f"{s.name} — {en}", "m3", "sum"))
     v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum"),
-          VarSpec("energy:th", "energy", "انرژی حرارتی (سوخت)", "Thermal energy (fuel)", "kwh", "sum"),
-          VarSpec("price:electricity", "price", "قیمت برق", "Electricity price", "cur_kwh", "mean"),
-          VarSpec("price:fuel", "price", "قیمت انرژی حرارتی", "Thermal energy price", "cur_kwh", "mean")]
-    for s in plant.sources:
-        v.append(VarSpec(f"price:source:{s.name}", "price", f"تعرفهٔ «{s.name}»", f"Tariff of {s.name}", "cur_m3", "mean"))
-    for o in plant.outlets:
-        v.append(VarSpec(f"price:outlet:{o.name}", "price", f"تعرفهٔ تخلیه به «{o.name}»", f"Discharge tariff of {o.name}", "cur_m3", "mean"))
+          VarSpec("energy:th", "energy", "انرژی حرارتی (سوخت)", "Thermal energy (fuel)", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
           VarSpec("env:rain", "env", "بارندگی", "Rainfall", "mm", "sum"),
           VarSpec("site:employees", "site", "تعداد پرسنل", "Employees", "count", "mean"),
@@ -314,6 +320,9 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
     for key, (attr, _agg) in PROFILE_MAP.items():
         if (g := get(key)):
             add(key, f"profile:{attr}", getattr(plant.profile, attr), g)
+    for sub in plant.subsystems:
+        if (g := get(f"sub:{sub.name}:production")):
+            add(f"sub:{sub.name}:production", "subprod:" + sub.name, plant.profile.sub_production.get(sub.name), g)
     return out
 
 
@@ -342,7 +351,9 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
         if ch.new is None:
             continue
         parts = ch.where.split(":")
-        if ch.where == "production_per_year":
+        if ch.where.startswith("subprod:"):
+            plant.profile.sub_production[ch.where[len("subprod:"):]] = ch.new
+        elif ch.where == "production_per_year":
             plant.production_per_year = ch.new
         elif parts[0] == "source":
             s = plant.source(parts[1])
@@ -437,7 +448,9 @@ def time_indicators(plant: Plant) -> List[Tuple[str, str, Optional[float], str]]
                      ("ts_min_ratio", "x"), ("ts_cv", "pct"), ("ts_trend", "pct"), ("ts_yoy", "pct"),
                      ("ts_intensity", "m3_unit"), ("ts_intensity_max", "m3_unit"), ("ts_intensity_min", "m3_unit"),
                      ("ts_base_load", "m3_mo"), ("ts_base_share", "pct"), ("ts_slope", "m3_unit"), ("ts_r2", "x"),
-                     ("ts_anomalies", "n"), ("ts_energy_per_m3", "kwh_m3"), ("ts_temp_corr", "x")):
+                     ("ts_anomalies", "n"), ("ts_energy_per_m3", "kwh_m3"), ("ts_temp_corr", "x"),
+                     ("ts_loss_measured", "pct"), ("ts_loss_balance", "pct"), ("ts_price_mean", "cur_m3"),
+                     ("ts_price_change", "pct")):
             out(i, u, None, "series")
         return res
     vals = [intake[i] for i in have]
@@ -492,6 +505,33 @@ def time_indicators(plant: Plant) -> List[Tuple[str, str, Optional[float], str]]
     pr = [(tmp[i], intake[i]) for i in range(len(sl)) if tmp[i] is not None and intake[i] is not None]
     out("ts_temp_corr", "x", _corr([a for a, _ in pr], [b for _, b in pr]) if len(pr) >= MIN_MONTHS else None,
         "series" if not pr else "data")
+
+    # losses: measured series, and the balance residual of the series (E + P from the annual model, per day)
+    ls = slice_values(plant, "loss:measured", sl)
+    lp = [(ls[i], intake[i]) for i in range(len(sl)) if ls[i] is not None and intake[i] is not None]
+    out("ts_loss_measured", "pct", 100.0 * sum(a for a, _ in lp) / sum(b for _, b in lp) if lp and sum(b for _, b in lp) > 0 else None,
+        "series")
+    od = _sum_keys(plant, [f"outlet:{o.name}" for o in plant.outlets], sl)
+    ep_year = sum(x.evaporation + x.product for x in plant.subsystems)
+    bal = [(intake[i] - od[i] - ep_year * sl[i].days / 365.0, intake[i]) for i in range(len(sl))
+           if intake[i] is not None and od[i] is not None]
+    out("ts_loss_balance", "pct", 100.0 * sum(a for a, _ in bal) / sum(b for _, b in bal) if bal and sum(b for _, b in bal) > 0 else None,
+        "series")
+    # water price: source tariffs weighted by the volume taken from each source
+    wp: List[Optional[float]] = []
+    for i in range(len(sl)):
+        num = den = 0.0
+        for src in plant.sources:
+            t_ = slice_values(plant, f"price:source:{src.name}", sl)[i] if plant.series.get(f"price:source:{src.name}") else None
+            q_ = slice_values(plant, f"source:{src.name}", sl)[i] if plant.series.get(f"source:{src.name}") else None
+            if t_ is not None and q_ is not None and q_ > 0:
+                num += t_ * q_
+                den += q_
+        wp.append(num / den if den > 0 else None)
+    got = [v for v in wp if v is not None]
+    out("ts_price_mean", "cur_m3", sum(got) / len(got) if got else None, "series")
+    out("ts_price_change", "pct", 100.0 * (got[-1] / got[0] - 1.0) if len(got) >= 2 and got[0] > 0 else None,
+        "series" if not got else "data")
     return res
 
 
