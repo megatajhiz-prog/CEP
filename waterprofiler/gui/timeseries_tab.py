@@ -288,6 +288,9 @@ class TimeTab(_Scroll):
         self.var_list.setWrapping(True)
         self.var_list.setResizeMode(QListView.ResizeMode.Adjust)
         self.var_list.setGridSize(QSize(330, 32))
+        self.var_list.setStyleSheet(
+            "QListWidget::indicator{width:16px;height:16px;border:1.5px solid #8A94A6;border-radius:4px;background:#FFFFFF;}"
+            f"QListWidget::indicator:checked{{background:{COL['blue']};border-color:{COL['blue']};}}")
         self.var_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.var_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.var_list.itemChanged.connect(self._vars_changed)
