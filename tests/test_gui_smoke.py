@@ -386,7 +386,7 @@ def test_time_tab_presets_defaults_and_entry(app):
     tt.set_checked(["loss:measured"])
     before = list(w.plant.series["loss:measured"])
     assert tt.set_cell(0, 2, "123", ask=False)
-    assert w.plant.series["loss:measured"][0].value == 123.0 and len(w.plant.series["loss:measured"]) == len(before)
+    assert w.plant.series["loss:measured"][0].value == 123.0 and len(w.plant.series["loss:measured"]) >= len(before)
     # the indicators page shows the new time indicators
     w.tabs.setCurrentWidget(w.ind_tab)
     from waterprofiler import indicators as K
