@@ -137,6 +137,11 @@ def demo_with_history(lang: str = "en") -> Plant:
         rows = {"production": prod, f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
                 f"sub:{n['ct']}:intake": sub[n["ct"]].total_intake * frac * (1.0 + 0.30 * season),
                 f"sub:{n['process']}:intake": sub[n["process"]].total_intake * frac * (prod / (p.production_per_year * frac)),
+                "loss:measured": 0.02 * (city_m + well_m) * (3.5 if i in (12, 13, 14) else 1.0),
+                f"sub:{n['process']}:production": prod * 0.72,
+                f"price:source:{city}": 1.40 * (1.25 if i >= 12 else 1.0),          # tariff rise in month 13
+                f"price:source:{well}": 0.15 * (1.10 if i >= 12 else 1.0),
+                f"price:outlet:{sewer}": 1.90 * (1.15 if i >= 12 else 1.0),
                 "energy:el": 90_000.0 * (1.0 + 0.15 * season) + 6_000.0 * math.sin(i),
                 "env:temp": 17.0 + 16.0 * season, "site:employees": 250.0 + (i % 4)}
         for k, v in rows.items():

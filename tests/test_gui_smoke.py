@@ -360,3 +360,35 @@ def test_indicators_tab_english_and_blank(app):
     w.tabs.setCurrentWidget(w.ind_tab)
     assert "Supply" in [c.text() for c in w.ind_tab.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
     w.close()
+
+
+def test_time_tab_presets_defaults_and_entry(app):
+    w = _win("en")
+    w.action_new()
+    w.tabs.setCurrentWidget(w.ts_tab)
+    tt = w.ts_tab
+    tt.set_checked([])
+    assert tt.checked_keys() == []
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.ts_tab)
+    first = w.plant.subsystems[0].name
+    tt.set_checked([])
+    tt._add_preset("loss")
+    assert tt.checked_keys() == ["loss:measured"]
+    tt._add_preset("prod")
+    assert f"sub:{first}:production" in tt.checked_keys() and "production" in tt.checked_keys()
+    tt._add_preset("water")
+    assert f"sub:{first}:intake" in tt.checked_keys() and any(k.startswith("source:") for k in tt.checked_keys())
+    tt._add_preset("price")
+    assert any(k.startswith("price:source:") for k in tt.checked_keys())
+    assert "energy:el" not in tt.checked_keys() or w.plant.series.get("energy:el")
+    # entering a monthly loss value writes into the plant
+    tt.set_checked(["loss:measured"])
+    before = list(w.plant.series["loss:measured"])
+    assert tt.set_cell(0, 2, "123", ask=False)
+    assert w.plant.series["loss:measured"][0].value == 123.0 and len(w.plant.series["loss:measured"]) == len(before)
+    # the indicators page shows the new time indicators
+    w.tabs.setCurrentWidget(w.ind_tab)
+    from waterprofiler import indicators as K
+    assert K.compute(w.plant).get("ts_loss_measured").value is not None
+    w.close()

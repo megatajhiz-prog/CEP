@@ -229,6 +229,8 @@ def where_text(t: Translator, where: str) -> str:
 
 class TimeTab(_Scroll):
     model_changed = Signal()               # a period was applied to the annual model
+    # shown by default: the data that really changes month by month
+    DEFAULT_GROUPS = ("production", "source", "outlet", "loss", "price")
 
     def __init__(self, t: Translator):
         super().__init__()
@@ -271,11 +273,20 @@ class TimeTab(_Scroll):
         self.lay.addWidget(card(t("ts_period"), holder, note=t("ts_period_note")))
 
         # ---- variables
+        pre = QHBoxLayout()
+        for key, kind in (("ts_pre_water", "water"), ("ts_pre_loss", "loss"), ("ts_pre_prod", "prod"),
+                          ("ts_pre_price", "price"), ("ts_pre_other", "other")):
+            pre.addWidget(button(t(key), "", lambda _=False, k=kind: self._add_preset(k)))
+        pre.addWidget(button(t("ts_pre_none"), "ghost", lambda _=False: self.set_checked([])))
+        pre.addStretch(1)
+        pre_w = QWidget()
+        pre_w.setLayout(pre)
+        pre.setContentsMargins(0, 0, 0, 0)
         self.var_list = QListWidget()
         self.var_list.setMinimumHeight(330)
         self.var_list.setMaximumHeight(460)
         self.var_list.itemChanged.connect(self._vars_changed)
-        self.lay.addWidget(card(t("ts_vars"), self.var_list, note=t("ts_vars_note")))
+        self.lay.addWidget(card(t("ts_vars"), pre_w, self.var_list, note=t("ts_vars_note")))
 
         # ---- table
         self.msg = QLabel("")
@@ -390,8 +401,7 @@ class TimeTab(_Scroll):
                 self.var_list.addItem(h)
             it = QListWidgetItem(f"{sp.label(lang)}   [{TS.unit_text(sp.unit, lang, plant)}]")
             it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-            on = (sp.key in old) if old is not None else (sp.key == "production" or sp.key.startswith(("source:", "outlet:"))
-                                                        or bool(plant.series.get(sp.key)))
+            on = (sp.key in old) if old is not None else (sp.group in self.DEFAULT_GROUPS or bool(plant.series.get(sp.key)))
             it.setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
             it.setData(Qt.ItemDataRole.UserRole, sp.key)
             self.var_list.addItem(it)
@@ -405,6 +415,26 @@ class TimeTab(_Scroll):
             if k and it.checkState() == Qt.CheckState.Checked:
                 out.append(k)
         return out
+
+    @staticmethod
+    def preset_match(kind: str, spec: "TS.VarSpec") -> bool:
+        k = spec.key
+        if kind == "water":
+            return spec.group in ("source", "outlet", "subsystem")
+        if kind == "loss":
+            return spec.group == "loss"
+        if kind == "prod":
+            return spec.group == "production"
+        if kind == "price":
+            return spec.group == "price"
+        return spec.group in ("energy", "env", "site", "quality")
+
+    def _add_preset(self, kind: str) -> None:
+        if self.plant is None:
+            return
+        keys = set(self.checked_keys())
+        keys |= {sp.key for sp in TS.catalog(self.plant) if self.preset_match(kind, sp)}
+        self.set_checked(list(keys))
 
     def set_checked(self, keys: List[str]) -> None:
         self.var_list.blockSignals(True)

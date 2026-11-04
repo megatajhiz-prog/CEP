@@ -245,3 +245,50 @@ def test_demo_with_history_is_consistent():
         assert span and (span[1] - span[0]).days > 540
         ind = {i: v for i, _u, v, _r in T.time_indicators(p)}
         assert ind["ts_months"] >= 18 and ind["ts_anomalies"] >= 1 and 1.0 < ind["ts_peak_factor"] < 2.0
+
+
+# ------------------------------------------------------------------ losses, unit production and water price
+def test_catalog_has_losses_unit_production_and_price_before_the_rest():
+    p = small()
+    keys = [s.key for s in T.catalog(p)]
+    assert "loss:measured" in keys
+    assert all(f"sub:{s.name}:production" in keys for s in p.subsystems)
+    groups = []
+    for s in T.catalog(p):
+        if not groups or groups[-1] != s.group:
+            groups.append(s.group)
+    assert len(groups) == len(set(groups))                                  # groups are contiguous in the list
+    assert groups.index("price") < groups.index("subsystem") < groups.index("energy")
+    assert groups.index("loss") < groups.index("price")
+
+
+def test_unit_production_is_applied_to_the_model():
+    p = small()
+    sub = p.subsystems[0].name
+    _fill_months(p, f"sub:{sub}:production", [10.0] * 12)
+    ch = [c for c in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20)) if c.key == f"sub:{sub}:production"]
+    assert len(ch) == 1 and ch[0].new == pytest.approx(120.0)
+    assert T.commit(p, ch) == 1 and p.profile.sub_production[sub] == pytest.approx(120.0)
+
+
+def test_loss_and_price_indicators():
+    p = monthly_plant()
+    sl = C.slices(date(2024, 1, 1), date(2025, 12, 31), "month", "gregorian")
+    for i, s in enumerate(sl):
+        v = 50.0 + 2.0 * (100.0 + 10.0 * (i % 6))
+        T.put(p, "loss:measured", s.start, s.end, v * 0.05)                 # 5 % of the intake every month
+        T.put(p, "price:source:A", s.start, s.end, 2.0 if i < 12 else 3.0)  # price rises 50 % in year 2
+    g = {i: v for i, _u, v, _r in T.time_indicators(p)}
+    assert g["ts_loss_measured"] == pytest.approx(5.0)
+    assert g["ts_price_mean"] == pytest.approx(2.5, rel=0.05) and g["ts_price_change"] == pytest.approx(50.0)
+    nothing = {i: (v, r) for i, _u, v, r in T.time_indicators(small())}
+    assert nothing["ts_loss_measured"] == (None, "series") and nothing["ts_price_change"] == (None, "series")
+
+
+def test_demo_history_has_loss_price_and_unit_production():
+    from waterprofiler.sample import demo_with_history
+    p = demo_with_history("en")
+    assert p.series.get("loss:measured") and any(k.startswith("price:source:") for k in p.series)
+    assert any(k.endswith(":production") and k.startswith("sub:") for k in p.series)
+    g = {i: v for i, _u, v, _r in T.time_indicators(p)}
+    assert 0 < g["ts_loss_measured"] < 10 and g["ts_price_change"] > 0
