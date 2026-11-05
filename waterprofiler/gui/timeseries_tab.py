@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from .. import jcalendar as cal
 from .. import timeseries as TS
+from .. import ts_excel as XL
 from ..i18n import Translator
 from ..model import Plant
 from ..numparse import parse_float
@@ -310,6 +311,8 @@ class TimeTab(_Scroll):
         self.tb.pasted.connect(self._paste)
         self.tb.cleared.connect(self._clear_cells)
         io = QHBoxLayout()
+        io.addWidget(button(t("ts_x_export"), "primary", self.export_xlsx_dialog))
+        io.addWidget(button(t("ts_x_import"), "", self.import_xlsx_dialog))
         io.addWidget(button(t("ts_import"), "", self.import_csv_dialog))
         io.addWidget(button(t("ts_export"), "", self.export_csv_dialog))
         io.addStretch(1)
@@ -740,6 +743,30 @@ class TimeTab(_Scroll):
         self.refresh(self.plant)
         self.msg.setText(self.t("ts_imported", n=ok, bad=len(bad)))
         return ok
+
+    def export_xlsx(self, path: str) -> int:
+        """Excel template for the periods and variables currently shown, prefilled with existing data."""
+        return XL.export_template(self.plant, path, self.slices, self.cols, self.t.lang)
+
+    def import_xlsx(self, path: str) -> int:
+        ok, bad = XL.import_template(self.plant, path)
+        self.refresh(self.plant)
+        self.msg.setText(self.t("ts_x_imported", n=ok, bad=len(bad)))
+        return ok
+
+    def export_xlsx_dialog(self) -> None:
+        if self.plant is None or not self.slices or not self.cols:
+            self.msg.setText(self.t("ts_x_nothing"))
+            return
+        path, _ = QFileDialog.getSaveFileName(self, self.t("ts_x_export"), "timeseries-template.xlsx", "Excel (*.xlsx)")
+        if path:
+            n = self.export_xlsx(path)
+            self.msg.setText(self.t("ts_x_exported", n=n, m=len(self.cols)))
+
+    def import_xlsx_dialog(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, self.t("ts_x_import"), "", "Excel (*.xlsx)")
+        if path and self.plant is not None:
+            self.import_xlsx(path)
 
     def export_csv_dialog(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, self.t("ts_export"), "timeseries.csv", "CSV (*.csv)")
