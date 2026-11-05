@@ -392,3 +392,18 @@ def test_time_tab_presets_defaults_and_entry(app):
     from waterprofiler import indicators as K
     assert K.compute(w.plant).get("ts_loss_measured").value is not None
     w.close()
+
+
+def test_time_tab_excel_template_buttons(app, tmp_path):
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.ts_tab)
+    tt = w.ts_tab
+    assert tt.cols and tt.slices
+    f = str(tmp_path / "tpl.xlsx")
+    assert tt.export_xlsx(f) == len(tt.slices)
+    before = len(w.plant.series)
+    assert tt.import_xlsx(f) > 0                       # the prefilled values come back unchanged
+    assert len(w.plant.series) == before
+    assert "Excel" in tt.msg.text() or tt.msg.text()
+    w.close()
