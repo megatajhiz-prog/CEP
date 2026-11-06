@@ -76,6 +76,7 @@ class IndicatorsTab(_Scroll):
         self.prod_tb.itemChanged.connect(self._prod_changed)
         self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, note=t("in_sub_prod_note")))
 
+        fa = t.lang == "fa"
         # one table per group
         self.tables: Dict[str, QTableWidget] = {}
         for g in K.GROUPS:
