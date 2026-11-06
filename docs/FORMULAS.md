@@ -160,3 +160,19 @@ the period view works on a copy.
 The balance table, totals and chart of the page are the ordinary water balance (section 2) of that adjusted copy.
 During auto-play the thickness scale of the diagram is fixed to the largest column total of all periods, so frames
 are visually comparable.
+
+## One entry point per datum (v0.9)
+
+Quantities that vary with time are entered **once, in the time series**. For every field of the model that has a series
+variable (annual production, metered intake / discharge of sources and outlets, their prices, electricity and fuel price,
+staff, revenue, value added, production cost, steam, outage hours, water-quality values, production per unit and the five
+flows of every subsystem), the model takes its value from the reference window of the time-series page (the window set
+there, or all data):
+
+    value_model = sum(series in window) * 365 / days_covered        (volumes, amounts)
+    value_model = mean(series in window)                             (prices, staff, concentrations)
+
+A variable needs data on at least half of the window's days. The values are written into the model automatically
+(`timeseries.sync`, idempotent) whenever the model is collected; the field is then shown grey and read-only on the other
+pages. A field without series data stays editable there. Fixed values (areas, capacities, emission factors, working days,
+...) are entered once on the Industrial complex page; the estimator takes staff, working days and green area from there.
