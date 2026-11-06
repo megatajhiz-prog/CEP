@@ -89,6 +89,7 @@ jobs:
           name: CEPWater-Setup
           path: Output/CEPWater-Setup-*.exe
           if-no-files-found: error
+          retention-days: 14
 
       - name: Publish release on tag
         if: startsWith(github.ref, 'refs/tags/v')

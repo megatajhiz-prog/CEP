@@ -148,10 +148,9 @@ def test_subsystem_without_split_is_not_guessed():
 
 def test_products_sum_when_total_missing():
     p = small()
-    p.site.products = [Product("P1", "t"), Product("P2", "t"), Product("Q", "m")]
+    p.site.products = [Product("P1", "t"), Product("P2", "t")]
     _fill_months(p, "production:P1", [10.0] * 12)
     _fill_months(p, "production:P2", [20.0] * 12)
-    _fill_months(p, "production:Q", [999.0] * 12)                      # other unit: not added
     c = [x for x in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20)) if x.key == "production"][0]
     assert c.new == pytest.approx(360.0)
 

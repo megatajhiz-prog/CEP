@@ -226,15 +226,19 @@ PROFILE_LABEL = {
     "target_loss_pct": ("هدف تلفات ناشناخته", "Loss target", "٪", "%", 100, 1),
 }
 
+# inputs entered on the "industrial complex" page (structure and capacity: they do not change from month to month)
+STRUCT_GROUPS = (
+    ("ساعات کار، ساختمان و فضای سبز", "Working time, buildings and green area", ("working_days", "building_area_m2", "green_area_m2")),
+    ("تأمین و شبکه", "Supply and network", ("permit_m3", "storage_m3", "network_km", "connections", "pressure_m")),
+    ("ضرایب انتشار کربن", "Carbon emission factors", ("ef_el", "ef_th")),
+)
+# inputs that vary with time (they also exist as time series) and the targets: entered on the indicators page
 PROFILE_GROUPS = (
-    ("پرسنل، ساختمان و فضای سبز", "People, buildings and green area", ("employees", "working_days", "building_area_m2", "green_area_m2")),
-    ("اقتصاد", "Economics", ("revenue", "value_added", "production_cost")),
-    ("تأمین و شبکه", "Supply and network",
-     ("steam_t", "permit_m3", "storage_m3", "outage_hours", "network_km", "connections", "pressure_m")),
-    ("کیفیت پساب و کربن", "Wastewater quality and carbon",
-     ("cod_raw", "cod_out", "tds_intake", "tds_discharge", "ef_el", "ef_th")),
+    ("پرسنل و اقتصاد", "People and economics", ("employees", "revenue", "value_added", "production_cost")),
+    ("تأمین و کیفیت", "Supply and quality", ("steam_t", "outage_hours", "cod_raw", "cod_out", "tds_intake", "tds_discharge")),
     ("اهداف", "Targets", ("target_intake_per_unit", "target_recirc_pct", "target_loss_pct")),
 )
+STRUCT_FIELDS = frozenset(n for g in STRUCT_GROUPS for n in g[2])
 
 # per-subsystem table columns: key -> (fa, en, unit code)
 SUB_COLS = (
