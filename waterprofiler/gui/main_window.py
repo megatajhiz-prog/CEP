@@ -14,8 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, branding
+from .. import timeseries as TS
 from ..analysis import Analysis, analyse
-from ..estimate_apply import apply_estimate
+from ..estimate_apply import apply_estimate, shared_params
 from ..estimators import InputError
 from ..export_xlsx import export_xlsx
 from ..i18n import Translator
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self.path: Optional[str] = None
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
+        self._synced = False
         self.resize(1180, 760)
         self._build()
         self._load_all()
@@ -297,6 +299,8 @@ class MainWindow(QMainWindow):
             item = self.sub_list.item(self._cur)
             if item is not None:
                 item.setText(self.plant.subsystems[self._cur].name)
+        # one entry point per datum: whatever the time series determines is (re)written into the model
+        self._synced = TS.sync(self.plant) > 0
         return self.plant
 
     def _refresh_sub_list(self, select: int) -> None:
@@ -314,6 +318,8 @@ class MainWindow(QMainWindow):
         self.sub_editor.setEnabled(bool(self.plant.subsystems))
 
     def _load_all(self, select: int = 0) -> None:
+        TS.sync(self.plant)
+        self.sub_editor.driven = TS.driven(self.plant)
         self.industrial_tab.load(self.plant)
         self.sub_editor.set_catalog(*self._catalog())
         self._refresh_sub_list(select)
@@ -331,6 +337,9 @@ class MainWindow(QMainWindow):
     def _tab_changed(self, idx: int) -> None:
         self._sync_nav(idx)
         self.collect()
+        if self._synced:                          # the time series changed the model: show the new values everywhere
+            self._load_all(select=max(0, self._cur))
+        self.sub_editor.driven = TS.driven(self.plant)
         w = self.tabs.widget(idx)
         if w is self.cost_tab:
             self._run_analysis()
@@ -380,6 +389,8 @@ class MainWindow(QMainWindow):
 
     def _flow_edited(self) -> None:
         """The diagram changed the plant: reload the subsystem editor and recompute everything."""
+        if TS.sync(self.plant):                   # a flow driven by the time series cannot be changed by hand
+            self.statusBar().showMessage(self.t("ft_driven_reverted"), 8000)
         if 0 <= self._cur < len(self.plant.subsystems):
             self.sub_editor.load(self.plant.subsystems[self._cur])
         a = self._run_analysis()
@@ -635,14 +646,16 @@ class MainWindow(QMainWindow):
         if not srcs:
             QMessageBox.information(self, t("estimate"), t("catalog_hint"))
             return
+        shared = shared_params(self.plant, s.kind)
         dlg = EstimateDialog(t, s.kind, s.params, srcs, outs,
-                             next(iter(s.intake), None), next(iter(s.discharge), None), self)
+                             next(iter(s.intake), None), next(iter(s.discharge), None), self, locked=shared)
         if dlg.exec():
             try:
                 apply_estimate(s, s.kind, dlg.values(), dlg.selected_source(), dlg.selected_outlet())
             except (InputError, KeyError) as e:
                 QMessageBox.warning(self, t("error"), localize(str(e), t.lang))
                 return
+            TS.sync(self.plant)
             self.sub_editor.load(s)
 
     def _apply_reconciled(self, plant: Plant) -> None:

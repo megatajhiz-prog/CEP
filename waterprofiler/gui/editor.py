@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from .. import timeseries as TS
 from ..i18n import Translator
 from ..model import Outlet, Plant, Pump, Source, Subsystem, Treatment
 from ..numparse import fmt_float, parse_float
@@ -106,14 +107,31 @@ class PlantPanel(QScrollArea):
         self.outlets.set_rows([[o.name, o.unit_cost, o.metered_m3] for o in p.outlets])
         self.treatments.set_rows([[x.name, x.unit_cost, x.wastewater] for x in p.treatments])
         self.blockSignals(False)
+        self._lock_driven(p)
+
+    def _lock_driven(self, p: Plant) -> None:
+        """Values that come from the time series are shown but cannot be typed here (one entry point per datum)."""
+        drv = TS.driven(p)
+        tip = self.t("ft_driven")
+        for w, key in ((self.production, "production_per_year"), (self.elec, "costs:electricity_per_kwh"),
+                       (self.fuel, "costs:fuel_per_kwh_thermal")):
+            w.setEnabled(key not in drv)
+            w.setToolTip(tip if key in drv else "")
+        self.sources.lock_cells([(r, c) for r, s in enumerate(p.sources) for c, k in ((1, "unit_cost"), (2, "metered"))
+                                 if f"source:{s.name}:{k}" in drv], tip, (1, 2))
+        self.outlets.lock_cells([(r, c) for r, o in enumerate(p.outlets) for c, k in ((1, "unit_cost"), (2, "metered"))
+                                 if f"outlet:{o.name}:{k}" in drv], tip, (1, 2))
 
     def store(self, p: Plant) -> None:
         p.name = self.name.text().strip() or p.name
         p.currency = self.currency.text().strip() or p.currency
-        p.production_per_year = self.production.value()
+        if self.production.isEnabled():                 # a disabled field shows a series-driven value: never written back
+            p.production_per_year = self.production.value()
         p.production_unit = self.prod_unit.text().strip() or p.production_unit
-        p.costs.electricity_per_kwh = self.elec.value()
-        p.costs.fuel_per_kwh_thermal = self.fuel.value()
+        if self.elec.isEnabled():
+            p.costs.electricity_per_kwh = self.elec.value()
+        if self.fuel.isEnabled():
+            p.costs.fuel_per_kwh_thermal = self.fuel.value()
         p.costs.heating_efficiency = self.heat_eff.value() or p.costs.heating_efficiency
         seen = set()
         p.sources, p.outlets, p.treatments = [], [], []
@@ -168,6 +186,13 @@ class SubsystemEditor(QScrollArea):
         hl.addLayout(form, 1)
         hl.addWidget(self.est_btn, 0, Qt.AlignmentFlag.AlignBottom)
         lay.addWidget(card(t("sub_basic"), head))
+        self.driven: Dict[str, str] = {}          # model fields currently taken from the time series (set by the window)
+        self._locked: set = set()
+        self.driven_note = QLabel(t("ft_driven_note"))
+        self.driven_note.setObjectName("cardnote")
+        self.driven_note.setWordWrap(True)
+        self.driven_note.setVisible(False)
+        lay.addWidget(self.driven_note)
 
         self.intake = DataTable([t("sources"), t("amount_m3")], ["combo", "num"])
         self.discharge = DataTable([t("outlets"), t("amount_m3")], ["combo", "num"])
@@ -243,17 +268,35 @@ class SubsystemEditor(QScrollArea):
             p.volts, p.amps, p.power_factor, float(p.phases)] for p in s.pumps])
         self.t_in.set(s.t_intake_c)
         self.t_ww.set(s.t_wastewater_c)
+        self._lock_driven(s)
+
+    def _lock_driven(self, s: Subsystem) -> None:
+        drv = self.driven
+        tip = self.t("ft_driven")
+        self._locked = {f for f in ("intake", "discharge", "evaporation", "product", "recirc") if f"sub:{s.name}:{f}" in drv}
+        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc)):
+            w.setEnabled(f not in self._locked)
+            w.setToolTip(tip if f in self._locked else "")
+        for f, tb in (("intake", self.intake), ("discharge", self.discharge)):
+            tb.lock_cells([(r, 1) for r in range(tb.rowCount())] if f in self._locked else [], tip, (1,))
+        self.driven_note.setVisible(bool(self._locked))
 
     def store(self, s: Subsystem) -> None:
         s.name = self.name.text().strip() or s.name
         s.kind = self.kind.currentData() or "other"
-        s.intake = _sum_dict(self.intake.rows())
-        s.discharge = _sum_dict(self.discharge.rows())
-        s.recirculated = self.recirc.value()
+        lk = self._locked                                   # fields driven by the time series are not written back
+        if "intake" not in lk:
+            s.intake = _sum_dict(self.intake.rows())
+        if "discharge" not in lk:
+            s.discharge = _sum_dict(self.discharge.rows())
+        if "recirc" not in lk:
+            s.recirculated = self.recirc.value()
         s.from_other = self.from_other.value()
         s.to_other = self.to_other.value()
-        s.product = self.product.value()
-        s.evaporation = self.evap.value()
+        if "product" not in lk:
+            s.product = self.product.value()
+        if "evaporation" not in lk:
+            s.evaporation = self.evap.value()
         s.water_treatments = _sum_dict(self.wtreat.rows())
         s.wastewater_treatments = _sum_dict(self.wwtreat.rows())
         pumps = []

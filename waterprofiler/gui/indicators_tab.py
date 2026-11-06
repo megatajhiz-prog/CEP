@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import indicators as K
+from .. import timeseries as TS
 from ..indicator_text import (
     GROUP_TITLE, PROFILE_GROUPS, PROFILE_LABEL, STRUCT_FIELDS, SUB_COLS, TEXT, format_value, unit_label,
 )
@@ -113,6 +114,7 @@ class IndicatorsTab(_Scroll):
         self._loading = True
         pf = plant.profile
         self.inputs.load(plant)
+        drv = TS.driven(plant)
         self.prod_tb.blockSignals(True)
         self.prod_tb.setRowCount(len(plant.subsystems))
         for r, s in enumerate(plant.subsystems):
@@ -121,6 +123,9 @@ class IndicatorsTab(_Scroll):
             self.prod_tb.setItem(r, 0, name_it)
             it = QTableWidgetItem(f"{pf.sub_production.get(s.name, 0.0):g}")
             it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if f"subprod:{s.name}" in drv:                      # taken from the time series: shown, not typed
+                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                it.setToolTip(self.t("ft_driven"))
             self.prod_tb.setItem(r, 1, it)
         self.prod_tb.blockSignals(False)
         _fit(self.prod_tb)

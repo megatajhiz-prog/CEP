@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QLocale, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -184,6 +184,27 @@ class DataTable(QTableWidget):
         self._loading = was
         if emit and not was:
             self.changed.emit()
+
+    def lock_cells(self, cells, tip: str = "", reset_cols=()) -> int:
+        """Make the number cells ``(row, col)`` read-only (values that come from elsewhere); returns how many were locked.
+
+        Cells of ``reset_cols`` are made editable again first, so a lock that no longer applies is lifted."""
+        for r in range(self.rowCount()):
+            for c in reset_cols:
+                it = self.item(r, c)
+                if it is not None and not (it.flags() & ITEM_FLAG.ItemIsEditable):
+                    it.setFlags(it.flags() | ITEM_FLAG.ItemIsEditable)
+                    it.setBackground(QBrush())
+                    it.setToolTip("")
+        n = 0
+        for r, c in cells:
+            it = self.item(r, c)
+            if it is not None:
+                it.setFlags(it.flags() & ~ITEM_FLAG.ItemIsEditable)
+                it.setBackground(QColor("#EEF1F5"))
+                it.setToolTip(tip)
+                n += 1
+        return n
 
     def remove_selected(self) -> None:
         r = self.currentRow()
