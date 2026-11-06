@@ -61,14 +61,16 @@ def main(out: str) -> int:
             traceback.print_exc()
 
     def blank():
-        win.plant_panel.name.setFocus()
+        win.complex_tab.general.name.setFocus()
         shot(win, "00_start_blank")
 
     def plant_tab():
         win._set_plant(demo_plant("fa"), None)
         win.tabs.setCurrentIndex(0)
         shot(win, "01_plant")
-        shot(win.plant_panel.widget(), "01_plant_panel")
+        shot(win.complex_tab.general.widget(), "01_plant_panel")
+        win.complex_tab.setCurrentWidget(win.complex_tab.resources)
+        shot(win.complex_tab.resources.widget(), "01_resources_panel")
 
     def file_menu():
         menu = win.menuBar().actions()[0].menu()
@@ -169,7 +171,8 @@ def main(out: str) -> int:
     def site_and_series():
         from waterprofiler.sample import demo_with_history
         win._set_plant(demo_with_history("fa"), None)
-        go(win.site_tab)
+        go(win.complex_tab)
+        win.complex_tab.setCurrentWidget(win.complex_tab.structure)
         shot(win, "17_site")
         shot(win.site_tab.widget(), "17_site_full")
         go(win.ts_tab)

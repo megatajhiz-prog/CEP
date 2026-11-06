@@ -188,8 +188,7 @@ class Meter:
 
 @dataclass
 class Site:
-    """Descriptive data of the industrial site."""
-    name: str = ""
+    """Descriptive data of the industrial complex (its name is ``Plant.name``)."""
     owner: str = ""
     sector: str = ""
     province: str = ""

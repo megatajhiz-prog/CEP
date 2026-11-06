@@ -138,7 +138,7 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
     add("use_consumption_per_unit", "use", "m3_unit", _div(intake - disch, units))
     san = [s for s in subs if s.kind == "sanitary"]
     emp = pf.employees or max([s.params.get("employees", 0.0) for s in san] or [0.0])
-    days = pf.working_days or max([s.params.get("days", 0.0) for s in san] or [0.0])
+    days = pf.working_days or float(plant.site.operating_days) or max([s.params.get("days", 0.0) for s in san] or [0.0])
     san_in = sum(s.total_intake for s in san)
     add("use_lpd", "use", "lpd", 1000.0 * san_in / (emp * days) if san and emp > 0 and days > 0 else None)
     add("use_per_building", "use", "m3_m2", _div(intake, pf.building_area_m2), ("building_area_m2",))
@@ -262,7 +262,7 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
             v["cycles"] = bc / mc if mc > 0 and bc > 0 else None
             v["blowdown"] = _pct(s.total_discharge, s.total_intake)
         if s.kind == "sanitary":
-            e_, d_ = pf.employees or s.params.get("employees", 0.0), pf.working_days or s.params.get("days", 0.0)
+            e_, d_ = pf.employees or s.params.get("employees", 0.0), pf.working_days or float(plant.site.operating_days) or s.params.get("days", 0.0)
             v["lpd"] = 1000.0 * s.total_intake / (e_ * d_) if e_ > 0 and d_ > 0 else None
         sub_rows.append(SubIndicators(s.name, s.kind, v))
 

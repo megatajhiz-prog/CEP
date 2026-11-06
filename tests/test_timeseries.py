@@ -201,7 +201,7 @@ def test_not_enough_data_is_reported_not_guessed():
 # --------------------------------------------------------------------------------------------- persistence
 def test_site_and_series_roundtrip_and_old_files(tmp_path):
     p = monthly_plant(6)
-    p.site = Site(name="Pasargad Plant", province="Tehran", calendar="jalali", commissioning_year=1390,
+    p.site = Site(province="Tehran", calendar="jalali", commissioning_year=1390,
                   areas=[Area("Hall A", "production")], products=[Product("Cement", "t")],
                   meters=[Meter("M1", "source:A", "flow", "m3", 1.5, "2020-01-01", "2025-01-01")])
     p.subsystems[0].area = "Hall A"
@@ -336,3 +336,18 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w2.active.append(["a", "b"])
     w2.save(tmp_path / "x.xlsx")
     assert X.import_template(q, str(tmp_path / "x.xlsx")) == (0, ["no key row"])
+
+
+def test_old_project_with_site_name_loads_and_operating_days_feed_indicators():
+    from waterprofiler.model import Plant
+    from waterprofiler import indicators as I
+    from waterprofiler.sample import demo_plant
+    d = demo_plant("en").to_dict()
+    d["site"] = {"name": "old site name", "province": "Alborz", "operating_days": 300}
+    p = Plant.from_dict(d)
+    assert p.site.province == "Alborz" and not hasattr(p.site, "name")
+    p.profile.working_days = 0.0
+    p.profile.employees = 100.0
+    a = I.compute(p)
+    lpd = [i for i in a.by_group("use") if i.id == "use_lpd"]
+    assert lpd and lpd[0].value is not None

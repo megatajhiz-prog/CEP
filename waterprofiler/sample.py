@@ -108,7 +108,7 @@ def demo_with_history(lang: str = "en") -> Plant:
     n = _NAMES.get(lang, _NAMES["en"])
     fa = lang == "fa"
     p.site = Site(
-        name="کارخانهٔ نمونه" if fa else "Demo plant site", owner="شرکت نمونه" if fa else "Demo Co.",
+        owner="شرکت نمونه" if fa else "Demo Co.",
         sector="صنایع غذایی" if fa else "Food and beverage", province="البرز" if fa else "Alborz",
         city="کرج" if fa else "Karaj", land_area_m2=60_000, commissioning_year=1392 if fa else 2013,
         shifts_per_day=2, operating_days=300, calendar="jalali" if fa else "gregorian",

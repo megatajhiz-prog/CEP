@@ -335,7 +335,8 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert w.plant.profile.sub_production[first] == 50000.0
     assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
-    w.tabs.setCurrentWidget(w.plant_panel)
+    w.tabs.setCurrentWidget(w.complex_tab)
+    w.complex_tab.setCurrentWidget(w.plant_panel)
     w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     w.collect()
     assert w.plant.sources[0].alternative is True
@@ -472,4 +473,23 @@ def test_flow_page_without_series_stays_in_base(app):
     assert not tb.has_data() and not tb.mode.isEnabled() and tb.period() is None
     tb.play()
     assert not tb.is_playing()
+    w.close()
+
+
+def test_complex_page_merges_plant_and_site(app):
+    w = _win("fa")
+    w.action_demo()
+    assert "plant" not in [p[0] for p in w._pages] and "site" not in [p[0] for p in w._pages]
+    assert w._pages[0][0] == "complex" and w.t("tab_complex") == "مجتمع صنعتی"
+    w.tabs.setCurrentWidget(w.complex_tab)
+    g = w.complex_tab.general
+    g.name.setText("مجتمع آزمایشی")
+    g.owner.setText("شرکت الف")
+    g.days.setValue(280)
+    g.production.setValue(12345.0)
+    w.complex_tab.setCurrentWidget(w.complex_tab.structure)
+    w.collect()
+    assert w.plant.name == "مجتمع آزمایشی" and w.plant.site.owner == "شرکت الف"
+    assert w.plant.site.operating_days == 280 and w.plant.production_per_year == 12345.0
+    assert len(w.plant.sources) == 2
     w.close()

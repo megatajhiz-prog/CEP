@@ -37,7 +37,7 @@ def _sum_dict(rows: List[list]) -> Dict[str, float]:
 
 
 class PlantPanel(QScrollArea):
-    """Plant name, unit prices, sources, outlets, treatments."""
+    """Water sources, outlets and treatments (part of the industrial-complex page)."""
 
     changed = Signal()
 
@@ -51,30 +51,6 @@ class PlantPanel(QScrollArea):
         outer = QVBoxLayout(body)
         outer.setContentsMargins(26, 22, 26, 26)
         outer.setSpacing(16)
-        self.name = QLineEdit()
-        self.currency = QLineEdit()
-        self.production = dspin(decimals=2)
-        self.prod_unit = QLineEdit()
-        self.elec = dspin(decimals=6, step=0.01)
-        self.fuel = dspin(decimals=6, step=0.01)
-        self.heat_eff = dspin(maximum=1.0, decimals=3, step=0.01)
-        left, right = QFormLayout(), QFormLayout()
-        for form in (left, right):
-            form.setHorizontalSpacing(16)
-            form.setVerticalSpacing(10)
-        for label, w in (("plant_name", self.name), ("currency", self.currency), ("production", self.production),
-                         ("production_unit", self.prod_unit)):
-            left.addRow(t(label), w)
-        for label, w in (("elec_cost", self.elec), ("fuel_cost", self.fuel), ("heat_eff", self.heat_eff)):
-            right.addRow(t(label), w)
-        info = QWidget()
-        il = QHBoxLayout(info)
-        il.setContentsMargins(0, 0, 0, 0)
-        il.setSpacing(40)
-        il.addLayout(left, 1)
-        il.addLayout(right, 1)
-        outer.addWidget(card(t("plant_info"), info, note=t("plant_info_note")))
-
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
                                  ["text", "num", "num", "bool"])
         self.outlets = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
@@ -86,35 +62,17 @@ class PlantPanel(QScrollArea):
         outer.addLayout(row, 1)
         outer.addWidget(table_box(t("treatments"), self.treatments, t("add"), t("remove"), lambda: ["", 0.0, False]), 1)
 
-        for w in (self.name, self.currency, self.prod_unit):
-            w.textChanged.connect(self.changed)
-        for w in (self.production, self.elec, self.fuel, self.heat_eff):
-            w.valueChanged.connect(self.changed)
         for tb in (self.sources, self.outlets, self.treatments):
             tb.changed.connect(self.changed)
 
     def load(self, p: Plant) -> None:
         self.blockSignals(True)
-        self.name.setText(p.name)
-        self.currency.setText(p.currency)
-        self.production.setValue(p.production_per_year)
-        self.prod_unit.setText(p.production_unit)
-        self.elec.setValue(p.costs.electricity_per_kwh)
-        self.fuel.setValue(p.costs.fuel_per_kwh_thermal)
-        self.heat_eff.setValue(p.costs.heating_efficiency)
         self.sources.set_rows([[s.name, s.unit_cost, s.metered_m3, s.alternative] for s in p.sources])
         self.outlets.set_rows([[o.name, o.unit_cost, o.metered_m3] for o in p.outlets])
         self.treatments.set_rows([[x.name, x.unit_cost, x.wastewater] for x in p.treatments])
         self.blockSignals(False)
 
     def store(self, p: Plant) -> None:
-        p.name = self.name.text().strip() or p.name
-        p.currency = self.currency.text().strip() or p.currency
-        p.production_per_year = self.production.value()
-        p.production_unit = self.prod_unit.text().strip() or p.production_unit
-        p.costs.electricity_per_kwh = self.elec.value()
-        p.costs.fuel_per_kwh_thermal = self.fuel.value()
-        p.costs.heating_efficiency = self.heat_eff.value() or p.costs.heating_efficiency
         seen = set()
         p.sources, p.outlets, p.treatments = [], [], []
         for n, c, m, alt in self.sources.rows():
