@@ -46,7 +46,7 @@ class SiteTab(_Scroll):
         self.meter_kinds = _Kinds(t, "site_mk_", METER_KINDS)
 
         # ---- descriptive data
-        self.f_name, self.f_owner, self.f_sector = QLineEdit(), QLineEdit(), QLineEdit()
+        self.f_owner, self.f_sector = QLineEdit(), QLineEdit()
         self.f_province, self.f_city, self.f_address = QLineEdit(), QLineEdit(), QLineEdit()
         self.f_note = QLineEdit()
         self.f_lat = dspin(maximum=90.0, minimum=-90.0, decimals=6, step=0.01)
@@ -65,7 +65,7 @@ class SiteTab(_Scroll):
         for form in (left, right):
             form.setHorizontalSpacing(16)
             form.setVerticalSpacing(10)
-        for key, w in (("site_name", self.f_name), ("site_owner", self.f_owner), ("site_sector", self.f_sector),
+        for key, w in (("site_owner", self.f_owner), ("site_sector", self.f_sector),
                        ("site_province", self.f_province), ("site_city", self.f_city), ("site_address", self.f_address),
                        ("site_note", self.f_note)):
             left.addRow(t(key), w)
@@ -118,7 +118,7 @@ class SiteTab(_Scroll):
         self.lay.addWidget(mb)
         self.lay.addStretch(1)
 
-        for w in (self.f_name, self.f_owner, self.f_sector, self.f_province, self.f_city, self.f_address, self.f_note):
+        for w in (self.f_owner, self.f_sector, self.f_province, self.f_city, self.f_address, self.f_note):
             w.textChanged.connect(self._edited)
         for w in (self.f_lat, self.f_lon, self.f_land):
             w.valueChanged.connect(self._edited)
@@ -133,7 +133,7 @@ class SiteTab(_Scroll):
         self._loading = True
         self.plant = plant
         s = plant.site
-        for w, v in ((self.f_name, s.name), (self.f_owner, s.owner), (self.f_sector, s.sector), (self.f_province, s.province),
+        for w, v in ((self.f_owner, s.owner), (self.f_sector, s.sector), (self.f_province, s.province),
                      (self.f_city, s.city), (self.f_address, s.address), (self.f_note, s.note)):
             w.setText(v)
         self.f_lat.setValue(s.latitude)
@@ -183,7 +183,8 @@ class SiteTab(_Scroll):
         if self.plant is not plant:
             return
         s = plant.site
-        s.name, s.owner, s.sector = self.f_name.text().strip(), self.f_owner.text().strip(), self.f_sector.text().strip()
+        s.owner, s.sector = self.f_owner.text().strip(), self.f_sector.text().strip()
+        s.name = plant.name                      # one name for the complex: the plant name
         s.province, s.city, s.address = self.f_province.text().strip(), self.f_city.text().strip(), self.f_address.text().strip()
         s.note = self.f_note.text().strip()
         s.latitude, s.longitude, s.land_area_m2 = self.f_lat.value(), self.f_lon.value(), self.f_land.value()
