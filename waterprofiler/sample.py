@@ -135,7 +135,8 @@ def demo_with_history(lang: str = "en") -> Plant:
         city_m = sum(sub[x].intake.get(city, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac)) * leak
         well_m = sum(sub[x].intake.get(well, 0.0) for x in sub) * frac * (1.0 + 0.30 * season)
         sew_m = sum(sub[x].discharge.get(sewer, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac))
-        rows = {"production": prod, f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
+        rows = {f"production:{p.site.products[0].name}": prod * 0.6, f"production:{p.site.products[1].name}": prod * 0.4,
+                f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
                 f"sub:{n['ct']}:intake": sub[n["ct"]].total_intake * frac * (1.0 + 0.30 * season),
                 f"sub:{n['process']}:intake": sub[n["process"]].total_intake * frac * (prod / (p.production_per_year * frac)),
                 "loss:measured": 0.02 * (city_m + well_m) * (3.5 if i in (12, 13, 14) else 1.0),

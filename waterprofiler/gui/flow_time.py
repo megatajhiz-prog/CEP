@@ -16,7 +16,7 @@ from .. import timeseries as TS
 from ..i18n import Translator
 from ..model import Plant
 from .theme import COL
-from .timeseries_tab import CalDate
+from .series_view import CalDate
 from .widgets import button
 
 SPEEDS = (("ft_slow", 1800), ("ft_normal", 900), ("ft_fast", 400))

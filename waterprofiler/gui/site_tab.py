@@ -14,6 +14,7 @@ from ..i18n import Translator
 from ..model import Area, Meter, Plant, Product, Site
 from .profile_inputs import ProfileInputs
 from .tabs import _Scroll, make_table, put
+from .series_view import SeriesPanel, TimeContext, TotalProductionView
 from .widgets import DataTable, card, dspin, table_box
 
 AREA_KINDS = ("production", "utility", "services", "landscape", "other")
@@ -39,8 +40,9 @@ class _Kinds:
 class SiteTab(_Scroll):
     changed = Signal()
 
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, ctx: Optional[TimeContext] = None):
         super().__init__()
+        self.ctx = ctx or TimeContext(t.lang)
         self.t = t
         self._loading = False
         self.plant: Optional[Plant] = None
@@ -95,6 +97,13 @@ class SiteTab(_Scroll):
                                 lambda: ["", self.area_kinds.labels[0], ""]))
         row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", ""]))
         self.lay.addLayout(row)
+
+        # ---- production of the products (series, entered here) and the total (their sum, read-only)
+        self.panel_products = SeriesPanel(t, self.ctx, lambda: [f"production:{p.name}" for p in self.ctx.plant.site.products]
+                                          if self.ctx.plant else [], opened=True)
+        self.total_view = TotalProductionView(t, self.ctx)
+        self.lay.addWidget(card(t("site_prod_series"), self.panel_products, note=t("site_prod_series_note")))
+        self.lay.addWidget(card(t("tp_title"), self.total_view, note=t("tp_note")))
 
         # ---- subsystems -> areas
         self.assign = make_table([t("subsystem"), t("site_area"), t("site_intake"), t("site_share")])

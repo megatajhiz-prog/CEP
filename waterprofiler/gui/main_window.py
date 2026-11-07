@@ -33,7 +33,6 @@ from .econ_tab import EconTab
 from .indicators_tab import IndicatorsTab
 from .industrial_tab import IndustrialTab
 from .series_view import TimeContext
-from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .tabs import CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
@@ -94,16 +93,14 @@ class MainWindow(QMainWindow):
         self.flow_tab.subsystem_requested.connect(self._open_subsystem)
         self.flow_tab.links_changed.connect(self._links_changed)
         self.flow_tab.plant_edited.connect(self._flow_edited)
-        self.flow_tab.series_requested.connect(lambda: self.tabs.setCurrentWidget(self.ts_tab))
+        self.flow_tab.series_requested.connect(self._goto_time)
         self.balance_tab = self.flow_tab.balance      # the balance lives on the flow page
         self.cost_tab = CostTab(t)
         self.savings_tab = SavingsTab(t)
         self.measures_tab = MeasuresTab(t)
         self.plan_tab = PlanTab(t)
         self.econ_tab = EconTab(t)
-        self.ind_tab = IndicatorsTab(t)
-        self.ts_tab = TimeTab(t)
-        self.ts_tab.model_changed.connect(self._series_applied)
+        self.ind_tab = IndicatorsTab(t, self.time_ctx)
         self.measures_tab.plan_requested.connect(self._to_plan)
         self.reconcile_tab = ReconcileTab(t)
         self.reconcile_tab.applied.connect(self._apply_reconciled)
@@ -135,7 +132,6 @@ class MainWindow(QMainWindow):
         self._pages = [
             ("plant", "tab_industrial", "desc_industrial", self.industrial_tab),
             ("subsystems", "tab_subsystems", "desc_subsystems", subs),
-            ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("savings", "tab_savings", "desc_savings", self.savings_tab),
@@ -375,8 +371,6 @@ class MainWindow(QMainWindow):
             self.ind_tab.refresh(self.plant)
         elif w is self.industrial_tab:
             self.industrial_tab.refresh(self.plant)
-        elif w is self.ts_tab:
-            self.ts_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
         else:
@@ -399,10 +393,9 @@ class MainWindow(QMainWindow):
                 self.sub_list.setCurrentRow(i)
                 return
 
-    def _series_applied(self) -> None:
-        """A period of the time series was written into the annual model: reload the editors."""
-        self._load_all(select=max(0, self._cur))
-        self.reconcile_tab.refresh(self.plant)
+    def _goto_time(self) -> None:
+        self.tabs.setCurrentWidget(self.industrial_tab)
+        self.industrial_tab.show_time()
 
     def _flow_edited(self) -> None:
         """The diagram changed the plant: reload the subsystem editor and recompute everything."""

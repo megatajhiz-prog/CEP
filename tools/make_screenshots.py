@@ -173,9 +173,9 @@ def main(out: str) -> int:
         win.industrial_tab.show_site()
         shot(win, "17_site")
         shot(win.site_tab.widget(), "17_site_full")
-        go(win.ts_tab)
+        win.industrial_tab.show_time()
         shot(win, "18_timeseries")
-        shot(win.ts_tab.widget(), "18_timeseries_full")
+        shot(win.industrial_tab.time_settings.widget(), "18_timeseries_full")
 
     def indicators():
         go(win.ind_tab)

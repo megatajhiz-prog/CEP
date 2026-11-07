@@ -16,6 +16,7 @@ def small() -> Plant:
         sources=[Source("A", 2.0), Source("B", 4.0)], outlets=[Outlet("S", 3.0)],
         subsystems=[Subsystem("X", "process", intake={"A": 600.0}, discharge={"S": 400.0}, product=100.0),
                     Subsystem("Y", "cooling_tower", intake={}, discharge={})],
+        site=Site(products=[Product("P", "t")]),
     )
 
 
@@ -90,7 +91,7 @@ def test_set_value_conserves_data_outside_the_slice():
 def test_put_uses_catalog_aggregation_and_unknown_keys_are_rejected():
     p = small()
     keys = {s.key for s in T.catalog(p)}
-    assert {"production", "source:A", "outlet:S", "sub:X:intake", "sub:Y:evaporation", "energy:el", "price:source:B",
+    assert {"production:P", "source:A", "outlet:S", "sub:X:intake", "sub:Y:evaporation", "energy:el", "price:source:B",
             "env:temp", "quality:cod_raw"} <= keys
     ok, bad = T.from_rows(p, [("source:A", "2025-01-01", "2025-01-31", "310"), ("source:ZZ", "2025-01-01", "2025-01-31", "1"),
                               ("source:A", "2025-02-01", "bad", "1")])
@@ -107,7 +108,7 @@ def _fill_months(p, key, values, start=date(2025, 3, 21)):
 def test_plan_and_commit_full_year():
     p = small()
     _fill_months(p, "source:A", [100.0] * 12)
-    _fill_months(p, "production", [50.0] * 12)
+    _fill_months(p, "production:P", [50.0] * 12)
     _fill_months(p, "price:source:A", [2.0] * 6 + [4.0] * 6)
     _fill_months(p, "sub:X:intake", [60.0] * 12)
     ch = {c.key: c for c in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20))}
@@ -164,7 +165,7 @@ def monthly_plant(n=24, spike=None):
     for i, s in enumerate(sl):
         q = 100.0 + 10.0 * (i % 6)
         v = 50.0 + 2.0 * q + (400.0 if spike == i else 0.0)
-        T.put(p, "production", s.start, s.end, q)
+        T.put(p, "production:P", s.start, s.end, q)
         T.put(p, "source:A", s.start, s.end, v)
         T.put(p, "energy:el", s.start, s.end, v * 3.0)
     return p
@@ -201,13 +202,13 @@ def test_not_enough_data_is_reported_not_guessed():
 def test_site_and_series_roundtrip_and_old_files(tmp_path):
     p = monthly_plant(6)
     p.site = Site(name="Pasargad Plant", province="Tehran", calendar="jalali", commissioning_year=1390,
-                  areas=[Area("Hall A", "production")], products=[Product("Cement", "t")],
+                  areas=[Area("Hall A", "production")], products=[Product("P", "t")],
                   meters=[Meter("M1", "source:A", "flow", "m3", 1.5, "2020-01-01", "2025-01-01")])
     p.subsystems[0].area = "Hall A"
     f = tmp_path / "a.wpj"
     save_project(p, str(f))
     q = load_project(str(f))
-    assert q == p and q.site.meters[0].accuracy_pct == 1.5 and q.series["production"][0].value == 100.0
+    assert q == p and q.site.meters[0].accuracy_pct == 1.5 and q.series["production:P"][0].value == 100.0
     d = p.to_dict()
     for k in ("site", "series", "window"):
         d.pop(k)
@@ -301,7 +302,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
 
     p = demo_with_history("fa")
     sl = C.slices(date(2025, 3, 21), date(2026, 3, 20), "month", "jalali", "fa")
-    keys = ["production", f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "env:rain",
+    keys = [f"production:{p.site.products[0].name}", f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "env:rain",
             f"price:source:{p.sources[0].name}"]
     specs = [T.spec_of(p, k) for k in keys]
     f = tmp_path / "t.xlsx"
@@ -319,15 +320,15 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w.cell(row=6, column=5, value="abc")
     wb.save(f)
     q = demo_with_history("fa")
-    for k in ("env:rain", "production"):
+    for k in ("env:rain", f"production:{p.site.products[0].name}"):
         q.series.pop(k, None)
     ok, bad = X.import_template(q, str(f))
     assert len(bad) == 2 and ok > 40
     assert T.value_in(q.series["env:rain"], date(2025, 3, 21), date(2025, 4, 20), "sum")[0] == pytest.approx(150)
     assert len(q.series["env:rain"]) == 1                    # blanks and bad rows were skipped, nothing invented
     # production of the untouched months is back and equals the original
-    a = T.value_in(p.series["production"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
-    b = T.value_in(q.series["production"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
+    a = T.value_in(p.series[f"production:{p.site.products[0].name}"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
+    b = T.value_in(q.series[f"production:{q.site.products[0].name}"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
     assert b == pytest.approx(a, abs=1e-4)
     # a file without the key row is reported, not guessed
     from openpyxl import Workbook
@@ -342,7 +343,7 @@ def test_migrate_static_reproduces_old_numbers():
     p.sources[0].metered_m3 = 700.0
     p.costs.electricity_per_kwh = 0.05
     n = T.migrate_static(p, today=date(2026, 6, 1))
-    assert n >= 5 and p.ts_view["migrated"] == "2"
+    assert n >= 5 and p.ts_view["migrated"] == "3"
     before = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.outlets[0].unit_cost,
               p.costs.electricity_per_kwh)
     T.sync(p)
@@ -354,11 +355,11 @@ def test_migrate_static_reproduces_old_numbers():
 
 def test_migrate_static_respects_existing_series_and_window():
     p = small()
-    T.put(p, "production", date(2025, 1, 1), date(2025, 12, 31), 5000.0)
+    T.put(p, "production:P", date(2025, 1, 1), date(2025, 12, 31), 5000.0)
     T.put(p, "source:A", date(2025, 1, 1), date(2025, 6, 30), 100.0)
     p.sources[1].metered_m3 = 365.0
     T.migrate_static(p)
-    assert p.series["production"][0].value == 5000.0     # not overwritten
+    assert p.series["production:P"][0].value == 5000.0     # not overwritten
     T.sync(p)
     assert abs(p.sources[1].metered_m3 - 365.0) < 1e-6   # B migrated over the window of 365 days
 
@@ -388,12 +389,12 @@ def test_migration_of_demo_keeps_every_number():
     assert len(before) == len(after)
     for a, b in zip(before, after):
         assert abs(a - b) < 1e-6 * max(1.0, abs(a))
-    assert p.series[f"link:{p.links[0].src}>{p.links[0].dst}"] and p.series["energy:ef_el"]
+    assert p.series[f"link:{p.links[0].src}>{p.links[0].dst}"] and "energy:ef_el" not in p.series
     # old stage-1 projects get only the new part and nothing is duplicated
     q = demo_plant("en")
     q.ts_view["migrated"] = "1"
     T.migrate_static(q)
-    assert "production" not in q.series and q.ts_view["migrated"] == "2"
+    assert "production" not in q.series and q.ts_view["migrated"] == "3"
 
 
 def test_set_annual_replaces_single_point_only():
@@ -405,3 +406,28 @@ def test_set_annual_replaces_single_point_only():
     T.put(p, "sub:X:product", date(2025, 2, 1), date(2025, 2, 28), 6.0)
     assert not T.set_annual(p, "sub:X:product", 99.0)          # monthly data are kept
     assert len(p.series["sub:X:product"]) == 2
+
+
+def test_total_production_is_the_sum_of_products_and_old_totals_move_into_a_product():
+    p = small()
+    p.site.products = [Product("P1", "t"), Product("P2", "t")]
+    p.series["production"] = [Point("2025-01-01", "2025-12-31", 730.0)]        # an old project: a total series
+    T.migrate_static(p)
+    assert "production" not in p.series and p.series["production:P1"][0].value == 730.0
+    T.sync(p)
+    assert p.production_per_year == pytest.approx(730.0)
+    q = small()                                                               # an old project: a fixed total, no products
+    q.site.products = []
+    q.production_per_year = 1000.0
+    T.migrate_static(q, today=date(2026, 6, 1))
+    assert q.site.products and q.site.products[0].name == "Product 1"
+    T.sync(q)
+    assert q.production_per_year == pytest.approx(1000.0)
+    assert "production" not in {s.key for s in T.catalog(q)}
+
+
+def test_emission_factors_stay_fixed_numbers():
+    p = small()
+    p.profile.ef_el = 0.6
+    assert not any(s.key.startswith("energy:ef") for s in T.catalog(p))
+    assert "profile:ef_el" not in T.driven(p)

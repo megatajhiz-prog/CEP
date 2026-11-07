@@ -20,6 +20,7 @@ from ..model import Plant
 from .tabs import _Scroll, _message_label, make_table, put, stat_row
 from .theme import COL
 from .profile_inputs import ProfileInputs
+from .series_view import SeriesPanel, TimeContext, TrendChart
 from .widgets import StatCard, card, dspin
 
 MUTED = QColor("#8A94A6")
@@ -37,9 +38,10 @@ def _fit(tb: QTableWidget, min_rows: int = 0) -> None:
 
 
 class IndicatorsTab(_Scroll):
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, ctx: Optional[TimeContext] = None):
         super().__init__()
         self.t = t
+        self.ctx = ctx or TimeContext(t.lang)
         self.plant: Optional[Plant] = None
         self._loading = False
         self.msg = _message_label()
@@ -59,23 +61,26 @@ class IndicatorsTab(_Scroll):
         self.c_inputs = StatCard(t("in_complete"), COL["orange"])
         self.lay.addLayout(stat_row(self.c_comp, self.c_inputs))
 
-        # supplementary inputs (those that vary with time, and the targets); structural ones are on the complex page
+        # trend of the key results over the periods chosen on the first page (bars or line)
+        self.trend = TrendChart(t, self.ctx)
+        self.lay.addWidget(card(t("tr_title"), self.trend, note=t("tr_note")))
+
+        # inputs: targets are fixed numbers; everything that varies with time is a series, entered right here
         self.inputs = ProfileInputs(t, PROFILE_GROUPS)
         self.spins = self.inputs.spins
         self.inputs.changed.connect(self._recalc)
         self.lay.addWidget(card(t("in_inputs"), self.inputs, note=t("in_inputs_note")))
-
-        self.prod_tb = QTableWidget(0, 2)
-        self.prod_tb.setHorizontalHeaderLabels([t("subsystem"), t("in_sub_prod")])
-        self.prod_tb.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.prod_tb.verticalHeader().setVisible(False)
-        self.prod_tb.verticalHeader().setDefaultSectionSize(36)
-        self.prod_tb.setShowGrid(False)
-        self.prod_tb.setAlternatingRowColors(True)
-        self.prod_tb.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.AnyKeyPressed
-                                     | QAbstractItemView.EditTrigger.EditKeyPressed)
-        self.prod_tb.itemChanged.connect(self._prod_changed)
-        self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, note=t("in_sub_prod_note")))
+        self.panels: List[SeriesPanel] = []
+        fa0 = t.lang == "fa"
+        for g in ("site", "quality", "energy", "env", "loss"):
+            panel = SeriesPanel(t, self.ctx, lambda g=g: [x.key for x in TS.catalog(self.ctx.plant) if x.group == g]
+                                if self.ctx.plant else [], opened=True)
+            self.panels.append(panel)
+            self.lay.addWidget(card(TS.GROUP_TITLE[g][0 if fa0 else 1], panel))
+        panel = SeriesPanel(t, self.ctx, lambda: [f"sub:{s.name}:production" for s in self.ctx.plant.subsystems]
+                            if self.ctx.plant else [], opened=True)
+        self.panels.append(panel)
+        self.lay.addWidget(card(t("in_sub_prod"), panel, note=t("in_sub_prod_note")))
 
         fa = t.lang == "fa"
         # one table per group
@@ -115,35 +120,9 @@ class IndicatorsTab(_Scroll):
         pf = plant.profile
         self.inputs.load(plant)
         drv = TS.driven(plant)
-        self.prod_tb.blockSignals(True)
-        self.prod_tb.setRowCount(len(plant.subsystems))
-        for r, s in enumerate(plant.subsystems):
-            name_it = QTableWidgetItem(s.name)
-            name_it.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            self.prod_tb.setItem(r, 0, name_it)
-            it = QTableWidgetItem(f"{pf.sub_production.get(s.name, 0.0):g}")
-            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if f"subprod:{s.name}" in drv:                      # taken from the time series: shown, not typed
-                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                it.setToolTip(self.t("ft_driven"))
-            self.prod_tb.setItem(r, 1, it)
-        self.prod_tb.blockSignals(False)
-        _fit(self.prod_tb)
+        for panel in self.panels:
+            panel.refresh()
         self._loading = False
-        self._recalc()
-
-    def _prod_changed(self, item: QTableWidgetItem) -> None:
-        if self._loading or self.plant is None or item.column() != 1:
-            return
-        name = self.prod_tb.item(item.row(), 0).text()
-        try:
-            v = float(item.text().replace(",", "").replace("٫", "."))
-        except ValueError:
-            v = 0.0
-        if v > 0:
-            self.plant.profile.sub_production[name] = v
-        else:
-            self.plant.profile.sub_production.pop(name, None)
         self._recalc()
 
     def _recalc(self) -> None:

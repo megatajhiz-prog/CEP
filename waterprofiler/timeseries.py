@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import jcalendar as cal
-from .model import Plant, Point, sync_transfers
+from .model import Plant, Point, Product, sync_transfers
 
 # ---------------------------------------------------------------------------------------------- variables
 SUB_FIELDS = (("intake", "برداشت", "intake"), ("discharge", "تخلیه", "discharge"), ("evaporation", "تبخیر", "evaporation"),
@@ -32,7 +32,6 @@ PROFILE_MAP = {
     "site:outage_hours": ("outage_hours", "sum"), "site:employees": ("employees", "mean"),
     "quality:cod_raw": ("cod_raw", "mean"), "quality:cod_out": ("cod_out", "mean"),
     "quality:tds_intake": ("tds_intake", "mean"), "quality:tds_discharge": ("tds_discharge", "mean"),
-    "energy:ef_el": ("ef_el", "mean"), "energy:ef_th": ("ef_th", "mean"),
 }
 
 GROUP_TITLE = {
@@ -48,7 +47,7 @@ GROUP_TITLE = {
 SERIES_UNITS = {
     "m3": ("m³", "m³"), "kwh": ("kWh", "kWh"), "c": ("°C", "°C"), "mm": ("mm", "mm"), "t": ("t", "t"),
     "count": ("نفر", "persons"), "h": ("ساعت", "h"), "mg_l": ("mg/L", "mg/L"), "cur_m3": ("{cur}/m³", "{cur}/m³"),
-    "cur_kwh": ("{cur}/kWh", "{cur}/kWh"), "frac": ("نسبت", "fraction"), "kgco2": ("kg CO₂/kWh", "kg CO₂/kWh"), "units": ("{u}", "{u}"), "cur": ("{cur}", "{cur}"),
+    "cur_kwh": ("{cur}/kWh", "{cur}/kWh"), "frac": ("نسبت", "fraction"), "m3_unit": ("m³/{u}", "m³/{u}"), "kwh_m3": ("kWh/m³", "kWh/m³"), "units": ("{u}", "{u}"), "cur": ("{cur}", "{cur}"),
 }
 
 
@@ -72,7 +71,7 @@ def unit_text(code: str, lang: str, plant: Plant) -> str:
 
 def catalog(plant: Plant) -> List[VarSpec]:
     """Every variable that can carry a time series for this plant (built from its sources, outlets, subsystems ...)."""
-    v: List[VarSpec] = [VarSpec("production", "production", "تولید کل", "Total production", "units", "sum")]
+    v: List[VarSpec] = []        # total production is not an input: it is the sum of the products
     for p in plant.site.products:
         v.append(VarSpec(f"production:{p.name}", "production", f"تولید «{p.name}»", f"Production of {p.name}", "units", "sum"))
     for s in plant.subsystems:
@@ -107,8 +106,6 @@ def catalog(plant: Plant) -> List[VarSpec]:
     for tr in plant.treatments:
         v.append(VarSpec(f"price:treat:{tr.name}", "price", f"هزینهٔ واحد تصفیه «{tr.name}»", f"Unit cost of treatment {tr.name}",
                          "cur_m3", "mean"))
-    v += [VarSpec("energy:ef_el", "energy", "ضریب انتشار برق", "Electricity emission factor", "kgco2", "mean"),
-          VarSpec("energy:ef_th", "energy", "ضریب انتشار حرارت", "Thermal emission factor", "kgco2", "mean")]
     v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum"),
           VarSpec("energy:th", "energy", "انرژی حرارتی (سوخت)", "Thermal energy (fuel)", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
@@ -245,8 +242,6 @@ def _sum_keys(plant: Plant, keys: Sequence[str], sl: Sequence[cal.Slice]) -> Lis
 
 
 def total_production_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[float]]:
-    if plant.series.get("production"):
-        return slice_values(plant, "production", sl)
     keys = [f"production:{p.name}" for p in plant.site.products]
     return _sum_keys(plant, keys, sl)
 
@@ -256,6 +251,24 @@ def total_intake_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[
     if any(v is not None for v in src):
         return src
     return _sum_keys(plant, [f"sub:{s.name}:intake" for s in plant.subsystems], sl)
+
+
+def trend_variables(plant: Plant, sl: Sequence[cal.Slice]) -> List[Tuple[str, str, str, str, List[Optional[float]]]]:
+    """Variables the indicators page can chart over the slices: (id, fa, en, unit code, values per slice)."""
+    intake = total_intake_slices(plant, sl)
+    prod = total_production_slices(plant, sl)
+    el = slice_values(plant, "energy:el", sl)
+
+    def ratio(a: List[Optional[float]], b: List[Optional[float]]) -> List[Optional[float]]:
+        return [x / y if x is not None and y not in (None, 0) else None for x, y in zip(a, b)]
+
+    out = [("intake", "برداشت کل آب", "Total water intake", "m3", intake),
+           ("production", "تولید کل (جمع محصولات)", "Total production (sum of products)", "units", prod),
+           ("intensity", "شدت مصرف آب (برداشت به تولید)", "Water intensity (intake per unit)", "m3_unit", ratio(intake, prod)),
+           ("energy", "برق مصرفی", "Electricity", "kwh", el),
+           ("energy_per_m3", "برق به ازای هر m³ برداشت", "Electricity per m³ of intake", "kwh_m3", ratio(el, intake)),
+           ("loss", "تلفات اندازه‌گیری‌شده", "Measured losses", "m3", slice_values(plant, "loss:measured", sl))]
+    return [o for o in out if any(v is not None for v in o[4])]
 
 
 # ------------------------------------------------------------------- applying a period to the annual model
@@ -297,14 +310,12 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
         note = "low_coverage" if c < min_cov else ("extrapolated" if c < 0.999 else note_ok)
         out.append(Change(key, where, old, None if c < min_cov else val, c, note))
 
-    g = get("production")
-    if g is None:
-        keys = [f"production:{p.name}" for p in plant.site.products if plant.series.get(f"production:{p.name}")]
-        parts = [get(k) for k in keys]
-        if parts and all(parts):
-            g = (sum(x[0] for x in parts), min(x[1] for x in parts))
-    if g is not None:
-        add("production", "production_per_year", plant.production_per_year, g)
+    # total production is the sum of the products' series (it has no series of its own)
+    keys = [f"production:{p.name}" for p in plant.site.products if plant.series.get(f"production:{p.name}")]
+    parts = [get(k) for k in keys]
+    if parts and all(parts):
+        add("production", "production_per_year", plant.production_per_year,
+            (sum(x[0] for x in parts), min(x[1] for x in parts)))
     for s in plant.sources:
         if (g := get(f"source:{s.name}")):
             add(f"source:{s.name}", f"source:{s.name}:metered", s.metered_m3, g)
@@ -639,12 +650,14 @@ def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
     """Move values typed as fixed numbers in older projects into the time series (their only place now).
 
     Time-natured quantities (production, meters, prices, subsystem flows, temperatures, pump hours and loads, transfers,
-    emission factors) each become one point over the reference window (the window, the data span, or else the current
-    calendar year), scaled so that the annual model reproduces the old number exactly. Variables that already have a
-    series are left alone. Runs in stages once per project (``plant.ts_view["migrated"]``); returns the series created.
+    people / economics / quality figures) each become one point over the reference window (the window, the data span, or
+    else the current calendar year), scaled so that the annual model reproduces the old number exactly. Variables that
+    already have a series are left alone. Total production has no series of its own: an old total (typed or as a
+    series) moves into a product. Runs in stages once per project (``plant.ts_view["migrated"]``); returns the number
+    of series created or moved.
     """
     stage = int(plant.ts_view.get("migrated") or 0)
-    if stage >= 2:
+    if stage >= 3:
         return 0
     w = window_of(plant)
     if w is None:
@@ -661,9 +674,6 @@ def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
         n += 1
 
     if stage < 1:
-        has_products = any(plant.series.get(f"production:{p.name}") for p in plant.site.products)
-        if not has_products:
-            move("production", plant.production_per_year, "sum")
         for s in plant.sources:
             move(f"source:{s.name}", s.metered_m3, "sum")
             move(f"price:source:{s.name}", s.unit_cost, "mean")
@@ -672,22 +682,40 @@ def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
             move(f"price:outlet:{o.name}", o.unit_cost, "mean")
         move("price:electricity", plant.costs.electricity_per_kwh, "mean")
         move("price:fuel", plant.costs.fuel_per_kwh_thermal, "mean")
+    if stage < 2:
+        for sub in plant.subsystems:
+            for f in ("intake", "discharge", "evaporation", "product", "recirc"):
+                move(f"sub:{sub.name}:{f}", _sub_get(sub, f), "sum")
+            move(f"sub:{sub.name}:t_in", sub.t_intake_c, "mean", zero_ok=True)
+            move(f"sub:{sub.name}:t_ww", sub.t_wastewater_c, "mean", zero_ok=True)
+            for pm in sub.pumps:
+                if pm.hours_per_year > 0:
+                    move(f"pump:{sub.name}:{pm.name}:hours", pm.hours_per_year, "sum")
+                    move(f"pump:{sub.name}:{pm.name}:load", pm.load_fraction, "mean")
+        for x in plant.links:
+            move(f"link:{x.src}>{x.dst}", x.volume, "sum")
+        for tr in plant.treatments:
+            move(f"price:treat:{tr.name}", tr.unit_cost, "mean")
+    # stage 3: production = sum of products; profile figures and unit production are series; no series for emission factors
+    legacy = plant.series.pop("production", None)
+    for k in ("energy:ef_el", "energy:ef_th"):
+        plant.series.pop(k, None)
+    if not any(plant.series.get(f"production:{p.name}") for p in plant.site.products):
+        if legacy or plant.production_per_year > 0:
+            if not plant.site.products:
+                fa = any("؀" <= c <= "ۿ" for c in plant.name)
+                plant.site.products.append(Product("محصول ۱" if fa else "Product 1", plant.production_unit))
+            key = f"production:{plant.site.products[0].name}"
+            if legacy:
+                plant.series[key] = legacy
+                n += 1
+            else:
+                move(key, plant.production_per_year, "sum")
+    for key, (attr, agg) in PROFILE_MAP.items():
+        move(key, float(getattr(plant.profile, attr)), agg)
     for sub in plant.subsystems:
-        for f in ("intake", "discharge", "evaporation", "product", "recirc"):
-            move(f"sub:{sub.name}:{f}", _sub_get(sub, f), "sum")
-        move(f"sub:{sub.name}:t_in", sub.t_intake_c, "mean", zero_ok=True)
-        move(f"sub:{sub.name}:t_ww", sub.t_wastewater_c, "mean", zero_ok=True)
-        for pm in sub.pumps:
-            if pm.hours_per_year > 0:
-                move(f"pump:{sub.name}:{pm.name}:hours", pm.hours_per_year, "sum")
-                move(f"pump:{sub.name}:{pm.name}:load", pm.load_fraction, "mean")
-    for x in plant.links:
-        move(f"link:{x.src}>{x.dst}", x.volume, "sum")
-    for tr in plant.treatments:
-        move(f"price:treat:{tr.name}", tr.unit_cost, "mean")
-    move("energy:ef_el", plant.profile.ef_el, "mean")
-    move("energy:ef_th", plant.profile.ef_th, "mean")
-    plant.ts_view["migrated"] = "2"
+        move(f"sub:{sub.name}:production", plant.profile.sub_production.get(sub.name), "sum")
+    plant.ts_view["migrated"] = "3"
     return n
 
 

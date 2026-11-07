@@ -56,55 +56,51 @@ class PlantPanel(QScrollArea):
         outer.setSpacing(16)
         self.name = QLineEdit()
         self.currency = QLineEdit()
-        self.production = dspin(decimals=2)
         self.prod_unit = QLineEdit()
-        self.elec = dspin(decimals=6, step=0.01)
-        self.fuel = dspin(decimals=6, step=0.01)
         self.heat_eff = dspin(maximum=1.0, decimals=3, step=0.01)
         left, right = QFormLayout(), QFormLayout()
         for form in (left, right):
             form.setHorizontalSpacing(16)
             form.setVerticalSpacing(10)
-        for label, w in (("plant_name", self.name), ("currency", self.currency), ("production", self.production),
-                         ("production_unit", self.prod_unit)):
+        for label, w in (("plant_name", self.name), ("currency", self.currency), ("production_unit", self.prod_unit)):
             left.addRow(t(label), w)
-        for label, w in (("elec_cost", self.elec), ("fuel_cost", self.fuel), ("heat_eff", self.heat_eff)):
-            right.addRow(t(label), w)
+        right.addRow(t("heat_eff"), self.heat_eff)
         info = QWidget()
         il = QHBoxLayout(info)
         il.setContentsMargins(0, 0, 0, 0)
         il.setSpacing(40)
         il.addLayout(left, 1)
         il.addLayout(right, 1)
-        self.panel_info = SeriesPanel(t, self.ctx, lambda: ["production", "price:electricity", "price:fuel"])
+        # prices of electricity and fuel vary with time: they are series, entered right here
+        self.panel_info = SeriesPanel(t, self.ctx, lambda: ["price:electricity", "price:fuel"], opened=True)
         outer.addWidget(card(t("plant_info"), info, self.panel_info, note=t("plant_info_note")))
 
-        self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
-                                 ["text", "num", "num", "bool"])
-        self.outlets = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
-        self.treatments = DataTable([t("col_name"), t("col_unit_cost"), t("col_wastewater")], ["text", "num", "bool"])
-        tip = t("sp_locked_tip")
-        self.sources.lock_columns((1, 2), tip)           # price and meter are time series: entered under the table
-        self.outlets.lock_columns((1, 2), tip)
+        self.sources = DataTable([t("col_name"), t("col_alternative")], ["text", "bool"])
+        self.outlets = DataTable([t("col_name")], ["text"])
+        self.treatments = DataTable([t("col_name"), t("col_wastewater")], ["text", "bool"])
+        # water prices and meters (sources, outlets) and treatment unit costs are series: a table + chart under each list
         self.panel_sources = SeriesPanel(t, self.ctx, lambda: [k for s in self._plant().sources
-                                                              for k in (f"source:{s.name}", f"price:source:{s.name}")])
+                                                              for k in (f"source:{s.name}", f"price:source:{s.name}")],
+                                         opened=True)
         self.panel_outlets = SeriesPanel(t, self.ctx, lambda: [k for o in self._plant().outlets
-                                                              for k in (f"outlet:{o.name}", f"price:outlet:{o.name}")])
-        row = QHBoxLayout()
+                                                              for k in (f"outlet:{o.name}", f"price:outlet:{o.name}")],
+                                         opened=True)
+        self.panel_treat = SeriesPanel(t, self.ctx, lambda: [f"price:treat:{x.name}" for x in self._plant().treatments],
+                                       opened=True)
+        row = QVBoxLayout()
         row.setSpacing(16)
-        for tb, panel, title, dflt in ((self.sources, self.panel_sources, "sources", lambda: ["", 0.0, None, False]),
-                                       (self.outlets, self.panel_outlets, "outlets", lambda: ["", 0.0, None])):
+        for tb, panel, title, dflt in ((self.sources, self.panel_sources, "sources", lambda: ["", False]),
+                                       (self.outlets, self.panel_outlets, "outlets", lambda: [""]),
+                                       (self.treatments, self.panel_treat, "treatments", lambda: ["", False])):
             col = QVBoxLayout()
-            col.addWidget(table_box(t(title), tb, t("add"), t("remove"), dflt), 1)
+            col.addWidget(table_box(t(title), tb, t("add"), t("remove"), dflt))
             col.addWidget(panel)
-            row.addLayout(col, 1)
+            row.addLayout(col)
         outer.addLayout(row, 1)
-        outer.addWidget(table_box(t("treatments"), self.treatments, t("add"), t("remove"), lambda: ["", 0.0, False]), 1)
 
         for w in (self.name, self.currency, self.prod_unit):
             w.textChanged.connect(self.changed)
-        for w in (self.production, self.elec, self.fuel, self.heat_eff):
-            w.valueChanged.connect(self.changed)
+        self.heat_eff.valueChanged.connect(self.changed)
         for tb in (self.sources, self.outlets, self.treatments):
             tb.changed.connect(self.changed)
 
@@ -112,72 +108,44 @@ class PlantPanel(QScrollArea):
         self.blockSignals(True)
         self.name.setText(p.name)
         self.currency.setText(p.currency)
-        self.production.setValue(p.production_per_year)
         self.prod_unit.setText(p.production_unit)
-        self.elec.setValue(p.costs.electricity_per_kwh)
-        self.fuel.setValue(p.costs.fuel_per_kwh_thermal)
         self.heat_eff.setValue(p.costs.heating_efficiency)
-        self.sources.set_rows([[s.name, s.unit_cost, s.metered_m3, s.alternative] for s in p.sources])
-        self.outlets.set_rows([[o.name, o.unit_cost, o.metered_m3] for o in p.outlets])
-        self.treatments.set_rows([[x.name, x.unit_cost, x.wastewater] for x in p.treatments])
+        self.sources.set_rows([[s.name, s.alternative] for s in p.sources])
+        self.outlets.set_rows([[o.name] for o in p.outlets])
+        self.treatments.set_rows([[x.name, x.wastewater] for x in p.treatments])
         self.blockSignals(False)
-        self._lock_driven(p)
+        for panel in (self.panel_info, self.panel_sources, self.panel_outlets, self.panel_treat):
+            panel.refresh()
 
     def _plant(self) -> Plant:
         return self.ctx.plant if self.ctx.plant is not None else Plant(name="")
 
-    def _lock_driven(self, p: Plant) -> None:
-        """Production and energy prices are time series: shown here (as used by the model), entered in the panel below."""
-        tip = self.t("sp_locked_tip")
-        for w in (self.production, self.elec, self.fuel):
-            w.setEnabled(False)
-            w.setToolTip(tip)
-        for panel in (self.panel_info, self.panel_sources, self.panel_outlets):
-            panel.refresh()
-
-    def show_values(self, p: Plant) -> None:
-        """The series changed the model: show the new annual values in the locked fields and cells."""
-        for w, v in ((self.production, p.production_per_year), (self.elec, p.costs.electricity_per_kwh),
-                     (self.fuel, p.costs.fuel_per_kwh_thermal)):
-            w.blockSignals(True)
-            w.setValue(v)
-            w.blockSignals(False)
-        for tb, items in ((self.sources, {s.name: s for s in p.sources}), (self.outlets, {o.name: o for o in p.outlets})):
-            tb._loading = True
-            for r in range(tb.rowCount()):
-                obj = items.get((tb.item(r, 0).text() if tb.item(r, 0) else "").strip())
-                if obj is not None:
-                    tb.item(r, 1).setText(fmt_float(obj.unit_cost))
-                    tb.item(r, 2).setText(fmt_float(obj.metered_m3))
-            tb._loading = False
-
     def store(self, p: Plant) -> None:
         p.name = self.name.text().strip() or p.name
         p.currency = self.currency.text().strip() or p.currency
-        if self.production.isEnabled():                 # a disabled field shows a series-driven value: never written back
-            p.production_per_year = self.production.value()
         p.production_unit = self.prod_unit.text().strip() or p.production_unit
-        if self.elec.isEnabled():
-            p.costs.electricity_per_kwh = self.elec.value()
-        if self.fuel.isEnabled():
-            p.costs.fuel_per_kwh_thermal = self.fuel.value()
         p.costs.heating_efficiency = self.heat_eff.value() or p.costs.heating_efficiency
+        # prices, meters and unit costs come from the series: existing objects keep the values the sync gave them
+        old_s, old_o, old_t = ({x.name: x for x in lst} for lst in (p.sources, p.outlets, p.treatments))
         seen = set()
         p.sources, p.outlets, p.treatments = [], [], []
-        for n, c, m, alt in self.sources.rows():
+        for n, alt in self.sources.rows():
             if n and n not in seen:
                 seen.add(n)
-                p.sources.append(Source(n, c or 0.0, m, bool(alt)))
+                o = old_s.get(n)
+                p.sources.append(Source(n, o.unit_cost if o else 0.0, o.metered_m3 if o else None, bool(alt)))
         seen = set()
-        for n, c, m in self.outlets.rows():
+        for (n,) in self.outlets.rows():
             if n and n not in seen:
                 seen.add(n)
-                p.outlets.append(Outlet(n, c or 0.0, m))
+                o = old_o.get(n)
+                p.outlets.append(Outlet(n, o.unit_cost if o else 0.0, o.metered_m3 if o else None))
         seen = set()
-        for n, c, ww in self.treatments.rows():
+        for n, ww in self.treatments.rows():
             if n and n not in seen:
                 seen.add(n)
-                p.treatments.append(Treatment(n, c or 0.0, bool(ww)))
+                o = old_t.get(n)
+                p.treatments.append(Treatment(n, o.unit_cost if o else 0.0, bool(ww)))
 
 
 class SubsystemEditor(QScrollArea):
@@ -234,13 +202,9 @@ class SubsystemEditor(QScrollArea):
 
         flows = QGroupBox(t("other_flows"))
         ff = QFormLayout(flows)
-        self.recirc = dspin(decimals=2)
         self.from_other = dspin(decimals=2)
         self.to_other = dspin(decimals=2)
-        self.product = dspin(decimals=2)
-        self.evap = dspin(decimals=2)
-        for label, w in (("recirculated", self.recirc), ("from_other", self.from_other), ("to_other", self.to_other),
-                         ("product", self.product), ("evaporation", self.evap)):
+        for label, w in (("from_other", self.from_other), ("to_other", self.to_other)):
             ff.addRow(t(label), w)
         lay.addWidget(flows)
 
@@ -252,26 +216,16 @@ class SubsystemEditor(QScrollArea):
         lay.addLayout(row2)
 
         self.pumps = DataTable(
-            [t("col_name"), t("pump_hours"), t("pump_kw"), t("pump_eff"), t("pump_load"),
-             t("pump_volts"), t("pump_amps"), t("pump_pf"), t("pump_phases")],
-            ["text", "num", "num", "num", "num", "num", "num", "num", "num"])
-        self.pumps.lock_columns((1, 4), t("sp_locked_tip"))          # hours and load factor are time series
+            [t("col_name"), t("pump_kw"), t("pump_eff"), t("pump_volts"), t("pump_amps"), t("pump_pf"), t("pump_phases")],
+            ["text", "num", "num", "num", "num", "num", "num"])          # running hours and load factor are series
         lay.addWidget(table_box(t("pumps"), self.pumps, t("add"), t("remove"),
-                                lambda: ["", 0.0, None, 0.9, 1.0, None, None, 0.85, 3.0]))
+                                lambda: ["", None, 0.9, None, None, 0.85, 3.0]))
         hint = QLabel(t("pump_hint"))
         hint.setObjectName("cardnote")
         hint.setWordWrap(True)
         lay.addWidget(hint)
 
-        temps = QFormLayout()
-        self.t_in = OptNum()
-        self.t_ww = OptNum()
-        temps.addRow(t("t_in"), self.t_in)
-        temps.addRow(t("t_ww"), self.t_ww)
-        tw = QWidget()
-        tw.setLayout(temps)
-        lay.addWidget(card(t("temps"), tw))
-        self.panel = SeriesPanel(t, self.ctx, self._series_keys)
+        self.panel = SeriesPanel(t, self.ctx, self._series_keys, opened=True)
         lay.addWidget(card(t("sub_series"), self.panel, note=t("sub_series_note")))
         lay.addStretch(1)
 
@@ -302,29 +256,20 @@ class SubsystemEditor(QScrollArea):
         self.kind.setCurrentIndex(i if i >= 0 else KINDS.index("other"))
         self.intake.set_rows([[k, v] for k, v in s.intake.items()])
         self.discharge.set_rows([[k, v] for k, v in s.discharge.items()])
-        self.recirc.setValue(s.recirculated)
         self.from_other.setValue(s.from_other)
         self.to_other.setValue(s.to_other)
-        self.product.setValue(s.product)
-        self.evap.setValue(s.evaporation)
         self.wtreat.set_rows([[k, v] for k, v in s.water_treatments.items()])
         self.wwtreat.set_rows([[k, v] for k, v in s.wastewater_treatments.items()])
-        self.pumps.set_rows([[p.name, p.hours_per_year, p.power_kw if p.power_kw is not None else (
-            p.power_hp * 0.746 if p.power_hp is not None else None), p.efficiency, p.load_fraction,
+        self.pumps.set_rows([[p.name, p.power_kw if p.power_kw is not None else (
+            p.power_hp * 0.746 if p.power_hp is not None else None), p.efficiency,
             p.volts, p.amps, p.power_factor, float(p.phases)] for p in s.pumps])
-        self.t_in.set(s.t_intake_c)
-        self.t_ww.set(s.t_wastewater_c)
         self._lock_driven(s)
 
     def _lock_driven(self, s: Subsystem) -> None:
         """Flows, temperatures and pump hours are time series: shown here, entered in the panel at the bottom.
 
         The intake / discharge tables stay editable but only their proportions count: the total comes from the series."""
-        tip = self.t("sp_locked_tip")
         self._locked = {f for f in ("intake", "discharge") if f"sub:{s.name}:{f}" in self.driven}
-        for w in (self.evap, self.product, self.recirc, self.t_in, self.t_ww):
-            w.setEnabled(False)
-            w.setToolTip(tip)
         share = self.t("sp_share_tip")
         for tb, f in ((self.intake, "intake"), (self.discharge, "discharge")):
             for r in range(tb.rowCount()):
@@ -345,12 +290,14 @@ class SubsystemEditor(QScrollArea):
         s.water_treatments = _sum_dict(self.wtreat.rows())
         s.wastewater_treatments = _sum_dict(self.wwtreat.rows())
         pumps = []
-        for name, hours, kw, eff, load, volts, amps, pf, phases in self.pumps.rows():
-            if not (name or hours or kw or volts):
+        old = {x.name: x for x in s.pumps}                    # hours and load factor are series: kept as the sync set them
+        for name, kw, eff, volts, amps, pf, phases in self.pumps.rows():
+            if not (name or kw or volts):
                 continue
+            o = old.get(name or "pump")
             pumps.append(Pump(
-                name=name or "pump", hours_per_year=hours or 0.0, power_kw=kw, power_hp=None,
-                efficiency=eff if eff else 0.9, load_fraction=load if load is not None else 1.0,
+                name=name or "pump", hours_per_year=o.hours_per_year if o else 0.0, power_kw=kw, power_hp=None,
+                efficiency=eff if eff else 0.9, load_fraction=o.load_fraction if o else 1.0,
                 volts=volts, amps=amps, power_factor=pf if pf else 0.85,
                 phases=1 if phases == 1 else 3))
         s.pumps = pumps
