@@ -22,6 +22,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "tab_plant": {"fa": "مجتمع صنعتی", "en": "Industrial complex"},
     "tab_industrial": {"fa": "مجتمع صنعتی", "en": "Industrial complex"},
     "ind_sec_plant": {"fa": "مشخصات، قیمت‌ها و منابع آب", "en": "Details, prices and water sources"},
+    "sp_locked_tip": {"fa": "این مقدار سری زمانی است؛ از «نمایش جدول و نمودار زمانی» زیر همین بخش وارد کنید. عدد نمایش‌داده‌شده مقدار سالانهٔ مدل از بازهٔ مرجع است.", "en": "This is a time series: enter it in the table under this section. The number shown is the annual model value from the reference window."},
     "ind_sec_time": {"fa": "زمان و داده‌ها", "en": "Time and data"},
     "ch_bar": {"fa": "میله‌ای", "en": "Bars"},
     "ch_line": {"fa": "خطی", "en": "Line"},

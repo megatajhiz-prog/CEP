@@ -6,6 +6,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
 from ..i18n import Translator
+from .. import timeseries as TS
 from ..model import Plant
 from .editor import PlantPanel
 from .series_view import TimeContext, TimeSettings
@@ -16,13 +17,14 @@ class IndustrialTab(QWidget):
     """«مجتمع صنعتی»: name, prices, sources, outlets, treatments (plant) + areas, products, meters (site)."""
 
     changed = Signal()
+    series_edited = Signal()      # a value of a time series changed: the model must be re-synced
 
     def __init__(self, t: Translator, ctx: TimeContext | None = None):
         super().__init__()
         self.t = t
         self.ctx = ctx or TimeContext(t.lang)
         self.time_settings = TimeSettings(t, self.ctx)
-        self.plant_panel = PlantPanel(t)
+        self.plant_panel = PlantPanel(t, self.ctx)
         self.site_tab = SiteTab(t)
         self.sections = QTabWidget()
         self.sections.setDocumentMode(True)
@@ -36,6 +38,7 @@ class IndustrialTab(QWidget):
         self.site_tab.changed.connect(self.changed)
         self.sections.currentChanged.connect(self._section_changed)
         self.plant: Plant | None = None
+        self.ctx.data_changed.connect(self._series_edited)
 
     def load(self, plant: Plant) -> None:
         self.plant = plant
@@ -62,6 +65,15 @@ class IndustrialTab(QWidget):
 
     def show_plant(self) -> None:
         self.sections.setCurrentWidget(self.plant_panel)
+
+    def _series_edited(self) -> None:
+        if self.plant is None:
+            return
+        self.plant_panel.store(self.plant)
+        TS.sync(self.plant)
+        self.plant_panel.show_values(self.plant)
+        self.series_edited.emit()
+        self.changed.emit()
 
     def show_time(self) -> None:
         self.sections.setCurrentWidget(self.time_settings)

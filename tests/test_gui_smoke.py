@@ -510,7 +510,7 @@ def test_series_driven_fields_are_locked_everywhere(app):
     w.collect()
     pp = w.plant_panel
     assert not pp.production.isEnabled()
-    assert pp.elec.isEnabled() and pp.heat_eff.isEnabled()          # no series for these: still typed here
+    assert not pp.elec.isEnabled() and pp.heat_eff.isEnabled()      # prices are time series (fixed parameters stay typed)
     assert not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
     assert pp.sources.item(0, 3).flags() & Qt.ItemFlag.ItemIsUserCheckable
     w.tabs.setCurrentWidget(w.ind_tab)
@@ -526,10 +526,12 @@ def test_series_driven_fields_are_locked_everywhere(app):
         assert not (ed.intake.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable)
     # the base model carries the series value, and the page shows it
     assert abs(pp.production.value() - w.plant.production_per_year) < 0.01
-    # no series any more: everything is editable again
+    # time-natured fields are only entered as series, also when no series exist yet
     w.plant.series.clear()
     w.tabs.setCurrentWidget(w.industrial_tab)
-    assert pp.production.isEnabled() and pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable
+    assert not pp.production.isEnabled() and not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
+    pp.sources.add_row(["new", 0.0, None, False])
+    assert not (pp.sources.item(pp.sources.rowCount() - 1, 1).flags() & Qt.ItemFlag.ItemIsEditable)
     w.close()
 
 
@@ -568,3 +570,29 @@ def test_time_settings_and_series_panel(app):
     assert g.tb.rowCount() == len(ctx.slices) + 1
     it.show_time()
     app.processEvents()
+
+
+def test_old_static_project_migrates_into_series(app):
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_plant
+    w = _win("fa")
+    p = demo_plant("fa")
+    p.series.clear()
+    p.window = {}
+    p.ts_view = {}
+    old = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.costs.electricity_per_kwh)
+    w._set_plant(p, None)
+    assert w.plant.series.get("production") and w.plant.ts_view.get("migrated") == "1"
+    w.collect()
+    new = (w.plant.production_per_year, w.plant.sources[0].metered_m3, w.plant.sources[0].unit_cost,
+           w.plant.costs.electricity_per_kwh)
+    assert all(abs(a - b) < 1e-6 * max(1.0, abs(a)) for a, b in zip(old, new))
+    # a value entered as series (as the panel under the sources does) reaches the model and the locked cell
+    from datetime import date
+    key = f"source:{w.plant.sources[0].name}"
+    a, b = TS.window_of(w.plant)
+    TS.put(w.plant, key, a, b, 365.0 * (b - a).days / 365.0 * 0 + (b - a).days + 1)     # 1 m3 per day -> 365 per year
+    w.time_ctx.notify_data()
+    assert abs(w.plant.sources[0].metered_m3 - 365.0) < 1e-6
+    assert w.plant_panel.sources.item(0, 2).text().replace(",", "").replace("\u200e", "") in ("365", "365.0")
+    w.close()

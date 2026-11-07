@@ -65,6 +65,7 @@ class MainWindow(QMainWindow):
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
         self._synced = False
+        self._series_dirty = False
         self.resize(1180, 760)
         self._build()
         self._load_all()
@@ -83,6 +84,7 @@ class MainWindow(QMainWindow):
         self.time_ctx = TimeContext(t.lang)
         self.industrial_tab = IndustrialTab(t, self.time_ctx)
         self.plant_panel = self.industrial_tab.plant_panel
+        self.industrial_tab.series_edited.connect(lambda: setattr(self, "_series_dirty", True))
         self.site_tab = self.industrial_tab.site_tab
         self.sub_editor = SubsystemEditor(t)
         self.sub_editor.estimate_requested.connect(self._estimate)
@@ -320,6 +322,7 @@ class MainWindow(QMainWindow):
         self.sub_editor.setEnabled(bool(self.plant.subsystems))
 
     def _load_all(self, select: int = 0) -> None:
+        TS.migrate_static(self.plant)          # older projects: fixed numbers become series, nothing is lost
         TS.sync(self.plant)
         self.sub_editor.driven = TS.driven(self.plant)
         self.industrial_tab.load(self.plant)
@@ -339,7 +342,8 @@ class MainWindow(QMainWindow):
     def _tab_changed(self, idx: int) -> None:
         self._sync_nav(idx)
         self.collect()
-        if self._synced:                          # the time series changed the model: show the new values everywhere
+        if self._synced or self._series_dirty:    # the time series changed the model: show the new values everywhere
+            self._series_dirty = False
             self._load_all(select=max(0, self._cur))
         self.sub_editor.driven = TS.driven(self.plant)
         w = self.tabs.widget(idx)
