@@ -86,8 +86,9 @@ class MainWindow(QMainWindow):
         self.plant_panel = self.industrial_tab.plant_panel
         self.industrial_tab.series_edited.connect(lambda: setattr(self, "_series_dirty", True))
         self.site_tab = self.industrial_tab.site_tab
-        self.sub_editor = SubsystemEditor(t)
+        self.sub_editor = SubsystemEditor(t, self.time_ctx)
         self.sub_editor.estimate_requested.connect(self._estimate)
+        self.time_ctx.data_changed.connect(self._sub_series_edited)
         self.sub_list = QListWidget()
         self.flow_tab = FlowTab(t)
         self.flow_tab.subsystem_requested.connect(self._open_subsystem)
@@ -320,6 +321,16 @@ class MainWindow(QMainWindow):
             if self._cur != select:
                 self._row_changed(select)
         self.sub_editor.setEnabled(bool(self.plant.subsystems))
+
+    def _sub_series_edited(self) -> None:
+        """A series was edited on the subsystem page: re-sync the model and show the new values in the editor."""
+        if self.tabs.currentWidget() is not self.subs_page:
+            return
+        self.collect()
+        self.sub_editor.driven = TS.driven(self.plant)
+        self._series_dirty = True
+        if 0 <= self._cur < len(self.plant.subsystems):
+            self.sub_editor.load(self.plant.subsystems[self._cur])
 
     def _load_all(self, select: int = 0) -> None:
         TS.migrate_static(self.plant)          # older projects: fixed numbers become series, nothing is lost
@@ -661,8 +672,17 @@ class MainWindow(QMainWindow):
             except (InputError, KeyError) as e:
                 QMessageBox.warning(self, t("error"), localize(str(e), t.lang))
                 return
+            kept = False
+            for f, _a, _b in TS.SUB_FIELDS:                  # the estimate becomes the (single-point) series of each flow
+                v = TS._sub_get(s, f)
+                if v > 0 or self.plant.series.get(f"sub:{s.name}:{f}"):
+                    kept |= not TS.set_annual(self.plant, f"sub:{s.name}:{f}", v)
             TS.sync(self.plant)
+            self._series_dirty = True
+            self.sub_editor.driven = TS.driven(self.plant)
             self.sub_editor.load(s)
+            if kept:
+                self.statusBar().showMessage(self.t("ft_driven_reverted"), 8000)
 
     def _apply_reconciled(self, plant: Plant) -> None:
         self.plant = plant

@@ -598,3 +598,25 @@ def test_old_static_project_migrates_into_series(app):
     assert abs(w.plant.sources[0].metered_m3 - 365.0) < 1e-6
     assert w.plant_panel.sources.item(0, 2).text().replace(",", "").replace("\u200e", "") in ("365", "365.0")
     w.close()
+
+
+def test_subsystem_page_series_in_place(app):
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_plant
+    w = _win("fa")
+    w._set_plant(demo_plant("fa"), None)
+    assert w.plant.ts_view.get("migrated") == "2"
+    w.tabs.setCurrentWidget(w.subs_page)
+    ed = w.sub_editor
+    s = w.plant.subsystems[max(0, w._cur)]
+    assert not ed.evap.isEnabled() and not ed.t_in.isEnabled()
+    keys = ed._series_keys()
+    assert f"sub:{s.name}:evaporation" in keys and f"sub:{s.name}:t_in" in keys
+    ed.panel.toggle.setChecked(True)
+    g = ed.panel.grid
+    assert g is not None and [c.key for c in g.cols] == keys
+    # editing a flow in the panel reaches the model through the sync
+    TS.set_annual(w.plant, f"sub:{s.name}:evaporation", 1000.0)
+    w.time_ctx.notify_data()
+    assert abs(s.evaporation - 1000.0) < 1e-6
+    w.close()

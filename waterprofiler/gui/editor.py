@@ -185,9 +185,11 @@ class SubsystemEditor(QScrollArea):
 
     estimate_requested = Signal()
 
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, ctx: Optional[TimeContext] = None):
         super().__init__()
         self.t = t
+        self.ctx = ctx or TimeContext(t.lang)
+        self._sub_name = ""
         self.setWidgetResizable(True)
         self.catalog = ([], [], [])   # sources, outlets, treatments (names)
         self.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -253,6 +255,7 @@ class SubsystemEditor(QScrollArea):
             [t("col_name"), t("pump_hours"), t("pump_kw"), t("pump_eff"), t("pump_load"),
              t("pump_volts"), t("pump_amps"), t("pump_pf"), t("pump_phases")],
             ["text", "num", "num", "num", "num", "num", "num", "num", "num"])
+        self.pumps.lock_columns((1, 4), t("sp_locked_tip"))          # hours and load factor are time series
         lay.addWidget(table_box(t("pumps"), self.pumps, t("add"), t("remove"),
                                 lambda: ["", 0.0, None, 0.9, 1.0, None, None, 0.85, 3.0]))
         hint = QLabel(t("pump_hint"))
@@ -268,7 +271,20 @@ class SubsystemEditor(QScrollArea):
         tw = QWidget()
         tw.setLayout(temps)
         lay.addWidget(card(t("temps"), tw))
+        self.panel = SeriesPanel(t, self.ctx, self._series_keys)
+        lay.addWidget(card(t("sub_series"), self.panel, note=t("sub_series_note")))
         lay.addStretch(1)
+
+    def _series_keys(self) -> List[str]:
+        p, n = self.ctx.plant, self._sub_name
+        sub = next((x for x in p.subsystems if x.name == n), None) if p else None
+        if sub is None:
+            return []
+        keys = [f"sub:{n}:{f}" for f, _a, _b in TS.SUB_FIELDS] + [f"sub:{n}:production", f"sub:{n}:t_in", f"sub:{n}:t_ww"]
+        for pm in sub.pumps:
+            keys += [f"pump:{n}:{pm.name}:hours", f"pump:{n}:{pm.name}:load"]
+        keys += [f"link:{x.src}>{x.dst}" for x in p.links if x.src == n or x.dst == n]
+        return keys
 
     # ---------------------------------------------------------------- catalog
     def set_catalog(self, sources: List[str], outlets: List[str], treatments: List[str]) -> None:
@@ -280,6 +296,7 @@ class SubsystemEditor(QScrollArea):
 
     # ------------------------------------------------------------ model <-> UI
     def load(self, s: Subsystem) -> None:
+        self._sub_name = s.name
         self.name.setText(s.name)
         i = self.kind.findData(s.kind)
         self.kind.setCurrentIndex(i if i >= 0 else KINDS.index("other"))
@@ -300,32 +317,31 @@ class SubsystemEditor(QScrollArea):
         self._lock_driven(s)
 
     def _lock_driven(self, s: Subsystem) -> None:
-        drv = self.driven
-        tip = self.t("ft_driven")
-        self._locked = {f for f in ("intake", "discharge", "evaporation", "product", "recirc") if f"sub:{s.name}:{f}" in drv}
-        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc)):
-            w.setEnabled(f not in self._locked)
-            w.setToolTip(tip if f in self._locked else "")
-        for f, tb in (("intake", self.intake), ("discharge", self.discharge)):
-            tb.lock_cells([(r, 1) for r in range(tb.rowCount())] if f in self._locked else [], tip, (1,))
+        """Flows, temperatures and pump hours are time series: shown here, entered in the panel at the bottom.
+
+        The intake / discharge tables stay editable but only their proportions count: the total comes from the series."""
+        tip = self.t("sp_locked_tip")
+        self._locked = {f for f in ("intake", "discharge") if f"sub:{s.name}:{f}" in self.driven}
+        for w in (self.evap, self.product, self.recirc, self.t_in, self.t_ww):
+            w.setEnabled(False)
+            w.setToolTip(tip)
+        share = self.t("sp_share_tip")
+        for tb, f in ((self.intake, "intake"), (self.discharge, "discharge")):
+            for r in range(tb.rowCount()):
+                it = tb.item(r, 1)
+                if it is not None:
+                    it.setToolTip(share if f in self._locked else "")
         self.driven_note.setVisible(bool(self._locked))
+        self.panel.refresh()
 
     def store(self, s: Subsystem) -> None:
         s.name = self.name.text().strip() or s.name
         s.kind = self.kind.currentData() or "other"
-        lk = self._locked                                   # fields driven by the time series are not written back
-        if "intake" not in lk:
-            s.intake = _sum_dict(self.intake.rows())
-        if "discharge" not in lk:
-            s.discharge = _sum_dict(self.discharge.rows())
-        if "recirc" not in lk:
-            s.recirculated = self.recirc.value()
+        s.intake = _sum_dict(self.intake.rows())            # when a series drives the total, only the proportions matter
+        s.discharge = _sum_dict(self.discharge.rows())
         s.from_other = self.from_other.value()
         s.to_other = self.to_other.value()
-        if "product" not in lk:
-            s.product = self.product.value()
-        if "evaporation" not in lk:
-            s.evaporation = self.evap.value()
+        # evaporation, product, recirculation, temperatures, pump hours and loads are series-only: written by the sync
         s.water_treatments = _sum_dict(self.wtreat.rows())
         s.wastewater_treatments = _sum_dict(self.wwtreat.rows())
         pumps = []
@@ -338,5 +354,4 @@ class SubsystemEditor(QScrollArea):
                 volts=volts, amps=amps, power_factor=pf if pf else 0.85,
                 phases=1 if phases == 1 else 3))
         s.pumps = pumps
-        s.t_intake_c = self.t_in.get()
-        s.t_wastewater_c = self.t_ww.get()
+        # (temperatures are series-only as well)

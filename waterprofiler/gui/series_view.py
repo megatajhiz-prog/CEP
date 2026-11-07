@@ -477,6 +477,7 @@ class SeriesPanel(QWidget):
         super().__init__()
         self.t, self.ctx, self.keys = t, ctx, keys
         self.grid: Optional[SeriesGrid] = None
+        self._built: tuple = ()
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(0, 0, 0, 0)
         self.lay.setSpacing(6)
@@ -494,11 +495,13 @@ class SeriesPanel(QWidget):
         if self.grid is not None:
             self.grid.setVisible(on)
             if on:
+                self._built = tuple(self.keys())
                 self.grid.reload()
 
     def refresh(self) -> None:
         """The variables of the panel may have changed (a source was added or renamed)."""
-        if self.grid is not None and self.grid.isVisible():
+        if self.grid is not None and self.grid.isVisible() and tuple(self.keys()) != self._built:
+            self._built = tuple(self.keys())
             self.grid.reload()
 
 

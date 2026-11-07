@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import jcalendar as cal
-from .model import Plant, Point
+from .model import Plant, Point, sync_transfers
 
 # ---------------------------------------------------------------------------------------------- variables
 SUB_FIELDS = (("intake", "برداشت", "intake"), ("discharge", "تخلیه", "discharge"), ("evaporation", "تبخیر", "evaporation"),
@@ -32,6 +32,7 @@ PROFILE_MAP = {
     "site:outage_hours": ("outage_hours", "sum"), "site:employees": ("employees", "mean"),
     "quality:cod_raw": ("cod_raw", "mean"), "quality:cod_out": ("cod_out", "mean"),
     "quality:tds_intake": ("tds_intake", "mean"), "quality:tds_discharge": ("tds_discharge", "mean"),
+    "energy:ef_el": ("ef_el", "mean"), "energy:ef_th": ("ef_th", "mean"),
 }
 
 GROUP_TITLE = {
@@ -47,7 +48,7 @@ GROUP_TITLE = {
 SERIES_UNITS = {
     "m3": ("m³", "m³"), "kwh": ("kWh", "kWh"), "c": ("°C", "°C"), "mm": ("mm", "mm"), "t": ("t", "t"),
     "count": ("نفر", "persons"), "h": ("ساعت", "h"), "mg_l": ("mg/L", "mg/L"), "cur_m3": ("{cur}/m³", "{cur}/m³"),
-    "cur_kwh": ("{cur}/kWh", "{cur}/kWh"), "units": ("{u}", "{u}"), "cur": ("{cur}", "{cur}"),
+    "cur_kwh": ("{cur}/kWh", "{cur}/kWh"), "frac": ("نسبت", "fraction"), "kgco2": ("kg CO₂/kWh", "kg CO₂/kWh"), "units": ("{u}", "{u}"), "cur": ("{cur}", "{cur}"),
 }
 
 
@@ -92,6 +93,22 @@ def catalog(plant: Plant) -> List[VarSpec]:
     for s in plant.subsystems:
         for f, fa, en in SUB_FIELDS:
             v.append(VarSpec(f"sub:{s.name}:{f}", "subsystem", f"{s.name} — {fa}", f"{s.name} — {en}", "m3", "sum"))
+    for s_ in plant.subsystems:
+        v.append(VarSpec(f"sub:{s_.name}:t_in", "subsystem", f"{s_.name} — دمای آب ورودی", f"{s_.name} — intake water temperature", "c", "mean"))
+        v.append(VarSpec(f"sub:{s_.name}:t_ww", "subsystem", f"{s_.name} — دمای پساب", f"{s_.name} — wastewater temperature", "c", "mean"))
+        for pm in s_.pumps:
+            v.append(VarSpec(f"pump:{s_.name}:{pm.name}:hours", "subsystem", f"{s_.name} — پمپ «{pm.name}»: ساعت کارکرد",
+                             f"{s_.name} — pump {pm.name}: running hours", "h", "sum"))
+            v.append(VarSpec(f"pump:{s_.name}:{pm.name}:load", "subsystem", f"{s_.name} — پمپ «{pm.name}»: ضریب بار",
+                             f"{s_.name} — pump {pm.name}: load factor", "frac", "mean"))
+    for x in plant.links:
+        v.append(VarSpec(f"link:{x.src}>{x.dst}", "subsystem", f"انتقال «{x.src}» ← «{x.dst}»",
+                         f"Transfer {x.src} → {x.dst}", "m3", "sum"))
+    for tr in plant.treatments:
+        v.append(VarSpec(f"price:treat:{tr.name}", "price", f"هزینهٔ واحد تصفیه «{tr.name}»", f"Unit cost of treatment {tr.name}",
+                         "cur_m3", "mean"))
+    v += [VarSpec("energy:ef_el", "energy", "ضریب انتشار برق", "Electricity emission factor", "kgco2", "mean"),
+          VarSpec("energy:ef_th", "energy", "ضریب انتشار حرارت", "Thermal emission factor", "kgco2", "mean")]
     v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum"),
           VarSpec("energy:th", "energy", "انرژی حرارتی (سوخت)", "Thermal energy (fuel)", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
@@ -313,6 +330,21 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
                 if len(names) != 1:
                     ch.new, ch.note = None, "split"
             out.append(ch)
+    for sub in plant.subsystems:
+        for f, attr in (("t_in", "t_intake_c"), ("t_ww", "t_wastewater_c")):
+            if (g := get(f"sub:{sub.name}:{f}")):
+                add(f"sub:{sub.name}:{f}", f"sub:{sub.name}:{f}", getattr(sub, attr), g)
+        for pm in sub.pumps:
+            if (g := get(f"pump:{sub.name}:{pm.name}:hours")):
+                add(f"pump:{sub.name}:{pm.name}:hours", f"pump:{sub.name}:{pm.name}:hours", pm.hours_per_year, g)
+            if (g := get(f"pump:{sub.name}:{pm.name}:load")):
+                add(f"pump:{sub.name}:{pm.name}:load", f"pump:{sub.name}:{pm.name}:load", pm.load_fraction, g)
+    for x in plant.links:
+        if (g := get(f"link:{x.src}>{x.dst}")):
+            add(f"link:{x.src}>{x.dst}", f"link:{x.src}>{x.dst}", x.volume, g)
+    for tr in plant.treatments:
+        if (g := get(f"price:treat:{tr.name}")):
+            add(f"price:treat:{tr.name}", f"treat:{tr.name}:unit_cost", tr.unit_cost, g)
     for key, label in (("price:electricity", "costs:electricity_per_kwh"), ("price:fuel", "costs:fuel_per_kwh_thermal")):
         if (g := get(key)):
             old = plant.costs.electricity_per_kwh if key.endswith("electricity") else plant.costs.fuel_per_kwh_thermal
@@ -395,10 +427,29 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
             setattr(plant.costs, parts[1], ch.new)
         elif parts[0] == "profile":
             setattr(plant.profile, parts[1], ch.new)
+        elif parts[0] == "treat":
+            next(x for x in plant.treatments if x.name == parts[1]).unit_cost = ch.new
+        elif parts[0] == "pump":
+            sub = next(x for x in plant.subsystems if x.name == parts[1])
+            pm = next(x for x in sub.pumps if x.name == parts[2])
+            if parts[3] == "hours":
+                pm.hours_per_year = ch.new
+            else:
+                pm.load_fraction = ch.new
+        elif parts[0] == "link":
+            a, _, b = ch.where[len("link:"):].partition(">")
+            for x in plant.links:
+                if x.src == a and x.dst == b:
+                    x.volume = ch.new
+            sync_transfers(plant)
         elif parts[0] == "sub":
             sub = next(x for x in plant.subsystems if x.name == parts[1])
             f = parts[2]
-            if f == "intake":
+            if f == "t_in":
+                sub.t_intake_c = ch.new
+            elif f == "t_ww":
+                sub.t_wastewater_c = ch.new
+            elif f == "intake":
                 if not _scale_dict(sub.intake, ch.new, [x.name for x in plant.sources]):
                     continue
             elif f == "discharge":
@@ -587,12 +638,13 @@ def from_rows(plant: Plant, rows: Sequence[Sequence[str]]) -> Tuple[int, List[st
 def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
     """Move values typed as fixed numbers in older projects into the time series (their only place now).
 
-    Production, intake / discharge meters, water prices and energy prices of the plant are time-natured: each becomes one
-    point over the reference window (the window, the data span, or else the current calendar year), scaled so that the
-    annual model reproduces the old number exactly. Variables that already have a series are left alone. Runs once per
-    project (``plant.ts_view["migrated"]``); returns the number of series created.
+    Time-natured quantities (production, meters, prices, subsystem flows, temperatures, pump hours and loads, transfers,
+    emission factors) each become one point over the reference window (the window, the data span, or else the current
+    calendar year), scaled so that the annual model reproduces the old number exactly. Variables that already have a
+    series are left alone. Runs in stages once per project (``plant.ts_view["migrated"]``); returns the series created.
     """
-    if plant.ts_view.get("migrated") == "1":
+    stage = int(plant.ts_view.get("migrated") or 0)
+    if stage >= 2:
         return 0
     w = window_of(plant)
     if w is None:
@@ -601,23 +653,59 @@ def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
     days = (w[1] - w[0]).days + 1
     n = 0
 
-    def move(key: str, value: Optional[float], agg: str) -> None:
+    def move(key: str, value: Optional[float], agg: str, zero_ok: bool = False) -> None:
         nonlocal n
-        if not value or value <= 0 or plant.series.get(key):
+        if value is None or plant.series.get(key) or (value <= 0 and not zero_ok):
             return
         put(plant, key, w[0], w[1], value * days / 365.0 if agg == "sum" else value)
         n += 1
 
-    has_products = any(plant.series.get(f"production:{p.name}") for p in plant.site.products)
-    if not has_products:
-        move("production", plant.production_per_year, "sum")
-    for s in plant.sources:
-        move(f"source:{s.name}", s.metered_m3, "sum")
-        move(f"price:source:{s.name}", s.unit_cost, "mean")
-    for o in plant.outlets:
-        move(f"outlet:{o.name}", o.metered_m3, "sum")
-        move(f"price:outlet:{o.name}", o.unit_cost, "mean")
-    move("price:electricity", plant.costs.electricity_per_kwh, "mean")
-    move("price:fuel", plant.costs.fuel_per_kwh_thermal, "mean")
-    plant.ts_view["migrated"] = "1"
+    if stage < 1:
+        has_products = any(plant.series.get(f"production:{p.name}") for p in plant.site.products)
+        if not has_products:
+            move("production", plant.production_per_year, "sum")
+        for s in plant.sources:
+            move(f"source:{s.name}", s.metered_m3, "sum")
+            move(f"price:source:{s.name}", s.unit_cost, "mean")
+        for o in plant.outlets:
+            move(f"outlet:{o.name}", o.metered_m3, "sum")
+            move(f"price:outlet:{o.name}", o.unit_cost, "mean")
+        move("price:electricity", plant.costs.electricity_per_kwh, "mean")
+        move("price:fuel", plant.costs.fuel_per_kwh_thermal, "mean")
+    for sub in plant.subsystems:
+        for f in ("intake", "discharge", "evaporation", "product", "recirc"):
+            move(f"sub:{sub.name}:{f}", _sub_get(sub, f), "sum")
+        move(f"sub:{sub.name}:t_in", sub.t_intake_c, "mean", zero_ok=True)
+        move(f"sub:{sub.name}:t_ww", sub.t_wastewater_c, "mean", zero_ok=True)
+        for pm in sub.pumps:
+            if pm.hours_per_year > 0:
+                move(f"pump:{sub.name}:{pm.name}:hours", pm.hours_per_year, "sum")
+                move(f"pump:{sub.name}:{pm.name}:load", pm.load_fraction, "mean")
+    for x in plant.links:
+        move(f"link:{x.src}>{x.dst}", x.volume, "sum")
+    for tr in plant.treatments:
+        move(f"price:treat:{tr.name}", tr.unit_cost, "mean")
+    move("energy:ef_el", plant.profile.ef_el, "mean")
+    move("energy:ef_th", plant.profile.ef_th, "mean")
+    plant.ts_view["migrated"] = "2"
     return n
+
+
+def set_annual(plant: Plant, key: str, annual: float, today: Optional[date] = None) -> bool:
+    """Replace a series that is only a single fixed point by a new annual value (e.g. an estimate applied by the user).
+
+    Series with several points (monthly data) are never replaced: returns False and leaves them alone."""
+    pts = plant.series.get(key, [])
+    if len(pts) > 1:
+        return False
+    sp = spec_of(plant, key)
+    if sp is None:
+        return False
+    w = window_of(plant)
+    if w is None:
+        y = (today or date.today()).year
+        w = (date(y, 1, 1), date(y, 12, 31))
+    plant.series[key] = []
+    days = (w[1] - w[0]).days + 1
+    put(plant, key, w[0], w[1], annual * days / 365.0 if sp.agg == "sum" else annual)
+    return True

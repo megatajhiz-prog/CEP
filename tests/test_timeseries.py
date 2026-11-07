@@ -342,7 +342,7 @@ def test_migrate_static_reproduces_old_numbers():
     p.sources[0].metered_m3 = 700.0
     p.costs.electricity_per_kwh = 0.05
     n = T.migrate_static(p, today=date(2026, 6, 1))
-    assert n >= 5 and p.ts_view["migrated"] == "1"
+    assert n >= 5 and p.ts_view["migrated"] == "2"
     before = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.outlets[0].unit_cost,
               p.costs.electricity_per_kwh)
     T.sync(p)
@@ -361,3 +361,47 @@ def test_migrate_static_respects_existing_series_and_window():
     assert p.series["production"][0].value == 5000.0     # not overwritten
     T.sync(p)
     assert abs(p.sources[1].metered_m3 - 365.0) < 1e-6   # B migrated over the window of 365 days
+
+
+def test_migration_of_demo_keeps_every_number():
+    from waterprofiler.sample import demo_plant
+    p = demo_plant("en")
+    p.links = [__import__("waterprofiler.model", fromlist=["Transfer"]).Transfer(p.subsystems[0].name, p.subsystems[1].name, 1234.0)]
+    p.subsystems[0].t_intake_c = 18.0
+    p.profile.ef_el = 0.6
+    from waterprofiler.model import sync_transfers
+    sync_transfers(p)
+
+    def snap(q):
+        out = [q.production_per_year, q.costs.electricity_per_kwh, q.profile.ef_el]
+        for s in q.subsystems:
+            out += [s.total_intake, s.total_discharge, s.evaporation, s.product, s.recirculated, s.to_other, s.from_other,
+                    s.t_intake_c or 0.0] + [x for pm in s.pumps for x in (pm.hours_per_year, pm.load_fraction)]
+        out += [x.volume for x in q.links] + [t.unit_cost for t in q.treatments]
+        out += [x for s in q.sources for x in (s.metered_m3 or 0.0, s.unit_cost)]
+        return out
+
+    before = snap(p)
+    assert T.migrate_static(p) > 10
+    T.sync(p)
+    after = snap(p)
+    assert len(before) == len(after)
+    for a, b in zip(before, after):
+        assert abs(a - b) < 1e-6 * max(1.0, abs(a))
+    assert p.series[f"link:{p.links[0].src}>{p.links[0].dst}"] and p.series["energy:ef_el"]
+    # old stage-1 projects get only the new part and nothing is duplicated
+    q = demo_plant("en")
+    q.ts_view["migrated"] = "1"
+    T.migrate_static(q)
+    assert "production" not in q.series and q.ts_view["migrated"] == "2"
+
+
+def test_set_annual_replaces_single_point_only():
+    p = small()
+    T.put(p, "sub:X:evaporation", date(2025, 1, 1), date(2025, 12, 31), 50.0)
+    assert T.set_annual(p, "sub:X:evaporation", 80.0)
+    assert len(p.series["sub:X:evaporation"]) == 1 and abs(p.series["sub:X:evaporation"][0].value - 80.0) < 1e-9
+    T.put(p, "sub:X:product", date(2025, 1, 1), date(2025, 1, 31), 5.0)
+    T.put(p, "sub:X:product", date(2025, 2, 1), date(2025, 2, 28), 6.0)
+    assert not T.set_annual(p, "sub:X:product", 99.0)          # monthly data are kept
+    assert len(p.series["sub:X:product"]) == 2
