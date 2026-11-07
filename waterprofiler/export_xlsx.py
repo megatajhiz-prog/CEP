@@ -8,6 +8,7 @@ from openpyxl.utils import get_column_letter
 
 from .analysis import Analysis
 from .cost import COMPONENTS
+from . import complex as CX
 from .i18n import Translator
 from . import measures as _ms
 from .messages import localize_all
@@ -36,7 +37,7 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
 
     # --- Summary
     ws = wb.active
-    ws.title = t("tab_plant")[:31]
+    ws.title = t("sheet_summary")[:31]
     ws.sheet_view.rightToLeft = rtl
     k, p = a.kpi, a.plant
     rows = [
@@ -68,6 +69,43 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
         c = ws.cell(row=i, column=2, value=val)
         if isinstance(val, float):
             c.number_format = "#,##0.00"
+    _autowidth(ws)
+
+    # --- Industrial complex: details, areas, products, meters
+    ws = wb.create_sheet(t("sheet_complex")[:31])
+    ws.sheet_view.rightToLeft = rtl
+    r = 1
+    _header(ws, r, [t("cx_info"), ""])
+    for key, val in CX.info_rows(p):
+        r += 1
+        ws.cell(row=r, column=1, value=t(key))
+        ws.cell(row=r, column=2, value=val)
+    r += 2
+    _header(ws, r, [t("site_area"), t("site_kind"), t("site_nsubs"), t("site_intake"), t("site_discharge"),
+                    t("site_evap"), t("site_product"), t("site_share")])
+    for x in CX.area_rows(p):
+        r += 1
+        vals = [x.name or t("cx_unassigned"), t("site_ak_" + x.kind) if x.kind else "", len(x.subsystems),
+                x.intake, x.discharge, x.evaporation, x.product, x.share]
+        for j, v in enumerate(vals, 1):
+            c = ws.cell(row=r, column=j, value=v)
+            if isinstance(v, float):
+                c.number_format = "#,##0.0"
+    if p.site.products:
+        r += 2
+        _header(ws, r, [t("cx_products"), t("production_unit")])
+        for pr in p.site.products:
+            r += 1
+            ws.cell(row=r, column=1, value=pr.name)
+            ws.cell(row=r, column=2, value=p.production_unit)
+    if p.site.meters:
+        r += 2
+        _header(ws, r, [t("cx_meters"), t("site_tag"), t("site_munit"), t("site_acc"), t("site_calibrated"), ""])
+        for m in CX.meter_rows(p):
+            r += 1
+            for j, v in enumerate([m.name, m.tag, m.unit, m.accuracy_pct or None, m.calibrated,
+                                   t("cx_due") if m.due else t("cx_ok")], 1):
+                ws.cell(row=r, column=j, value=v)
     _autowidth(ws)
 
     # --- Balance

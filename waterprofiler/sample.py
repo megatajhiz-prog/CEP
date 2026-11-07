@@ -111,7 +111,7 @@ def demo_with_history(lang: str = "en") -> Plant:
         name="کارخانهٔ نمونه" if fa else "Demo plant site", owner="شرکت نمونه" if fa else "Demo Co.",
         sector="صنایع غذایی" if fa else "Food and beverage", province="البرز" if fa else "Alborz",
         city="کرج" if fa else "Karaj", land_area_m2=60_000, commissioning_year=1392 if fa else 2013,
-        shifts_per_day=2, operating_days=300, calendar="jalali" if fa else "gregorian",
+        shifts_per_day=2, calendar="jalali" if fa else "gregorian",
         areas=[Area("سالن تولید" if fa else "Production hall", "production"),
                Area("تأسیسات" if fa else "Utilities", "utility"),
                Area("اداری و رفاهی" if fa else "Administration", "services"),
@@ -120,6 +120,7 @@ def demo_with_history(lang: str = "en") -> Plant:
         meters=[Meter("کنتور چاه" if fa else "Well meter", f"source:{n['well']}", "flow", "m3", 1.0, "", "2026-03-10"),
                 Meter("کنتور شهری" if fa else "City meter", f"source:{n['city']}", "flow", "m3", 1.0, "", "2026-03-10"),
                 Meter("کنتور برق" if fa else "Power meter", "energy:el", "energy", "kwh", 0.5, "", "2025-11-02")])
+    p.profile.working_days = 300
     for s in p.subsystems:
         s.area = {n["process"]: p.site.areas[0].name, n["ct"]: p.site.areas[1].name, n["boiler"]: p.site.areas[1].name,
                   n["sanitary"]: p.site.areas[2].name, n["land"]: p.site.areas[3].name}.get(s.name, "")

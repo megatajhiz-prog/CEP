@@ -326,8 +326,11 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
     tb = it.tables["supply"]
     assert txt(tb.item(r_permit, 1)) == "—"
-    it.spins["permit_m3"].setValue(100000.0)
+    w.tabs.setCurrentWidget(w.industrial_tab)                 # fixed (structural) inputs live on the complex page
+    w.site_tab.struct.spins["permit_m3"].setValue(100000.0)
     assert w.plant.profile.permit_m3 == 100000.0
+    assert "permit_m3" not in it.spins and "employees" in it.spins
+    w.tabs.setCurrentWidget(w.ind_tab)
     assert txt(tb.item(r_permit, 1)) != "—"
     # production per subsystem
     first = w.plant.subsystems[0].name
@@ -335,7 +338,7 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert w.plant.profile.sub_production[first] == 50000.0
     assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
-    w.tabs.setCurrentWidget(w.plant_panel)
+    w.tabs.setCurrentWidget(w.industrial_tab)
     w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     w.collect()
     assert w.plant.sources[0].alternative is True
@@ -472,4 +475,25 @@ def test_flow_page_without_series_stays_in_base(app):
     assert not tb.has_data() and not tb.mode.isEnabled() and tb.period() is None
     tb.play()
     assert not tb.is_playing()
+    w.close()
+
+
+def test_industrial_page_merges_plant_and_site(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("fa")
+    w._set_plant(demo_with_history("fa"), None)
+    ids = [p[0] for p in w._pages]
+    assert ids[0] == "plant" and "site" not in ids
+    assert w.t(w._pages[0][1]) == "مجتمع صنعتی"
+    w.tabs.setCurrentWidget(w.industrial_tab)
+    it = w.industrial_tab
+    assert it.sections.count() == 2 and w.plant_panel is it.plant_panel and w.site_tab is it.site_tab
+    w.plant_panel.name.setText("مجتمع آزمون")
+    it.show_site()
+    app.processEvents()
+    w.collect()
+    assert w.plant.name == "مجتمع آزمون" and w.plant.site.name == "مجتمع آزمون"
+    assert w.site_tab.areas.rowCount() >= 1 and w.site_tab.meters.rowCount() >= 0
+    it.show_plant()
+    assert w.plant_panel.sources.rowCount() == len(w.plant.sources)
     w.close()

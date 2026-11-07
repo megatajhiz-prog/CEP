@@ -26,11 +26,11 @@ from ..report_html import build_report_html
 from ..sample import demo_plant, demo_with_history
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
-from .editor import PlantPanel, SubsystemEditor
+from .editor import SubsystemEditor
 from .measures_tabs import MeasuresTab, PlanTab
 from .econ_tab import EconTab
 from .indicators_tab import IndicatorsTab
-from .site_tab import SiteTab
+from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .tabs import CostTab, ReconcileTab, SavingsTab
@@ -77,7 +77,9 @@ class MainWindow(QMainWindow):
         self._build_menu()
 
         self.tabs = PageStack()
-        self.plant_panel = PlantPanel(t)
+        self.industrial_tab = IndustrialTab(t)
+        self.plant_panel = self.industrial_tab.plant_panel
+        self.site_tab = self.industrial_tab.site_tab
         self.sub_editor = SubsystemEditor(t)
         self.sub_editor.estimate_requested.connect(self._estimate)
         self.sub_list = QListWidget()
@@ -93,7 +95,6 @@ class MainWindow(QMainWindow):
         self.plan_tab = PlanTab(t)
         self.econ_tab = EconTab(t)
         self.ind_tab = IndicatorsTab(t)
-        self.site_tab = SiteTab(t)
         self.ts_tab = TimeTab(t)
         self.ts_tab.model_changed.connect(self._series_applied)
         self.measures_tab.plan_requested.connect(self._to_plan)
@@ -125,8 +126,7 @@ class MainWindow(QMainWindow):
 
         self.subs_page = subs
         self._pages = [
-            ("plant", "tab_plant", "desc_plant", self.plant_panel),
-            ("site", "tab_site", "desc_site", self.site_tab),
+            ("plant", "tab_industrial", "desc_industrial", self.industrial_tab),
             ("subsystems", "tab_subsystems", "desc_subsystems", subs),
             ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
@@ -291,8 +291,7 @@ class MainWindow(QMainWindow):
 
     def collect(self) -> Plant:
         """Pull every editor's content into self.plant."""
-        self.plant_panel.store(self.plant)
-        self.site_tab.store(self.plant)
+        self.industrial_tab.store(self.plant)
         if 0 <= self._cur < len(self.plant.subsystems):
             self.sub_editor.store(self.plant.subsystems[self._cur])
             item = self.sub_list.item(self._cur)
@@ -315,8 +314,7 @@ class MainWindow(QMainWindow):
         self.sub_editor.setEnabled(bool(self.plant.subsystems))
 
     def _load_all(self, select: int = 0) -> None:
-        self.plant_panel.load(self.plant)
-        self.site_tab.load(self.plant)
+        self.industrial_tab.load(self.plant)
         self.sub_editor.set_catalog(*self._catalog())
         self._refresh_sub_list(select)
 
@@ -349,13 +347,13 @@ class MainWindow(QMainWindow):
             self.econ_tab.refresh(self.plant)
         elif w is self.ind_tab:
             self.ind_tab.refresh(self.plant)
-        elif w is self.site_tab:
-            self.site_tab.refresh(self.plant)
+        elif w is self.industrial_tab:
+            self.industrial_tab.refresh(self.plant)
         elif w is self.ts_tab:
             self.ts_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
-        elif w is not self.plant_panel:
+        else:
             # subsystems tab: pick up renamed sources / outlets / treatments
             self.sub_editor.set_catalog(*self._catalog())
             if 0 <= self._cur < len(self.plant.subsystems):

@@ -230,7 +230,7 @@ def _sum_keys(plant: Plant, keys: Sequence[str], sl: Sequence[cal.Slice]) -> Lis
 def total_production_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[float]]:
     if plant.series.get("production"):
         return slice_values(plant, "production", sl)
-    keys = [f"production:{p.name}" for p in plant.site.products if p.unit == plant.production_unit]
+    keys = [f"production:{p.name}" for p in plant.site.products]
     return _sum_keys(plant, keys, sl)
 
 
@@ -282,7 +282,7 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
 
     g = get("production")
     if g is None:
-        keys = [f"production:{p.name}" for p in plant.site.products if p.unit == plant.production_unit and plant.series.get(f"production:{p.name}")]
+        keys = [f"production:{p.name}" for p in plant.site.products if plant.series.get(f"production:{p.name}")]
         parts = [get(k) for k in keys]
         if parts and all(parts):
             g = (sum(x[0] for x in parts), min(x[1] for x in parts))

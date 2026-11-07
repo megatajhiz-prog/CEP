@@ -9,6 +9,7 @@ from . import __version__, branding
 from . import measures as _ms
 from .analysis import Analysis
 from .cost import COMPONENTS
+from . import complex as CX
 from .i18n import Translator
 from .messages import localize_all
 
@@ -69,6 +70,29 @@ td.n {{ text-align:right; direction:ltr; }}
     for lab, val in kpi_rows:
         parts.append(f"<tr><td>{escape(lab)}</td><td class='n'>{escape(val)}</td></tr>")
     parts.append("</table>")
+
+    info = CX.info_rows(a.plant)
+    areas = CX.area_rows(a.plant)
+    parts.append(f"<h2>{escape(t('sheet_complex'))}</h2><table>")
+    for key, val in info:
+        parts.append(f"<tr><td>{escape(t(key))}</td><td>{escape(str(val))}</td></tr>")
+    parts.append("</table>")
+    if areas:
+        parts.append("<table><tr>" + "".join(f"<th>{escape(t(x))}</th>" for x in (
+            "site_area", "site_nsubs", "site_intake", "site_discharge", "site_evap", "site_product", "site_share")) + "</tr>")
+        for x in areas:
+            parts.append(f"<tr><td>{escape(x.name or t('cx_unassigned'))}</td><td class='n'>{len(x.subsystems)}</td>"
+                         f"<td class='n'>{_n(x.intake)}</td><td class='n'>{_n(x.discharge)}</td><td class='n'>{_n(x.evaporation)}</td>"
+                         f"<td class='n'>{_n(x.product)}</td><td class='n'>{'—' if x.share is None else format(x.share, '.1f') + '%'}</td></tr>")
+        parts.append("</table>")
+    meters = CX.meter_rows(a.plant)
+    if meters:
+        parts.append(f"<h3>{escape(t('cx_meters'))}</h3><table><tr>" + "".join(
+            f"<th>{escape(t(x))}</th>" for x in ("col_name", "site_munit", "site_calibrated")) + "<th></th></tr>")
+        for m in meters:
+            parts.append(f"<tr><td>{escape(m.name)}</td><td>{escape(m.unit)}</td><td>{escape(m.calibrated)}</td>"
+                         f"<td class='{'warn' if m.due else ''}'>{escape(t('cx_due') if m.due else t('cx_ok'))}</td></tr>")
+        parts.append("</table>")
 
     if flow:
         parts.append(f"<h2>{escape(t('tab_flow'))}</h2><p><img src='{escape(flow)}' width='640'></p>")

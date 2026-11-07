@@ -2,7 +2,7 @@ name: Documentation screenshots
 
 on:
   push:
-    branches: [docs-screenshots, cepwater, ui-polish, measures-db, flow-diagram, flow-edit, econ, indicators, ts-water, flow-time]
+    branches: [docs-screenshots, cepwater, ui-polish, measures-db, flow-diagram, flow-edit, econ, indicators, ts-water, flow-time, industrial-merge]
   workflow_dispatch:
 
 permissions:
@@ -41,6 +41,8 @@ jobs:
         with:
           name: screenshots
           path: docs/img/*.png
+          retention-days: 1
+        continue-on-error: true      # the PNGs are committed below; a full artifact quota must not stop that
 
       - name: Commit screenshots to this branch
         shell: bash

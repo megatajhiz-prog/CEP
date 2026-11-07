@@ -169,7 +169,8 @@ def main(out: str) -> int:
     def site_and_series():
         from waterprofiler.sample import demo_with_history
         win._set_plant(demo_with_history("fa"), None)
-        go(win.site_tab)
+        go(win.industrial_tab)
+        win.industrial_tab.show_site()
         shot(win, "17_site")
         shot(win.site_tab.widget(), "17_site_full")
         go(win.ts_tab)

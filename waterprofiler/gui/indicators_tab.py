@@ -12,12 +12,13 @@ from PySide6.QtWidgets import (
 
 from .. import indicators as K
 from ..indicator_text import (
-    GROUP_TITLE, PROFILE_GROUPS, PROFILE_LABEL, SUB_COLS, TEXT, format_value, unit_label,
+    GROUP_TITLE, PROFILE_GROUPS, PROFILE_LABEL, STRUCT_FIELDS, SUB_COLS, TEXT, format_value, unit_label,
 )
 from ..i18n import Translator
 from ..model import Plant
 from .tabs import _Scroll, _message_label, make_table, put, stat_row
 from .theme import COL
+from .profile_inputs import ProfileInputs
 from .widgets import StatCard, card, dspin
 
 MUTED = QColor("#8A94A6")
@@ -57,45 +58,11 @@ class IndicatorsTab(_Scroll):
         self.c_inputs = StatCard(t("in_complete"), COL["orange"])
         self.lay.addLayout(stat_row(self.c_comp, self.c_inputs))
 
-        # supplementary inputs
-        self.spins: Dict[str, object] = {}
-        inner = QWidget()
-        iv = QVBoxLayout(inner)
-        iv.setContentsMargins(0, 0, 0, 0)
-        iv.setSpacing(12)
-        fa = t.lang == "fa"
-        for g_fa, g_en, names in PROFILE_GROUPS:
-            head = QLabel(g_fa if fa else g_en)
-            head.setObjectName("cardnote")
-            f = head.font()
-            f.setBold(True)
-            head.setFont(f)
-            iv.addWidget(head)
-            gw = QWidget()
-            grid = QGridLayout(gw)
-            grid.setContentsMargins(0, 0, 0, 0)
-            grid.setHorizontalSpacing(14)
-            grid.setVerticalSpacing(8)
-            for n, name in enumerate(names):
-                lf, le, uf, ue, mx, dec = PROFILE_LABEL[name]
-                box = QWidget()
-                bl = QVBoxLayout(box)
-                bl.setContentsMargins(0, 0, 0, 0)
-                bl.setSpacing(3)
-                lab = QLabel(f"{lf if fa else le}  ({uf if fa else ue})")
-                lab.setObjectName("cardnote")
-                lab.setWordWrap(True)
-                sp = dspin(maximum=mx, decimals=dec, step=1.0)
-                sp.setMinimumWidth(0)
-                sp.valueChanged.connect(lambda v, a=name: self._set(a, v))
-                self.spins[name] = sp
-                bl.addWidget(lab)
-                bl.addWidget(sp)
-                grid.addWidget(box, n // 4, n % 4)
-            for c in range(4):
-                grid.setColumnStretch(c, 1)
-            iv.addWidget(gw)
-        self.lay.addWidget(card(t("in_inputs"), inner, note=t("in_inputs_note")))
+        # supplementary inputs (those that vary with time, and the targets); structural ones are on the complex page
+        self.inputs = ProfileInputs(t, PROFILE_GROUPS)
+        self.spins = self.inputs.spins
+        self.inputs.changed.connect(self._recalc)
+        self.lay.addWidget(card(t("in_inputs"), self.inputs, note=t("in_inputs_note")))
 
         self.prod_tb = QTableWidget(0, 2)
         self.prod_tb.setHorizontalHeaderLabels([t("subsystem"), t("in_sub_prod")])
@@ -109,6 +76,7 @@ class IndicatorsTab(_Scroll):
         self.prod_tb.itemChanged.connect(self._prod_changed)
         self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, note=t("in_sub_prod_note")))
 
+        fa = t.lang == "fa"
         # one table per group
         self.tables: Dict[str, QTableWidget] = {}
         for g in K.GROUPS:
@@ -144,8 +112,7 @@ class IndicatorsTab(_Scroll):
         self.plant = plant
         self._loading = True
         pf = plant.profile
-        for name, sp in self.spins.items():
-            sp.setValue(float(getattr(pf, name)))
+        self.inputs.load(plant)
         self.prod_tb.blockSignals(True)
         self.prod_tb.setRowCount(len(plant.subsystems))
         for r, s in enumerate(plant.subsystems):
@@ -158,12 +125,6 @@ class IndicatorsTab(_Scroll):
         self.prod_tb.blockSignals(False)
         _fit(self.prod_tb)
         self._loading = False
-        self._recalc()
-
-    def _set(self, name: str, value: float) -> None:
-        if self._loading or self.plant is None:
-            return
-        setattr(self.plant.profile, name, float(value))
         self._recalc()
 
     def _prod_changed(self, item: QTableWidgetItem) -> None:
@@ -215,7 +176,8 @@ class IndicatorsTab(_Scroll):
                 put(tb, r, 2, unit_label(ind.unit, t.lang, cur, unit))
                 put(tb, r, 3, tx[2], True)
                 if ind.reason == "inputs":
-                    names = [PROFILE_LABEL[n][0 if fa else 1] for n in ind.needs]
+                    names = [PROFILE_LABEL[n][0 if fa else 1] + (f" ({t('tab_industrial')})" if n in STRUCT_FIELDS else "")
+                             for n in ind.needs]
                     note = t("in_needs", x=("، " if fa else ", ").join(names))
                 elif ind.reason == "data":
                     note = t("in_nodata")

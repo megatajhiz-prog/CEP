@@ -264,7 +264,7 @@ class Plant:
             sd = dict(sd)
             sd["pumps"] = [Pump(**p) for p in sd.get("pumps", [])]
             subs.append(Subsystem(**sd))
-        return Plant(
+        plant = Plant(
             name=d.get("name", "Plant"),
             period=d.get("period", "year"),
             currency=d.get("currency", "IRR"),
@@ -283,6 +283,11 @@ class Plant:
             series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
         )
+        # older files kept the working days on the site page; there is now one field (the profile's)
+        if plant.site.operating_days and not plant.profile.working_days:
+            plant.profile.working_days = float(plant.site.operating_days)
+        plant.site.operating_days = 0
+        return plant
 
 
 def _profile_from(d: dict) -> Profile:

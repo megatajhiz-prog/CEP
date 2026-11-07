@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import List, Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QWidget
 
+from .. import complex as CX
 from .. import timeseries as TS
+from ..indicator_text import STRUCT_GROUPS
 from ..i18n import Translator
 from ..model import Area, Meter, Plant, Product, Site
+from .profile_inputs import ProfileInputs
 from .tabs import _Scroll, make_table, put
 from .widgets import DataTable, card, dspin, table_box
 
@@ -46,7 +48,7 @@ class SiteTab(_Scroll):
         self.meter_kinds = _Kinds(t, "site_mk_", METER_KINDS)
 
         # ---- descriptive data
-        self.f_name, self.f_owner, self.f_sector = QLineEdit(), QLineEdit(), QLineEdit()
+        self.f_owner, self.f_sector = QLineEdit(), QLineEdit()
         self.f_province, self.f_city, self.f_address = QLineEdit(), QLineEdit(), QLineEdit()
         self.f_note = QLineEdit()
         self.f_lat = dspin(maximum=90.0, minimum=-90.0, decimals=6, step=0.01)
@@ -56,8 +58,6 @@ class SiteTab(_Scroll):
         self.f_year.setRange(0, 2200)
         self.f_shifts = QSpinBox()
         self.f_shifts.setRange(0, 6)
-        self.f_days = QSpinBox()
-        self.f_days.setRange(0, 366)
         self.f_cal = QComboBox()
         self.f_cal.addItem(t("cal_jalali"), "jalali")
         self.f_cal.addItem(t("cal_gregorian"), "gregorian")
@@ -65,12 +65,12 @@ class SiteTab(_Scroll):
         for form in (left, right):
             form.setHorizontalSpacing(16)
             form.setVerticalSpacing(10)
-        for key, w in (("site_name", self.f_name), ("site_owner", self.f_owner), ("site_sector", self.f_sector),
+        for key, w in (("site_owner", self.f_owner), ("site_sector", self.f_sector),
                        ("site_province", self.f_province), ("site_city", self.f_city), ("site_address", self.f_address),
                        ("site_note", self.f_note)):
             left.addRow(t(key), w)
         for key, w in (("site_lat", self.f_lat), ("site_lon", self.f_lon), ("site_land", self.f_land),
-                       ("site_year", self.f_year), ("site_shifts", self.f_shifts), ("site_opdays", self.f_days),
+                       ("site_year", self.f_year), ("site_shifts", self.f_shifts),
                        ("site_calendar", self.f_cal)):
             right.addRow(t(key), w)
         info = QWidget()
@@ -80,18 +80,20 @@ class SiteTab(_Scroll):
         il.addLayout(left, 1)
         il.addLayout(right, 1)
         self.lay.addWidget(card(t("site_info"), info, note=t("site_info_note")))
+        self.struct = ProfileInputs(t, STRUCT_GROUPS)
+        self.lay.addWidget(card(t("site_struct"), self.struct, note=t("site_struct_note")))
 
         # ---- areas, products
         self.areas = DataTable([t("col_name"), t("site_kind"), t("site_note")], ["text", "combo", "text"],
                                {1: self.area_kinds.labels})
-        self.products = DataTable([t("col_name"), t("site_unit"), t("site_note")], ["text", "text", "text"])
+        self.products = DataTable([t("col_name"), t("site_note")], ["text", "text"])
         self.areas.setMinimumHeight(170)
         self.products.setMinimumHeight(170)
         row = QHBoxLayout()
         row.setSpacing(16)
         row.addWidget(table_box(t("site_areas"), self.areas, t("add"), t("remove"),
                                 lambda: ["", self.area_kinds.labels[0], ""]))
-        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", plant_unit(self), ""]))
+        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", ""]))
         self.lay.addLayout(row)
 
         # ---- subsystems -> areas
@@ -99,7 +101,7 @@ class SiteTab(_Scroll):
         self.assign.setMinimumHeight(200)
         self.assign_rows: List[str] = []
         self.lay.addWidget(card(t("site_assign"), self.assign, note=t("site_assign_note")))
-        self.summary = make_table([t("site_area"), t("site_nsubs"), t("site_intake"), t("site_share")])
+        self.summary = make_table([t("site_area"), t("site_nsubs"), t("site_intake"), t("site_discharge"), t("site_evap"), t("site_product"), t("site_share")])
         self.summary.setMinimumHeight(170)
         self.lay.addWidget(card(t("site_summary"), self.summary))
 
@@ -118,11 +120,11 @@ class SiteTab(_Scroll):
         self.lay.addWidget(mb)
         self.lay.addStretch(1)
 
-        for w in (self.f_name, self.f_owner, self.f_sector, self.f_province, self.f_city, self.f_address, self.f_note):
+        for w in (self.f_owner, self.f_sector, self.f_province, self.f_city, self.f_address, self.f_note):
             w.textChanged.connect(self._edited)
         for w in (self.f_lat, self.f_lon, self.f_land):
             w.valueChanged.connect(self._edited)
-        for w in (self.f_year, self.f_shifts, self.f_days):
+        for w in (self.f_year, self.f_shifts):
             w.valueChanged.connect(self._edited)
         self.f_cal.currentIndexChanged.connect(self._edited)
         for tb in (self.areas, self.products, self.meters):
@@ -133,7 +135,7 @@ class SiteTab(_Scroll):
         self._loading = True
         self.plant = plant
         s = plant.site
-        for w, v in ((self.f_name, s.name), (self.f_owner, s.owner), (self.f_sector, s.sector), (self.f_province, s.province),
+        for w, v in ((self.f_owner, s.owner), (self.f_sector, s.sector), (self.f_province, s.province),
                      (self.f_city, s.city), (self.f_address, s.address), (self.f_note, s.note)):
             w.setText(v)
         self.f_lat.setValue(s.latitude)
@@ -141,10 +143,10 @@ class SiteTab(_Scroll):
         self.f_land.setValue(s.land_area_m2)
         self.f_year.setValue(s.commissioning_year)
         self.f_shifts.setValue(s.shifts_per_day)
-        self.f_days.setValue(s.operating_days)
         self.f_cal.setCurrentIndex(max(0, self.f_cal.findData(s.calendar)))
+        self.struct.load(plant)
         self.areas.set_rows([[a.name, self.area_kinds.label(a.kind), a.note] for a in s.areas])
-        self.products.set_rows([[p.name, p.unit, p.note] for p in s.products])
+        self.products.set_rows([[p.name, p.note] for p in s.products])
         self._load_meters(plant)
         self._load_assign(plant)
         self._loading = False
@@ -183,11 +185,12 @@ class SiteTab(_Scroll):
         if self.plant is not plant:
             return
         s = plant.site
-        s.name, s.owner, s.sector = self.f_name.text().strip(), self.f_owner.text().strip(), self.f_sector.text().strip()
+        s.owner, s.sector = self.f_owner.text().strip(), self.f_sector.text().strip()
+        s.name = plant.name                      # one name for the complex: the plant name
         s.province, s.city, s.address = self.f_province.text().strip(), self.f_city.text().strip(), self.f_address.text().strip()
         s.note = self.f_note.text().strip()
         s.latitude, s.longitude, s.land_area_m2 = self.f_lat.value(), self.f_lon.value(), self.f_land.value()
-        s.commissioning_year, s.shifts_per_day, s.operating_days = self.f_year.value(), self.f_shifts.value(), self.f_days.value()
+        s.commissioning_year, s.shifts_per_day = self.f_year.value(), self.f_shifts.value()
         s.calendar = self.f_cal.currentData() or "jalali"
         seen = set()
         s.areas = []
@@ -197,10 +200,10 @@ class SiteTab(_Scroll):
                 s.areas.append(Area(n, self.area_kinds.id(k), note))
         seen = set()
         s.products = []
-        for n, u, note in self.products.rows():
+        for n, note in self.products.rows():
             if n and n not in seen:
                 seen.add(n)
-                s.products.append(Product(n, u or plant.production_unit, note))
+                s.products.append(Product(n, plant.production_unit, note))      # products share the plant's unit
         s.meters = []
         for n, tag, k, u, acc, ins, cal_, note in self.meters.rows():
             if n:
@@ -234,34 +237,15 @@ class SiteTab(_Scroll):
         plant = self.plant
         if plant is None:
             return
-        total = sum(s.total_intake for s in plant.subsystems)
-        names = self._area_names()
-        for s in plant.subsystems:
-            if s.area and s.area not in names:
-                names.append(s.area)
-        rows = [(n, [s for s in plant.subsystems if s.area == n]) for n in names]
-        free = [s for s in plant.subsystems if not s.area or s.area not in names]
-        if free:
-            rows.append((self.t("site_unassigned"), free))
+        rows = CX.area_rows(plant)
+        self.summary.clearContents()
         self.summary.setRowCount(len(rows))
-        for r, (n, subs) in enumerate(rows):
-            v = sum(s.total_intake for s in subs)
-            put(self.summary, r, 0, n, bold=True)
-            put(self.summary, r, 1, str(len(subs)), True)
-            put(self.summary, r, 2, f"{v:,.0f}", True)
-            put(self.summary, r, 3, f"{100 * v / total:.1f}%" if total > 0 else "—", True)
-        today = date.today()
-        due = 0
-        for m in plant.site.meters:
-            try:
-                last = date.fromisoformat(m.calibrated)
-                if (today - last).days > 365:
-                    due += 1
-            except ValueError:
-                due += 1
-        n = len(plant.site.meters)
-        self.meter_status.setText(self.t("site_meter_status", n=n, due=due) if n else "")
-
-
-def plant_unit(tab: SiteTab) -> str:
-    return tab.plant.production_unit if tab.plant else "t"
+        for r, x in enumerate(rows):
+            put(self.summary, r, 0, x.name or self.t("site_unassigned"), bold=True)
+            put(self.summary, r, 1, str(len(x.subsystems)), True)
+            for c, v in enumerate((x.intake, x.discharge, x.evaporation, x.product), 2):
+                put(self.summary, r, c, f"{v:,.0f}", True)
+            put(self.summary, r, 6, "—" if x.share is None else f"{x.share:.1f}%", True)
+        meters = CX.meter_rows(plant)
+        due = sum(1 for m in meters if m.due)
+        self.meter_status.setText(self.t("site_meter_status", n=len(meters), due=due) if meters else "")
