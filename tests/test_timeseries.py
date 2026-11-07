@@ -335,3 +335,29 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w2.active.append(["a", "b"])
     w2.save(tmp_path / "x.xlsx")
     assert X.import_template(q, str(tmp_path / "x.xlsx")) == (0, ["no key row"])
+
+
+def test_migrate_static_reproduces_old_numbers():
+    p = small()
+    p.sources[0].metered_m3 = 700.0
+    p.costs.electricity_per_kwh = 0.05
+    n = T.migrate_static(p, today=date(2026, 6, 1))
+    assert n >= 5 and p.ts_view["migrated"] == "1"
+    before = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.outlets[0].unit_cost,
+              p.costs.electricity_per_kwh)
+    T.sync(p)
+    after = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.outlets[0].unit_cost,
+             p.costs.electricity_per_kwh)
+    assert all(abs(a - b) < 1e-6 for a, b in zip(before, after))
+    assert T.migrate_static(p) == 0                      # once per project
+
+
+def test_migrate_static_respects_existing_series_and_window():
+    p = small()
+    T.put(p, "production", date(2025, 1, 1), date(2025, 12, 31), 5000.0)
+    T.put(p, "source:A", date(2025, 1, 1), date(2025, 6, 30), 100.0)
+    p.sources[1].metered_m3 = 365.0
+    T.migrate_static(p)
+    assert p.series["production"][0].value == 5000.0     # not overwritten
+    T.sync(p)
+    assert abs(p.sources[1].metered_m3 - 365.0) < 1e-6   # B migrated over the window of 365 days

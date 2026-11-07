@@ -581,3 +581,43 @@ def from_rows(plant: Plant, rows: Sequence[Sequence[str]]) -> Tuple[int, List[st
         put(plant, key, a, b, v)
         ok += 1
     return ok, bad
+
+
+# ----------------------------------------------------------------------------------- migration of static entries
+def migrate_static(plant: Plant, today: Optional[date] = None) -> int:
+    """Move values typed as fixed numbers in older projects into the time series (their only place now).
+
+    Production, intake / discharge meters, water prices and energy prices of the plant are time-natured: each becomes one
+    point over the reference window (the window, the data span, or else the current calendar year), scaled so that the
+    annual model reproduces the old number exactly. Variables that already have a series are left alone. Runs once per
+    project (``plant.ts_view["migrated"]``); returns the number of series created.
+    """
+    if plant.ts_view.get("migrated") == "1":
+        return 0
+    w = window_of(plant)
+    if w is None:
+        y = (today or date.today()).year
+        w = (date(y, 1, 1), date(y, 12, 31))
+    days = (w[1] - w[0]).days + 1
+    n = 0
+
+    def move(key: str, value: Optional[float], agg: str) -> None:
+        nonlocal n
+        if not value or value <= 0 or plant.series.get(key):
+            return
+        put(plant, key, w[0], w[1], value * days / 365.0 if agg == "sum" else value)
+        n += 1
+
+    has_products = any(plant.series.get(f"production:{p.name}") for p in plant.site.products)
+    if not has_products:
+        move("production", plant.production_per_year, "sum")
+    for s in plant.sources:
+        move(f"source:{s.name}", s.metered_m3, "sum")
+        move(f"price:source:{s.name}", s.unit_cost, "mean")
+    for o in plant.outlets:
+        move(f"outlet:{o.name}", o.metered_m3, "sum")
+        move(f"price:outlet:{o.name}", o.unit_cost, "mean")
+    move("price:electricity", plant.costs.electricity_per_kwh, "mean")
+    move("price:fuel", plant.costs.fuel_per_kwh_thermal, "mean")
+    plant.ts_view["migrated"] = "1"
+    return n

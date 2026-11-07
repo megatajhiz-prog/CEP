@@ -14,6 +14,7 @@ from .. import timeseries as TS
 from ..i18n import Translator
 from ..model import Outlet, Plant, Pump, Source, Subsystem, Treatment
 from ..numparse import fmt_float, parse_float
+from .series_view import SeriesPanel, TimeContext
 from .widgets import DataTable, button, card, dspin, table_box
 
 KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "other"]
@@ -42,9 +43,10 @@ class PlantPanel(QScrollArea):
 
     changed = Signal()
 
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, ctx: Optional[TimeContext] = None):
         super().__init__()
         self.t = t
+        self.ctx = ctx or TimeContext(t.lang)
         self.setWidgetResizable(True)
         self.setFrameShape(QScrollArea.Shape.NoFrame)
         body = QWidget()
@@ -74,16 +76,28 @@ class PlantPanel(QScrollArea):
         il.setSpacing(40)
         il.addLayout(left, 1)
         il.addLayout(right, 1)
-        outer.addWidget(card(t("plant_info"), info, note=t("plant_info_note")))
+        self.panel_info = SeriesPanel(t, self.ctx, lambda: ["production", "price:electricity", "price:fuel"])
+        outer.addWidget(card(t("plant_info"), info, self.panel_info, note=t("plant_info_note")))
 
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
                                  ["text", "num", "num", "bool"])
         self.outlets = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
         self.treatments = DataTable([t("col_name"), t("col_unit_cost"), t("col_wastewater")], ["text", "num", "bool"])
+        tip = t("sp_locked_tip")
+        self.sources.lock_columns((1, 2), tip)           # price and meter are time series: entered under the table
+        self.outlets.lock_columns((1, 2), tip)
+        self.panel_sources = SeriesPanel(t, self.ctx, lambda: [k for s in self._plant().sources
+                                                              for k in (f"source:{s.name}", f"price:source:{s.name}")])
+        self.panel_outlets = SeriesPanel(t, self.ctx, lambda: [k for o in self._plant().outlets
+                                                              for k in (f"outlet:{o.name}", f"price:outlet:{o.name}")])
         row = QHBoxLayout()
         row.setSpacing(16)
-        row.addWidget(table_box(t("sources"), self.sources, t("add"), t("remove"), lambda: ["", 0.0, None, False]))
-        row.addWidget(table_box(t("outlets"), self.outlets, t("add"), t("remove"), lambda: ["", 0.0, None]))
+        for tb, panel, title, dflt in ((self.sources, self.panel_sources, "sources", lambda: ["", 0.0, None, False]),
+                                       (self.outlets, self.panel_outlets, "outlets", lambda: ["", 0.0, None])):
+            col = QVBoxLayout()
+            col.addWidget(table_box(t(title), tb, t("add"), t("remove"), dflt), 1)
+            col.addWidget(panel)
+            row.addLayout(col, 1)
         outer.addLayout(row, 1)
         outer.addWidget(table_box(t("treatments"), self.treatments, t("add"), t("remove"), lambda: ["", 0.0, False]), 1)
 
@@ -109,18 +123,33 @@ class PlantPanel(QScrollArea):
         self.blockSignals(False)
         self._lock_driven(p)
 
+    def _plant(self) -> Plant:
+        return self.ctx.plant if self.ctx.plant is not None else Plant(name="")
+
     def _lock_driven(self, p: Plant) -> None:
-        """Values that come from the time series are shown but cannot be typed here (one entry point per datum)."""
-        drv = TS.driven(p)
-        tip = self.t("ft_driven")
-        for w, key in ((self.production, "production_per_year"), (self.elec, "costs:electricity_per_kwh"),
-                       (self.fuel, "costs:fuel_per_kwh_thermal")):
-            w.setEnabled(key not in drv)
-            w.setToolTip(tip if key in drv else "")
-        self.sources.lock_cells([(r, c) for r, s in enumerate(p.sources) for c, k in ((1, "unit_cost"), (2, "metered"))
-                                 if f"source:{s.name}:{k}" in drv], tip, (1, 2))
-        self.outlets.lock_cells([(r, c) for r, o in enumerate(p.outlets) for c, k in ((1, "unit_cost"), (2, "metered"))
-                                 if f"outlet:{o.name}:{k}" in drv], tip, (1, 2))
+        """Production and energy prices are time series: shown here (as used by the model), entered in the panel below."""
+        tip = self.t("sp_locked_tip")
+        for w in (self.production, self.elec, self.fuel):
+            w.setEnabled(False)
+            w.setToolTip(tip)
+        for panel in (self.panel_info, self.panel_sources, self.panel_outlets):
+            panel.refresh()
+
+    def show_values(self, p: Plant) -> None:
+        """The series changed the model: show the new annual values in the locked fields and cells."""
+        for w, v in ((self.production, p.production_per_year), (self.elec, p.costs.electricity_per_kwh),
+                     (self.fuel, p.costs.fuel_per_kwh_thermal)):
+            w.blockSignals(True)
+            w.setValue(v)
+            w.blockSignals(False)
+        for tb, items in ((self.sources, {s.name: s for s in p.sources}), (self.outlets, {o.name: o for o in p.outlets})):
+            tb._loading = True
+            for r in range(tb.rowCount()):
+                obj = items.get((tb.item(r, 0).text() if tb.item(r, 0) else "").strip())
+                if obj is not None:
+                    tb.item(r, 1).setText(fmt_float(obj.unit_cost))
+                    tb.item(r, 2).setText(fmt_float(obj.metered_m3))
+            tb._loading = False
 
     def store(self, p: Plant) -> None:
         p.name = self.name.text().strip() or p.name
