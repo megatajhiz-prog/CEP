@@ -46,10 +46,13 @@ def test_all_tabs_with_demo(app, lang, tmp_path):
 
 
 def test_edit_roundtrip_does_not_change_plant(app):
-    from waterprofiler.sample import demo_plant
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_with_history
     w = _win("en")
     w.action_demo()
-    before = demo_plant().to_dict()
+    base = demo_with_history("en")
+    TS.sync(base)                                  # the model carries the series-driven values from the start
+    before = base.to_dict()
     w.tabs.setCurrentWidget(w.subs_page)
     for r in range(w.sub_list.count()):
         w.sub_list.setCurrentRow(r)

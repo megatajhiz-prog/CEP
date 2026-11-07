@@ -2,6 +2,7 @@ import pytest
 
 from waterprofiler import timeseries as TS
 from waterprofiler.estimate_apply import shared_params
+from waterprofiler.balance import plant_balance
 from waterprofiler.sample import demo_plant, demo_with_history
 
 
@@ -45,3 +46,15 @@ def test_shared_estimator_inputs_come_from_the_profile():
     assert shared_params(p, "sanitary") == {"employees": 120, "days": 280}
     assert shared_params(p, "irrigation") == {"area": 5000}
     assert shared_params(p, "boiler") == {}
+
+
+def test_reconcile_keeps_series_driven_flows_and_closes_the_balance():
+    from waterprofiler import reconcile as R
+    from waterprofiler.balance import plant_balance
+    p = demo_with_history("en")
+    TS.sync(p)
+    sig = R.measured_sigma(p)
+    assert sig and all(v < 1e-3 for v in sig.values())
+    q = R.reconcile(p, rel_sigma=sig).plant
+    TS.sync(q)                                               # what the application does on the next collect
+    assert abs(plant_balance(q).unknown_loss) < 1e-3 * plant_balance(q).sum_intake
