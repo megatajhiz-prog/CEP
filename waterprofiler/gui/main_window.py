@@ -399,7 +399,9 @@ class MainWindow(QMainWindow):
 
     def _flow_edited(self) -> None:
         """The diagram changed the plant: reload the subsystem editor and recompute everything."""
-        if TS.sync(self.plant):                   # a flow driven by the time series cannot be changed by hand
+        refused = TS.absorb_model(self.plant)     # a single fixed value follows the diagram; monthly data cannot
+        self._series_dirty = True
+        if TS.sync(self.plant) or refused:
             self.statusBar().showMessage(self.t("ft_driven_reverted"), 8000)
         if 0 <= self._cur < len(self.plant.subsystems):
             self.sub_editor.load(self.plant.subsystems[self._cur])
@@ -407,6 +409,9 @@ class MainWindow(QMainWindow):
         self.flow_tab.refresh(self.plant, a)
 
     def _links_changed(self) -> None:
+        TS.absorb_model(self.plant)
+        TS.sync(self.plant)
+        self._series_dirty = True
         try:
             a = self._analyse()
         except Exception:  # noqa: BLE001 - the balance tab shows the details
@@ -665,11 +670,7 @@ class MainWindow(QMainWindow):
             except (InputError, KeyError) as e:
                 QMessageBox.warning(self, t("error"), localize(str(e), t.lang))
                 return
-            kept = False
-            for f, _a, _b in TS.SUB_FIELDS:                  # the estimate becomes the (single-point) series of each flow
-                v = TS._sub_get(s, f)
-                if v > 0 or self.plant.series.get(f"sub:{s.name}:{f}"):
-                    kept |= not TS.set_annual(self.plant, f"sub:{s.name}:{f}", v)
+            kept = TS.absorb_model(self.plant) > 0          # the estimate becomes the series where it is a single value
             TS.sync(self.plant)
             self._series_dirty = True
             self.sub_editor.driven = TS.driven(self.plant)
@@ -680,8 +681,12 @@ class MainWindow(QMainWindow):
     def _apply_reconciled(self, plant: Plant) -> None:
         self.plant = plant
         sel = self._cur
+        refused = TS.absorb_model(self.plant)    # the reconciled values become the series (where it is a single value)
+        self._series_dirty = True
         self._load_all(select=max(0, sel))
         self.reconcile_tab.refresh(self.plant)
+        if refused:
+            self.statusBar().showMessage(self.t("ft_driven_reverted"), 8000)
 
     # -------------------------------------------------------------- language
     def set_language(self, lang: str) -> None:

@@ -465,7 +465,7 @@ def test_flow_page_without_series_stays_in_base(app):
     from waterprofiler.sample import demo_plant
     w = _win("en")
     p = demo_plant("en")
-    p.ts_view["migrated"] = "1"                 # no fixed numbers turned into series: a project without any time data
+    p.ts_view["migrated"] = "3"                 # no fixed numbers turned into series: a project without any time data
     w._set_plant(p, None)
     w.tabs.setCurrentWidget(w.flow_tab)
     tb = w.flow_tab.timebar

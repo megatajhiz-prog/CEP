@@ -431,3 +431,23 @@ def test_emission_factors_stay_fixed_numbers():
     p.profile.ef_el = 0.6
     assert not any(s.key.startswith("energy:ef") for s in T.catalog(p))
     assert "profile:ef_el" not in T.driven(p)
+
+
+def test_absorb_model_keeps_deliberate_changes_for_single_values_only():
+    p = small()
+    T.migrate_static(p, today=date(2026, 6, 1))
+    T.sync(p)
+    p.subsystems[0].product = 250.0                         # e.g. a reconciled / drawn value
+    p.subsystems[0].intake = {"A": 800.0}
+    assert T.absorb_model(p) == 0
+    T.sync(p)
+    assert p.subsystems[0].product == pytest.approx(250.0) and p.subsystems[0].intake["A"] == pytest.approx(800.0)
+    # monthly data are not rewritten: the change is refused and the sync restores the data
+    q = small()
+    for m in range(1, 13):
+        T.put(q, "sub:X:product", date(2025, m, 1), date(2025, m, [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]), 10.0)
+    T.sync(q)
+    q.subsystems[0].product = 999.0
+    assert T.absorb_model(q) == 1
+    T.sync(q)
+    assert q.subsystems[0].product == pytest.approx(120.0)

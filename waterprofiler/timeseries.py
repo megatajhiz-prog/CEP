@@ -737,3 +737,21 @@ def set_annual(plant: Plant, key: str, annual: float, today: Optional[date] = No
     days = (w[1] - w[0]).days + 1
     put(plant, key, w[0], w[1], annual * days / 365.0 if sp.agg == "sum" else annual)
     return True
+
+
+def absorb_model(plant: Plant) -> int:
+    """Make the series follow values the model was changed to on purpose (reconciliation, a flow drawn on the diagram,
+    an estimate): every driven quantity whose model value differs from its series gets that value as its single fixed
+    point. Series made of several points (monthly data) are never rewritten; returns how many could not follow."""
+    w = window_of(plant)
+    if w is None:
+        return 0
+    refused = 0
+    for ch in plan_changes(plant, w[0], w[1]):
+        if ch.key == "production" or ch.new is None or ch.old is None:
+            continue
+        if abs(ch.new - ch.old) <= 1e-9 * max(1.0, abs(ch.old)):
+            continue
+        if not set_annual(plant, ch.key, ch.old):
+            refused += 1
+    return refused
