@@ -136,7 +136,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "site_struct_note": {"fa": "این مقادیر با زمان تغییر نمی‌کنند و فقط همین‌جا وارد می‌شوند؛ شاخص‌ها از اینجا می‌خوانند. کمیت‌های متغیر با زمان (پرسنل، درآمد، کیفیت و …) در «داده‌های زمانی» و صفحهٔ شاخص‌ها هستند.", "en": "These values do not change from month to month and are entered only here; the indicators read them. Quantities that vary with time are on the Time series and Indicators pages."},
     "site_discharge": {"fa": "تخلیه (m³/سال)", "en": "Discharge (m³/yr)"},
     "site_evap": {"fa": "تبخیر (m³/سال)", "en": "Evaporation (m³/yr)"},
-    "site_product": {"fa": "آب در محصول (m³/سال)", "en": "Water in product (m³/yr)"},
+    "site_product": {"fa": "محصول (m³/سال)", "en": "Product (m³/yr)"},
     "sheet_summary": {"fa": "خلاصه", "en": "Summary"},
     "sheet_complex": {"fa": "مجتمع صنعتی", "en": "Industrial complex"},
     "pf_working_days": {"fa": "روز کاری در سال", "en": "Working days per year"},
