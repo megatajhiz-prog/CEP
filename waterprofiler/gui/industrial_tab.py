@@ -45,6 +45,7 @@ class IndustrialTab(QWidget):
     def refresh(self, plant: Plant) -> None:
         """The page is opened: pick up renamed subsystems, sources and outlets in the site section."""
         self.plant = plant
+        self.plant_panel._lock_driven(plant)          # the time series may have changed what is entered elsewhere
         self.site_tab.refresh(plant)
 
     def _section_changed(self, _i: int) -> None:

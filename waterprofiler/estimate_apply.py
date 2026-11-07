@@ -47,3 +47,22 @@ def apply_estimate(s: Subsystem, kind: str, p: Dict[str, float], source: str, ou
     s.discharge = {outlet: discharge} if (outlet and discharge > 0) else {}
     s.params = dict(p)
     return r
+
+
+def shared_params(plant, kind: str) -> dict:
+    """Estimator inputs that are already entered once elsewhere in the project (so they are not asked again).
+
+    Sanitary use takes the staff and working days of the profile / complex page, irrigation the green area.
+    A value of 0 means "not entered": the estimator then asks for it as before.
+    """
+    pf = plant.profile
+    out = {}
+    if kind == "sanitary":
+        if pf.employees > 0:
+            out["employees"] = pf.employees
+        if pf.working_days > 0:
+            out["days"] = pf.working_days
+    elif kind == "irrigation":
+        if pf.green_area_m2 > 0:
+            out["area"] = pf.green_area_m2
+    return out

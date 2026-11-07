@@ -326,6 +326,30 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
     return out
 
 
+def driven(plant: Plant, min_cov: float = 0.5) -> Dict[str, str]:
+    """Model fields that currently take their value from the time series: ``where`` -> series key.
+
+    ``where`` is the target used by ``commit`` ("production_per_year", "source:<n>:metered", "costs:<attr>", "profile:<attr>",
+    "subprod:<name>", "sub:<n>:<flow>" ...). A field is driven when its variable has enough data in the reference window
+    (the window of the time-series page, or the whole data span). Such fields are not entered anywhere else.
+    """
+    w = window_of(plant)
+    if not w:
+        return {}
+    return {c.where: c.key for c in plan_changes(plant, w[0], w[1], min_cov) if c.new is not None}
+
+
+def sync(plant: Plant, min_cov: float = 0.5) -> int:
+    """Write the series-driven values into the model; returns how many fields actually changed (idempotent)."""
+    w = window_of(plant)
+    if not w:
+        return 0
+    ch = [c for c in plan_changes(plant, w[0], w[1], min_cov) if c.new is not None]
+    moved = sum(1 for c in ch if c.old is None or abs(c.old - c.new) > 1e-9 * max(1.0, abs(c.new)))
+    commit(plant, ch)
+    return moved
+
+
 def _sub_get(sub, f: str) -> float:
     return {"intake": sub.total_intake, "discharge": sub.total_discharge, "evaporation": sub.evaporation,
             "product": sub.product, "recirc": sub.recirculated}[f]

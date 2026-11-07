@@ -7,6 +7,7 @@ from typing import Dict, Optional, Sequence
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
 
+from .. import timeseries as TS
 from ..i18n import Translator
 from ..indicator_text import PROFILE_LABEL
 from ..model import Plant
@@ -23,6 +24,7 @@ class ProfileInputs(QWidget):
         self.plant: Optional[Plant] = None
         self._loading = False
         self.spins: Dict[str, object] = {}
+        self.tip = t("ft_driven")
         fa = t.lang == "fa"
         iv = QVBoxLayout(self)
         iv.setContentsMargins(0, 0, 0, 0)
@@ -62,8 +64,12 @@ class ProfileInputs(QWidget):
     def load(self, plant: Plant) -> None:
         self.plant = plant
         self._loading = True
+        drv = TS.driven(plant)
         for name, sp in self.spins.items():
             sp.setValue(float(getattr(plant.profile, name)))
+            on = f"profile:{name}" not in drv           # a value taken from the time series is shown, not typed
+            sp.setEnabled(on)
+            sp.setToolTip("" if on else self.tip)
         self._loading = False
 
     def _set(self, name: str, value: float) -> None:

@@ -201,3 +201,23 @@ def reconcile(
         residual_after=float(np.linalg.norm(A @ x - b)),
         notes=sorted(set(notes)),
     )
+
+
+def measured_sigma(plant: Plant, rel: float = 1e-4) -> Dict[Tuple[str, str], float]:
+    """Relative sigmas that keep series-driven flows (time-series data = measurements) practically fixed.
+
+    A flow the time series determines is rewritten into the model on every sync, so reconciliation may only
+    adjust the flows that are not driven; the closure is absorbed by those.
+    """
+    from . import timeseries as TS            # local import: reconcile stays usable without the series module
+    drv = TS.driven(plant)
+    out: Dict[Tuple[str, str], float] = {}
+    for s in plant.subsystems:
+        if f"sub:{s.name}:intake" in drv:
+            out.update({(s.name, f"intake:{n}"): rel for n in s.intake})
+        if f"sub:{s.name}:discharge" in drv:
+            out.update({(s.name, f"discharge:{n}"): rel for n in s.discharge})
+        for f in ("evaporation", "product"):
+            if f"sub:{s.name}:{f}" in drv:
+                out[(s.name, f)] = rel
+    return out

@@ -46,10 +46,13 @@ def test_all_tabs_with_demo(app, lang, tmp_path):
 
 
 def test_edit_roundtrip_does_not_change_plant(app):
-    from waterprofiler.sample import demo_plant
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_with_history
     w = _win("en")
     w.action_demo()
-    before = demo_plant().to_dict()
+    base = demo_with_history("en")
+    TS.sync(base)                                  # the model carries the series-driven values from the start
+    before = base.to_dict()
     w.tabs.setCurrentWidget(w.subs_page)
     for r in range(w.sub_list.count()):
         w.sub_list.setCurrentRow(r)
@@ -496,4 +499,44 @@ def test_industrial_page_merges_plant_and_site(app):
     assert w.site_tab.areas.rowCount() >= 1 and w.site_tab.meters.rowCount() >= 0
     it.show_plant()
     assert w.plant_panel.sources.rowCount() == len(w.plant.sources)
+    w.close()
+
+
+def test_series_driven_fields_are_locked_everywhere(app):
+    from PySide6.QtCore import Qt
+    from waterprofiler.sample import demo_with_history
+    w = _win("fa")
+    w._set_plant(demo_with_history("fa"), None)
+    w.collect()
+    pp = w.plant_panel
+    assert not pp.production.isEnabled()
+    assert pp.elec.isEnabled() and pp.heat_eff.isEnabled()          # no series for these: still typed here
+    assert not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
+    assert pp.sources.item(0, 3).flags() & Qt.ItemFlag.ItemIsUserCheckable
+    w.tabs.setCurrentWidget(w.ind_tab)
+    assert not w.ind_tab.spins["employees"].isEnabled() and w.ind_tab.spins["revenue"].isEnabled()
+    first = w.plant.subsystems[0].name
+    assert not (w.ind_tab.prod_tb.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable) or f"subprod:{first}" not in __import__(
+        "waterprofiler.timeseries", fromlist=["x"]).driven(w.plant)
+    w.tabs.setCurrentWidget(w.subs_page)
+    names = [s.name for s in w.plant.subsystems]
+    w.sub_list.setCurrentRow(names.index("فرایند") if "فرایند" in names else 0)
+    ed = w.sub_editor
+    if "intake" in ed._locked:
+        assert not (ed.intake.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable)
+    # the base model carries the series value, and the page shows it
+    assert abs(pp.production.value() - w.plant.production_per_year) < 0.01
+    # no series any more: everything is editable again
+    w.plant.series.clear()
+    w.tabs.setCurrentWidget(w.industrial_tab)
+    assert pp.production.isEnabled() and pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable
+    w.close()
+
+
+def test_estimator_asks_staff_once(app):
+    from waterprofiler.gui.dialogs import EstimateDialog
+    w = _win("en")
+    d = EstimateDialog(w.t, "sanitary", {"employees": 10.0}, ["A"], ["B"], "A", "B", None, locked={"employees": 250.0, "days": 300.0})
+    assert d.fields["employees"].value() == 250.0 and not d.fields["employees"].isEnabled()
+    assert d.fields["lpd"].isEnabled()
     w.close()

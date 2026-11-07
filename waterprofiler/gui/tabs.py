@@ -19,7 +19,7 @@ from ..i18n import Translator
 from ..messages import localize, localize_all
 from .. import measures as _ms
 from ..model import Plant, Subsystem
-from ..reconcile import ReconcileResult, reconcile
+from ..reconcile import ReconcileResult, measured_sigma, reconcile
 from .theme import COL
 from .widgets import BarChart, StatCard, button, card, dspin
 
@@ -560,7 +560,7 @@ class ReconcileTab(_Scroll):
             self._say(t("no_data"))
             return
         try:
-            res = reconcile(self.plant, default_rel_sigma=self.sigma.value() / 100.0)
+            res = reconcile(self.plant, default_rel_sigma=self.sigma.value() / 100.0, rel_sigma=measured_sigma(self.plant))
         except Exception as e:  # noqa: BLE001 - surfaced to the user
             self._say(f"{t('analysis_error')}: {localize(str(e), t.lang)}")
             return

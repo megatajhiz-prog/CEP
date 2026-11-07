@@ -37,7 +37,8 @@ FRACTIONS = {"r", "load"}
 
 class EstimateDialog(QDialog):
     def __init__(self, t: Translator, kind: str, params: Dict[str, float], sources: List[str],
-                 outlets: List[str], cur_source: Optional[str], cur_outlet: Optional[str], parent=None):
+                 outlets: List[str], cur_source: Optional[str], cur_outlet: Optional[str], parent=None,
+                 locked: Optional[Dict[str, float]] = None):
         super().__init__(parent)
         self.t = t
         self.kind = kind
@@ -50,11 +51,15 @@ class EstimateDialog(QDialog):
 
         base = dict(DEFAULTS.get(kind, {}))
         base.update({k: v for k, v in (params or {}).items() if k in base})
+        base.update({k: v for k, v in (locked or {}).items() if k in base})      # entered once elsewhere in the project
         self.fields = {}
         for key in PARAMS[kind]:
             sp = dspin(maximum=1e9 if key not in FRACTIONS else 1.0, decimals=4 if key in FRACTIONS or key in ("g", "p") else 2)
             sp.setValue(base.get(key, 0.0))
             self.fields[key] = sp
+            if locked and key in locked:
+                sp.setEnabled(False)
+                sp.setToolTip(t("est_shared"))
             form.addRow(t(PARAM_LABEL[key]), sp)
 
         self.source = QComboBox()
