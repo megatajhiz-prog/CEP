@@ -204,20 +204,25 @@ def reconcile(
 
 
 def measured_sigma(plant: Plant, rel: float = 1e-4) -> Dict[Tuple[str, str], float]:
-    """Relative sigmas that keep series-driven flows (time-series data = measurements) practically fixed.
+    """Relative sigmas that keep flows backed by real time-series data (several points = measurements) practically fixed.
 
-    A flow the time series determines is rewritten into the model on every sync, so reconciliation may only
-    adjust the flows that are not driven; the closure is absorbed by those.
+    A flow with a single fixed value (an annual figure, an estimate) stays adjustable: the reconciled value is written
+    back into its series (``timeseries.absorb_model``). Flows with monthly data are rewritten into the model on every sync,
+    so reconciliation may only adjust the others; the closure is absorbed by those.
     """
     from . import timeseries as TS            # local import: reconcile stays usable without the series module
     drv = TS.driven(plant)
+
+    def measured(f: str, s) -> bool:
+        return f"sub:{s.name}:{f}" in drv and len(plant.series.get(f"sub:{s.name}:{f}", [])) > 1
+
     out: Dict[Tuple[str, str], float] = {}
     for s in plant.subsystems:
-        if f"sub:{s.name}:intake" in drv:
+        if measured("intake", s):
             out.update({(s.name, f"intake:{n}"): rel for n in s.intake})
-        if f"sub:{s.name}:discharge" in drv:
+        if measured("discharge", s):
             out.update({(s.name, f"discharge:{n}"): rel for n in s.discharge})
         for f in ("evaporation", "product"):
-            if f"sub:{s.name}:{f}" in drv:
+            if measured(f, s):
                 out[(s.name, f)] = rel
     return out

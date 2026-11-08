@@ -232,10 +232,8 @@ STRUCT_GROUPS = (
     ("تأمین و شبکه", "Supply and network", ("permit_m3", "storage_m3", "network_km", "connections", "pressure_m")),
     ("ضرایب انتشار کربن", "Carbon emission factors", ("ef_el", "ef_th")),
 )
-# inputs that vary with time (they also exist as time series) and the targets: entered on the indicators page
+# targets (fixed numbers) are typed on the indicators page; every time-natured input is a series entered where it belongs
 PROFILE_GROUPS = (
-    ("پرسنل و اقتصاد", "People and economics", ("employees", "revenue", "value_added", "production_cost")),
-    ("تأمین و کیفیت", "Supply and quality", ("steam_t", "outage_hours", "cod_raw", "cod_out", "tds_intake", "tds_discharge")),
     ("اهداف", "Targets", ("target_intake_per_unit", "target_recirc_pct", "target_loss_pct")),
 )
 STRUCT_FIELDS = frozenset(n for g in STRUCT_GROUPS for n in g[2])

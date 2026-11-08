@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton,
+    QAbstractItemView, QComboBox, QSpinBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -29,7 +29,6 @@ from ..model import Plant
 from ..numparse import parse_float
 from .tabs import WARN_BG, _Scroll, make_table, put
 from .theme import COL
-from .timeseries_tab import CalDate
 from .widgets import _short, button, card
 
 MAX_SLICES = 600
@@ -40,6 +39,71 @@ def fmt(v: Optional[float]) -> str:
     if v is None:
         return ""
     return f"{v:,.0f}" if abs(v) >= 1000 else f"{v:.6g}"
+
+
+# ---------------------------------------------------------------------------------------------- date picker
+class CalDate(QWidget):
+    """Year / month / day pickers for the Jalali or the Gregorian calendar."""
+
+    changed = Signal()
+
+    def __init__(self, calendar: str, lang: str):
+        super().__init__()
+        self.cal, self.lang = calendar, lang
+        self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+        self.year = QSpinBox()
+        self.year.setRange(1200, 2600)
+        self.year.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.year.setMinimumWidth(70)
+        self.month = QComboBox()
+        self.day = QSpinBox()
+        self.day.setRange(1, 31)
+        self.day.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.day.setMinimumWidth(48)
+        for w in (self.year, self.month, self.day):
+            lay.addWidget(w)
+        self._fill_months()
+        self.year.valueChanged.connect(self._edited)
+        self.month.currentIndexChanged.connect(self._edited)
+        self.day.valueChanged.connect(self._edited)
+
+    def _fill_months(self) -> None:
+        self.month.blockSignals(True)
+        cur = self.month.currentIndex()
+        self.month.clear()
+        for m in range(1, 13):
+            self.month.addItem(cal.month_name(self.cal, m, self.lang))
+        self.month.setCurrentIndex(max(0, cur))
+        self.month.blockSignals(False)
+
+    def _edited(self, *_a) -> None:
+        self.day.blockSignals(True)
+        self.day.setMaximum(cal.month_days(self.cal, self.year.value(), self.month.currentIndex() + 1))
+        self.day.blockSignals(False)
+        self.changed.emit()
+
+    def date(self) -> date:
+        return cal.make_date(self.cal, self.year.value(), self.month.currentIndex() + 1, self.day.value())
+
+    def set_date(self, d: date) -> None:
+        y, m, dd = cal.parts(d, self.cal)
+        for w in (self.year, self.month, self.day):
+            w.blockSignals(True)
+        self.year.setValue(y)
+        self.month.setCurrentIndex(m - 1)
+        self.day.setMaximum(cal.month_days(self.cal, y, m))
+        self.day.setValue(dd)
+        for w in (self.year, self.month, self.day):
+            w.blockSignals(False)
+
+    def set_calendar(self, calendar: str) -> None:
+        d = self.date()
+        self.cal = calendar
+        self._fill_months()
+        self.set_date(d)
 
 
 # ---------------------------------------------------------------------------------------------- context
@@ -473,10 +537,11 @@ class SeriesGrid(QWidget):
 class SeriesPanel(QWidget):
     """«Table and chart» under the fields it belongs to; collapsed until asked for, built on first use."""
 
-    def __init__(self, t: Translator, ctx: TimeContext, keys: Callable[[], Sequence[str]]):
+    def __init__(self, t: Translator, ctx: TimeContext, keys: Callable[[], Sequence[str]], opened: bool = False):
         super().__init__()
         self.t, self.ctx, self.keys = t, ctx, keys
         self.grid: Optional[SeriesGrid] = None
+        self._built: tuple = ()
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(0, 0, 0, 0)
         self.lay.setSpacing(6)
@@ -485,6 +550,8 @@ class SeriesPanel(QWidget):
         self.toggle.setProperty("kind", "ghost")
         self.toggle.toggled.connect(self._toggled)
         self.lay.addWidget(self.toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        if opened:
+            self.toggle.setChecked(True)
 
     def _toggled(self, on: bool) -> None:
         self.toggle.setText(self.t("sp_hide") if on else self.t("sp_show"))
@@ -494,12 +561,111 @@ class SeriesPanel(QWidget):
         if self.grid is not None:
             self.grid.setVisible(on)
             if on:
+                self._built = tuple(self.keys())
                 self.grid.reload()
 
     def refresh(self) -> None:
         """The variables of the panel may have changed (a source was added or renamed)."""
-        if self.grid is not None and self.grid.isVisible():
+        if self.grid is not None and self.grid.isVisible() and tuple(self.keys()) != self._built:
+            self._built = tuple(self.keys())
             self.grid.reload()
+
+
+class TotalProductionView(QWidget):
+    """Total production = the sum of the products' series: read-only table and chart (it has no input of its own)."""
+
+    def __init__(self, t: Translator, ctx: TimeContext):
+        super().__init__()
+        self.t, self.ctx = t, ctx
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.tb = QTableWidget(0, 2)
+        self.tb.setHorizontalHeaderLabels([t("ts_col_period"), t("tp_total")])
+        self.tb.verticalHeader().setVisible(False)
+        self.tb.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tb.setAlternatingRowColors(True)
+        self.tb.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.mode_box = ChartModeBox(t, ctx)
+        self.chart = ChartView(200)
+        top = QHBoxLayout()
+        top.addStretch(1)
+        top.addWidget(self.mode_box)
+        lay.addWidget(self.tb)
+        lay.addLayout(top)
+        lay.addWidget(self.chart)
+        ctx.changed.connect(self.reload)
+        ctx.data_changed.connect(self.reload)
+        ctx.chart_changed.connect(self.reload)
+
+    def reload(self) -> None:
+        p = self.ctx.plant
+        if p is None:
+            return
+        sl = self.ctx.slices
+        vals = TS.total_production_slices(p, sl) if sl else []
+        self.tb.setRowCount(len(vals))
+        for r, (s, v) in enumerate(zip(sl, vals)):
+            a = QTableWidgetItem(s.label)
+            b = QTableWidgetItem(fmt(v))
+            b.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.tb.setItem(r, 0, a)
+            self.tb.setItem(r, 1, b)
+        self.tb.setFixedHeight(min(300, 34 + 30 * max(1, len(vals))))
+        self.chart.set_data(self.t("tp_total"), chart_labels(self.ctx), vals, TS.unit_text("units", self.t.lang, p),
+                            self.ctx.chart_mode)
+
+
+class TrendChart(QWidget):
+    """Trend of the key results over the chosen periods (indicators page): bars or a line, as the user prefers."""
+
+    def __init__(self, t: Translator, ctx: TimeContext):
+        super().__init__()
+        self.t, self.ctx = t, ctx
+        self._vars: List[tuple] = []
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.note = QLabel("")
+        self.note.setObjectName("cardnote")
+        self.note.setWordWrap(True)
+        self.combo = QComboBox()
+        self.combo.currentIndexChanged.connect(self._draw)
+        self.mode_box = ChartModeBox(t, ctx)
+        bar = QHBoxLayout()
+        bar.addWidget(QLabel(t("ch_variable")))
+        bar.addWidget(self.combo, 1)
+        bar.addWidget(self.mode_box)
+        self.chart = ChartView(240)
+        lay.addLayout(bar)
+        lay.addWidget(self.chart)
+        lay.addWidget(self.note)
+        ctx.changed.connect(self.reload)
+        ctx.chart_changed.connect(self._draw)
+        ctx.data_changed.connect(self.reload)
+
+    def reload(self) -> None:
+        p = self.ctx.plant
+        if p is None:
+            return
+        self._vars = TS.trend_variables(p, self.ctx.slices) if self.ctx.slices else []
+        cur = self.combo.currentData()
+        self.combo.blockSignals(True)
+        self.combo.clear()
+        for v in self._vars:
+            self.combo.addItem(v[1] if self.t.lang == "fa" else v[2], v[0])
+        i = self.combo.findData(cur)
+        self.combo.setCurrentIndex(i if i >= 0 else 0)
+        self.combo.blockSignals(False)
+        self.note.setText("" if self._vars else self.t("tr_empty"))
+        self._draw()
+
+    def _draw(self, *_a) -> None:
+        p = self.ctx.plant
+        v = next((x for x in self._vars if x[0] == self.combo.currentData()), None)
+        if v is None or p is None:
+            self.chart.set_data("", [], [], "", self.ctx.chart_mode)
+            return
+        self.chart.set_data(self.combo.currentText(), chart_labels(self.ctx), v[4], TS.unit_text(v[3], self.t.lang, p),
+                            self.ctx.chart_mode)
 
 
 # ---------------------------------------------------------------------------------------------- settings

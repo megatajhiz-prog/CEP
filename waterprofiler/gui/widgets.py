@@ -134,7 +134,6 @@ class DataTable(QTableWidget):
         self.kinds = list(kinds)
         self.combo_items: Dict[int, List[str]] = dict(combo_items or {})
         self._loading = False
-        self._locked_cols: Dict[int, str] = {}
         self.setHorizontalHeaderLabels(list(headers))
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -182,49 +181,9 @@ class DataTable(QTableWidget):
                 self.setItem(r, c, it)
             else:
                 self.setItem(r, c, QTableWidgetItem("" if v is None else str(v)))
-            if c in self._locked_cols and self.item(r, c) is not None:
-                self._lock_item(self.item(r, c), self._locked_cols[c])
         self._loading = was
         if emit and not was:
             self.changed.emit()
-
-    @staticmethod
-    def _lock_item(it, tip: str) -> None:
-        it.setFlags(it.flags() & ~ITEM_FLAG.ItemIsEditable)
-        it.setBackground(QColor("#EEF1F5"))
-        it.setToolTip(tip)
-
-    def lock_columns(self, cols: Sequence[int], tip: str = "") -> None:
-        """Columns that are shown but never typed into (their value comes from a time series); also for rows added later."""
-        was = self._loading
-        self._loading = True
-        for c in cols:
-            self._locked_cols[c] = tip
-            for r in range(self.rowCount()):
-                if self.item(r, c) is not None:
-                    self._lock_item(self.item(r, c), tip)
-        self._loading = was
-
-    def lock_cells(self, cells, tip: str = "", reset_cols=()) -> int:
-        """Make the number cells ``(row, col)`` read-only (values that come from elsewhere); returns how many were locked.
-
-        Cells of ``reset_cols`` are made editable again first, so a lock that no longer applies is lifted."""
-        for r in range(self.rowCount()):
-            for c in reset_cols:
-                it = self.item(r, c)
-                if it is not None and not (it.flags() & ITEM_FLAG.ItemIsEditable):
-                    it.setFlags(it.flags() | ITEM_FLAG.ItemIsEditable)
-                    it.setBackground(QBrush())
-                    it.setToolTip("")
-        n = 0
-        for r, c in cells:
-            it = self.item(r, c)
-            if it is not None:
-                it.setFlags(it.flags() & ~ITEM_FLAG.ItemIsEditable)
-                it.setBackground(QColor("#EEF1F5"))
-                it.setToolTip(tip)
-                n += 1
-        return n
 
     def remove_selected(self) -> None:
         r = self.currentRow()

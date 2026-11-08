@@ -324,7 +324,6 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert txt(it.heads[0].value) != "—"
     assert sum(tb.rowCount() for tb in it.tables.values()) == len(K.compute(w.plant).items)
     assert it.sub_tb.columnCount() == len(w.plant.subsystems) + 1
-    assert it.prod_tb.rowCount() == len(w.plant.subsystems)
     # entering a missing input fills the indicators that need it, and writes into the project
     r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
     tb = it.tables["supply"]
@@ -332,17 +331,21 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     w.tabs.setCurrentWidget(w.industrial_tab)                 # fixed (structural) inputs live on the complex page
     w.site_tab.struct.spins["permit_m3"].setValue(100000.0)
     assert w.plant.profile.permit_m3 == 100000.0
-    assert "permit_m3" not in it.spins and "employees" in it.spins
+    assert "permit_m3" not in it.spins and "target_loss_pct" in it.spins and "employees" not in it.spins
     w.tabs.setCurrentWidget(w.ind_tab)
     assert txt(tb.item(r_permit, 1)) != "—"
     # production per subsystem
     first = w.plant.subsystems[0].name
-    it.prod_tb.item(0, 1).setText("50000")
-    assert w.plant.profile.sub_production[first] == 50000.0
+    from datetime import date
+    from waterprofiler import timeseries as TS
+    TS.put(w.plant, f"sub:{first}:production", date(2025, 3, 21), date(2026, 3, 20), 50000.0)   # entered as a series
+    w.time_ctx.notify_data()
+    assert w.plant.profile.sub_production[first] > 0
+    w.tabs.setCurrentWidget(w.ind_tab)
     assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
     w.tabs.setCurrentWidget(w.industrial_tab)
-    w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
+    w.plant_panel.sources.item(0, 1).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     w.collect()
     assert w.plant.sources[0].alternative is True
     w.tabs.setCurrentWidget(w.ind_tab)
@@ -369,50 +372,39 @@ def test_indicators_tab_english_and_blank(app):
     w.close()
 
 
-def test_time_tab_presets_defaults_and_entry(app):
+def test_indicators_trend_total_production_and_entry(app, tmp_path):
+    from waterprofiler import timeseries as TS
     w = _win("en")
-    w.action_new()
-    w.tabs.setCurrentWidget(w.ts_tab)
-    tt = w.ts_tab
-    tt.set_checked([])
-    assert tt.checked_keys() == []
     w.action_demo()
-    w.tabs.setCurrentWidget(w.ts_tab)
-    first = w.plant.subsystems[0].name
-    tt.set_checked([])
-    tt._add_preset("loss")
-    assert tt.checked_keys() == ["loss:measured"]
-    tt._add_preset("prod")
-    assert f"sub:{first}:production" in tt.checked_keys() and "production" in tt.checked_keys()
-    tt._add_preset("water")
-    assert f"sub:{first}:intake" in tt.checked_keys() and any(k.startswith("source:") for k in tt.checked_keys())
-    tt._add_preset("price")
-    assert any(k.startswith("price:source:") for k in tt.checked_keys())
-    assert "energy:el" not in tt.checked_keys() or w.plant.series.get("energy:el")
-    # entering a monthly loss value writes into the plant
-    tt.set_checked(["loss:measured"])
-    before = list(w.plant.series["loss:measured"])
-    assert tt.set_cell(0, 2, "123", ask=False)
-    assert w.plant.series["loss:measured"][0].value == 123.0 and len(w.plant.series["loss:measured"]) >= len(before)
-    # the indicators page shows the new time indicators
     w.tabs.setCurrentWidget(w.ind_tab)
+    tr = w.ind_tab.trend
+    assert tr.combo.count() >= 3 and tr.chart.mode == "bar"
+    w.time_ctx.set_chart_mode("line")                           # one choice for every chart, kept in the project
+    assert tr.chart.mode == "line" and w.plant.ts_view["chart"] == "line"
+    # total production is the sum of the products and has no input of its own
+    tv = w.site_tab.total_view
+    sl = w.time_ctx.slices
+    assert "production" not in {x.key for x in TS.catalog(w.plant)}
+    tv.reload()
+    assert tv.tb.rowCount() == len(sl) and tv.chart.mode == "line"
+    # a measured-loss value typed in the panel on the indicators page writes into the project
+    panel = next(pn for pn in w.ind_tab.panels if "loss:measured" in pn.keys())
+    g = panel.grid
+    assert g is not None
+    col = 2 + [c.key for c in g.cols].index("loss:measured")
+    assert g.set_cell(0, col, "123", ask=False)
+    s0 = sl[0]
+    assert TS.value_in(w.plant.series["loss:measured"], s0.start, s0.end, "sum")[0] == 123.0
     from waterprofiler import indicators as K
     assert K.compute(w.plant).get("ts_loss_measured").value is not None
-    w.close()
-
-
-def test_time_tab_excel_template_buttons(app, tmp_path):
-    w = _win("fa")
-    w.action_demo()
-    w.tabs.setCurrentWidget(w.ts_tab)
-    tt = w.ts_tab
-    assert tt.cols and tt.slices
+    # central Excel template: export, import back, nothing changes
+    ts = w.industrial_tab.time_settings
+    ts.refresh(w.plant)
     f = str(tmp_path / "tpl.xlsx")
-    assert tt.export_xlsx(f) == len(tt.slices)
+    assert ts.export_xlsx(f) == len(sl)
     before = len(w.plant.series)
-    assert tt.import_xlsx(f) > 0                       # the prefilled values come back unchanged
+    assert ts.import_xlsx(f) > 0
     assert len(w.plant.series) == before
-    assert "Excel" in tt.msg.text() or tt.msg.text()
     w.close()
 
 
@@ -473,7 +465,7 @@ def test_flow_page_without_series_stays_in_base(app):
     from waterprofiler.sample import demo_plant
     w = _win("en")
     p = demo_plant("en")
-    p.ts_view["migrated"] = "1"                 # no fixed numbers turned into series: a project without any time data
+    p.ts_view["migrated"] = "3"                 # no fixed numbers turned into series: a project without any time data
     w._set_plant(p, None)
     w.tabs.setCurrentWidget(w.flow_tab)
     tb = w.flow_tab.timebar
@@ -488,7 +480,7 @@ def test_industrial_page_merges_plant_and_site(app):
     w = _win("fa")
     w._set_plant(demo_with_history("fa"), None)
     ids = [p[0] for p in w._pages]
-    assert ids[0] == "plant" and "site" not in ids
+    assert ids[0] == "plant" and "site" not in ids and "ts" not in ids
     assert w.t(w._pages[0][1]) == "مجتمع صنعتی"
     w.tabs.setCurrentWidget(w.industrial_tab)
     it = w.industrial_tab
@@ -504,36 +496,31 @@ def test_industrial_page_merges_plant_and_site(app):
     w.close()
 
 
-def test_series_driven_fields_are_locked_everywhere(app):
+def test_time_natured_fields_have_no_typed_entry(app):
     from PySide6.QtCore import Qt
     from waterprofiler.sample import demo_with_history
     w = _win("fa")
     w._set_plant(demo_with_history("fa"), None)
     w.collect()
     pp = w.plant_panel
-    assert not pp.production.isEnabled()
-    assert not pp.elec.isEnabled() and pp.heat_eff.isEnabled()      # prices are time series (fixed parameters stay typed)
-    assert not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
-    assert pp.sources.item(0, 3).flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert not hasattr(pp, "production") and not hasattr(pp, "elec") and pp.heat_eff.isEnabled()
+    assert pp.sources.columnCount() == 2 and pp.outlets.columnCount() == 1 and pp.treatments.columnCount() == 2
+    assert pp.sources.item(0, 1).flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert pp.panel_sources.grid is not None and pp.panel_info.grid is not None      # the series are entered right there
     w.tabs.setCurrentWidget(w.ind_tab)
-    assert not w.ind_tab.spins["employees"].isEnabled() and w.ind_tab.spins["revenue"].isEnabled()
-    first = w.plant.subsystems[0].name
-    assert not (w.ind_tab.prod_tb.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable) or f"subprod:{first}" not in __import__(
-        "waterprofiler.timeseries", fromlist=["x"]).driven(w.plant)
+    assert set(w.ind_tab.spins) == {"target_intake_per_unit", "target_recirc_pct", "target_loss_pct"}
     w.tabs.setCurrentWidget(w.subs_page)
+    ed = w.sub_editor
+    assert not hasattr(ed, "evap") and not hasattr(ed, "t_in") and ed.pumps.columnCount() == 7
     names = [s.name for s in w.plant.subsystems]
     w.sub_list.setCurrentRow(names.index("فرایند") if "فرایند" in names else 0)
-    ed = w.sub_editor
-    if "intake" in ed._locked:
-        assert not (ed.intake.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable)
-    # the base model carries the series value, and the page shows it
-    assert abs(pp.production.value() - w.plant.production_per_year) < 0.01
-    # time-natured fields are only entered as series, also when no series exist yet
-    w.plant.series.clear()
-    w.tabs.setCurrentWidget(w.industrial_tab)
-    assert not pp.production.isEnabled() and not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
-    pp.sources.add_row(["new", 0.0, None, False])
-    assert not (pp.sources.item(pp.sources.rowCount() - 1, 1).flags() & Qt.ItemFlag.ItemIsEditable)
+    if "intake" in ed._locked:                                   # the total comes from the series: only shares are typed
+        assert ed.intake.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable
+    # the sources keep the values the series gave them when the page stores itself
+    flat = lambda: [v or 0.0 for x in w.plant.sources for v in (x.metered_m3, x.unit_cost)]
+    before = flat()
+    w.collect()
+    assert flat() == pytest.approx(before)
     w.close()
 
 
@@ -584,17 +571,39 @@ def test_old_static_project_migrates_into_series(app):
     p.ts_view = {}
     old = (p.production_per_year, p.sources[0].metered_m3, p.sources[0].unit_cost, p.costs.electricity_per_kwh)
     w._set_plant(p, None)
-    assert w.plant.series.get("production") and w.plant.ts_view.get("migrated") == "1"
+    assert w.plant.site.products and w.plant.series.get(f"production:{w.plant.site.products[0].name}")
+    assert "production" not in w.plant.series and w.plant.ts_view.get("migrated") == "3"
     w.collect()
     new = (w.plant.production_per_year, w.plant.sources[0].metered_m3, w.plant.sources[0].unit_cost,
            w.plant.costs.electricity_per_kwh)
     assert all(abs(a - b) < 1e-6 * max(1.0, abs(a)) for a, b in zip(old, new))
-    # a value entered as series (as the panel under the sources does) reaches the model and the locked cell
+    # a value entered as series (as the panel under the sources does) reaches the model
     from datetime import date
     key = f"source:{w.plant.sources[0].name}"
     a, b = TS.window_of(w.plant)
     TS.put(w.plant, key, a, b, 365.0 * (b - a).days / 365.0 * 0 + (b - a).days + 1)     # 1 m3 per day -> 365 per year
     w.time_ctx.notify_data()
     assert abs(w.plant.sources[0].metered_m3 - 365.0) < 1e-6
-    assert w.plant_panel.sources.item(0, 2).text().replace(",", "").replace("\u200e", "") in ("365", "365.0")
+    w.close()
+
+
+def test_subsystem_page_series_in_place(app):
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_plant
+    w = _win("fa")
+    w._set_plant(demo_plant("fa"), None)
+    assert w.plant.ts_view.get("migrated") == "3"
+    w.tabs.setCurrentWidget(w.subs_page)
+    ed = w.sub_editor
+    s = w.plant.subsystems[max(0, w._cur)]
+    assert not hasattr(ed, "evap")
+    keys = ed._series_keys()
+    assert f"sub:{s.name}:evaporation" in keys and f"sub:{s.name}:t_in" in keys
+    ed.panel.toggle.setChecked(True)
+    g = ed.panel.grid
+    assert g is not None and [c.key for c in g.cols] == keys
+    # editing a flow in the panel reaches the model through the sync
+    TS.set_annual(w.plant, f"sub:{s.name}:evaporation", 1000.0)
+    w.time_ctx.notify_data()
+    assert abs(s.evaporation - 1000.0) < 1e-6
     w.close()

@@ -25,7 +25,7 @@ class IndustrialTab(QWidget):
         self.ctx = ctx or TimeContext(t.lang)
         self.time_settings = TimeSettings(t, self.ctx)
         self.plant_panel = PlantPanel(t, self.ctx)
-        self.site_tab = SiteTab(t)
+        self.site_tab = SiteTab(t, self.ctx)
         self.sections = QTabWidget()
         self.sections.setDocumentMode(True)
         self.sections.addTab(self.time_settings, t("ind_sec_time"))
@@ -53,7 +53,11 @@ class IndustrialTab(QWidget):
     def refresh(self, plant: Plant) -> None:
         """The page is opened: pick up renamed subsystems, sources and outlets in the site section."""
         self.plant = plant
-        self.plant_panel._lock_driven(plant)          # the time series may have changed what is entered elsewhere
+        self.site_tab.panel_products.refresh()
+        self.site_tab.total_view.reload()
+        for panel in (self.plant_panel.panel_info, self.plant_panel.panel_sources, self.plant_panel.panel_outlets,
+                      self.plant_panel.panel_treat):
+            panel.refresh()
         self.site_tab.refresh(plant)
 
     def _section_changed(self, _i: int) -> None:
@@ -71,7 +75,6 @@ class IndustrialTab(QWidget):
             return
         self.plant_panel.store(self.plant)
         TS.sync(self.plant)
-        self.plant_panel.show_values(self.plant)
         self.series_edited.emit()
         self.changed.emit()
 
