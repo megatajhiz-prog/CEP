@@ -345,7 +345,7 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
     w.tabs.setCurrentWidget(w.industrial_tab)
-    w.plant_panel.sources.item(0, 3).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
+    w.plant_panel.sources.item(0, 1).setCheckState(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.CheckState.Checked)
     w.collect()
     assert w.plant.sources[0].alternative is True
     w.tabs.setCurrentWidget(w.ind_tab)

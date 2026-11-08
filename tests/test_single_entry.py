@@ -58,3 +58,19 @@ def test_reconcile_keeps_series_driven_flows_and_closes_the_balance():
     q = R.reconcile(p, rel_sigma=sig).plant
     TS.sync(q)                                               # what the application does on the next collect
     assert abs(plant_balance(q).unknown_loss) < 1e-3 * plant_balance(q).sum_intake
+
+
+def test_reconcile_of_migrated_demo_balances_and_survives_sync():
+    from waterprofiler import reconcile as R
+    from waterprofiler import timeseries as TS
+    from waterprofiler.balance import plant_balance
+    from waterprofiler.sample import demo_plant
+    p = demo_plant("en")
+    TS.migrate_static(p)
+    TS.sync(p)
+    res = R.reconcile(p, default_rel_sigma=0.1, rel_sigma=R.measured_sigma(p))
+    q = res.plant
+    assert TS.absorb_model(q) == 0
+    TS.sync(q)
+    b = plant_balance(q)
+    assert abs(b.unknown_loss) < 1e-3 * b.sum_intake
