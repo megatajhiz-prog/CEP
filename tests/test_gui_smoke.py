@@ -607,3 +607,38 @@ def test_subsystem_page_series_in_place(app):
     w.time_ctx.notify_data()
     assert abs(s.evaporation - 1000.0) < 1e-6
     w.close()
+
+
+def test_data_check_map_and_legacy_transfer(app):
+    from waterprofiler import timeseries as TS
+    w = _win("en")
+    w.action_demo()
+    ctx = w.time_ctx
+    ts = w.industrial_tab.time_settings
+    ts.refresh(w.plant)
+    assert ctx.slices and ts.map.rowCount() > 0
+    if len(ctx.slices) <= 36:
+        assert ts.map.columnCount() == 4 + len(ctx.slices)
+    key = next(k for k, v in w.plant.series.items() if k.startswith("source:") and v)
+    s0 = ctx.slices[0]
+    TS.put(w.plant, key, s0.start, s0.end, -5.0)
+    ctx.notify_data()
+    kinds = [ts.issues.item(r, 0).text() for r in range(ts.issues.rowCount())]
+    assert "Error" in kinds
+    # the grid marks the impossible value
+    panel = next(pn for pn in w.plant_panel.__dict__.values() if hasattr(pn, "grid") and pn.grid is not None
+                 and key in pn.keys())
+    g = panel.grid
+    g.reload()
+    col = 2 + [c.key for c in g.cols].index(key)
+    assert g.tb.item(0, col).toolTip()
+    # an old fixed transfer value that no link explains is reported, and can be removed
+    w.tabs.setCurrentWidget(w.subs_page)
+    ed = w.sub_editor
+    sub = w.plant.subsystems[max(0, w._cur)]
+    sub.to_other = 120.0
+    ed.load(sub)
+    assert not w.plant.links and not ed.legacy_box.isHidden()
+    ed._clear_legacy()
+    assert sub.to_other == 0.0 and ed.legacy_box.isHidden()
+    w.close()

@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QScrollArea,
+    QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
     QVBoxLayout, QWidget,
 )
 
@@ -200,13 +200,19 @@ class SubsystemEditor(QScrollArea):
         row.addWidget(table_box(t("discharge"), self.discharge, t("add"), t("remove"), lambda: ["", None]))
         lay.addLayout(row)
 
-        flows = QGroupBox(t("other_flows"))
-        ff = QFormLayout(flows)
-        self.from_other = dspin(decimals=2)
-        self.to_other = dspin(decimals=2)
-        for label, w in (("from_other", self.from_other), ("to_other", self.to_other)):
-            ff.addRow(t(label), w)
-        lay.addWidget(flows)
+        # transfers between subsystems are entered only as links (flow page) + their series; an old fixed value that no
+        # link explains is reported here with a button to remove it
+        self.legacy_box = QGroupBox(t("other_flows"))
+        ll = QVBoxLayout(self.legacy_box)
+        self.legacy_note = QLabel("")
+        self.legacy_note.setWordWrap(True)
+        self.legacy_note.setObjectName("cardnote")
+        self.legacy_clear = QPushButton(t("legacy_clear"))
+        self.legacy_clear.clicked.connect(self._clear_legacy)
+        ll.addWidget(self.legacy_note)
+        ll.addWidget(self.legacy_clear, 0, Qt.AlignmentFlag.AlignLeft)
+        self.legacy_box.setVisible(False)
+        lay.addWidget(self.legacy_box)
 
         self.wtreat = DataTable([t("treatments"), t("fraction")], ["combo", "num"])
         self.wwtreat = DataTable([t("treatments"), t("fraction")], ["combo", "num"])
@@ -228,6 +234,23 @@ class SubsystemEditor(QScrollArea):
         self.panel = SeriesPanel(t, self.ctx, self._series_keys, opened=True)
         lay.addWidget(card(t("sub_series"), self.panel, note=t("sub_series_note")))
         lay.addStretch(1)
+
+    def _in_links(self, name: str) -> bool:
+        p = self.ctx.plant
+        return bool(p) and any(x.src == name or x.dst == name for x in p.links)
+
+    def _show_legacy(self, s: Subsystem) -> None:
+        on = (s.from_other > 0 or s.to_other > 0) and not self._in_links(s.name)
+        self.legacy_box.setVisible(on)
+        if on:
+            self.legacy_note.setText(self.t("legacy_note", a=f"{s.from_other:,.0f}", b=f"{s.to_other:,.0f}"))
+
+    def _clear_legacy(self) -> None:
+        p = self.ctx.plant
+        s = next((x for x in p.subsystems if x.name == self._sub_name), None) if p else None
+        if s is not None:
+            s.from_other = s.to_other = 0.0
+            self.legacy_box.setVisible(False)
 
     def _series_keys(self) -> List[str]:
         p, n = self.ctx.plant, self._sub_name
@@ -256,8 +279,7 @@ class SubsystemEditor(QScrollArea):
         self.kind.setCurrentIndex(i if i >= 0 else KINDS.index("other"))
         self.intake.set_rows([[k, v] for k, v in s.intake.items()])
         self.discharge.set_rows([[k, v] for k, v in s.discharge.items()])
-        self.from_other.setValue(s.from_other)
-        self.to_other.setValue(s.to_other)
+        self._show_legacy(s)
         self.wtreat.set_rows([[k, v] for k, v in s.water_treatments.items()])
         self.wwtreat.set_rows([[k, v] for k, v in s.wastewater_treatments.items()])
         self.pumps.set_rows([[p.name, p.power_kw if p.power_kw is not None else (
@@ -284,8 +306,6 @@ class SubsystemEditor(QScrollArea):
         s.kind = self.kind.currentData() or "other"
         s.intake = _sum_dict(self.intake.rows())            # when a series drives the total, only the proportions matter
         s.discharge = _sum_dict(self.discharge.rows())
-        s.from_other = self.from_other.value()
-        s.to_other = self.to_other.value()
         # evaporation, product, recirculation, temperatures, pump hours and loads are series-only: written by the sync
         s.water_treatments = _sum_dict(self.wtreat.rows())
         s.wastewater_treatments = _sum_dict(self.wwtreat.rows())

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from .. import jcalendar as cal
 from .. import timeseries as TS
 from .. import ts_excel as XL
+from .. import validation as V
 from ..i18n import Translator
 from ..model import Plant
 from ..numparse import parse_float
@@ -32,6 +33,10 @@ from .theme import COL
 from .widgets import _short, button, card
 
 MAX_SLICES = 600
+BAD_BG = QColor("#FFD6D2")
+OK_BG = QColor("#D9F0DE")
+EMPTY_BG = QColor("#FBE3DF")
+MAP_COLS = 36              # the data map shows a column per period up to this many periods
 CHART_MODES = ("bar", "line")
 
 
@@ -421,7 +426,12 @@ class SeriesGrid(QWidget):
         v, cov = self._cell_value(r, c)
         it = QTableWidgetItem(fmt(v))
         it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        if v is not None and cov < 0.999:
+        sp, sl = self.cols[c - 2], self.ctx.slices[r]
+        bad = V.bad_value(sp.key, v, sl.days)
+        if bad:
+            it.setBackground(BAD_BG)
+            it.setToolTip(bad[0] if self.t.lang == "fa" else bad[1])
+        elif v is not None and cov < 0.999:
             it.setBackground(WARN_BG)
             it.setToolTip(self.t("ts_cov_tip", pct=f"{100 * cov:.0f}"))
         self.tb.setItem(r, c, it)
@@ -728,6 +738,12 @@ class TimeSettings(_Scroll):
         self.map_note.setWordWrap(True)
         self.lay.addWidget(card(t("ts_map"), self.map, self.map_note, note=t("ts_map_note")))
 
+        self.issues = make_table([t("vd_level"), t("vd_period"), t("vd_text")])
+        self.issues_note = QLabel("")
+        self.issues_note.setObjectName("cardnote")
+        self.issues_note.setWordWrap(True)
+        self.lay.addWidget(card(t("vd_title"), self.issues, self.issues_note, note=t("vd_note")))
+
         self.msg = QLabel("")
         self.msg.setObjectName("cardnote")
         self.msg.setWordWrap(True)
@@ -753,6 +769,7 @@ class TimeSettings(_Scroll):
         self.w_end.changed.connect(self._window_edited)
         ctx.changed.connect(self._from_ctx)
         ctx.data_changed.connect(self._fill_map)
+        ctx.data_changed.connect(self._fill_issues)
 
     @staticmethod
     def _field(text: str, w: QWidget) -> QVBoxLayout:
@@ -790,6 +807,7 @@ class TimeSettings(_Scroll):
         self._loading = False
         self._window_info()
         self._fill_map()
+        self._fill_issues()
 
     def _view_changed(self, *_a) -> None:
         if self._loading or self.ctx.plant is None:
@@ -853,22 +871,58 @@ class TimeSettings(_Scroll):
 
     # -- map of the data
     def _fill_map(self) -> None:
+        """Which variable holds data in which period: a green cell is filled, a red one is empty."""
         p = self.ctx.plant
         if p is None:
             return
-        specs = [s for s in TS.catalog(p) if p.series.get(s.key)]
         slices = self.ctx.slices
-        self.map.clearContents()
-        self.map.setRowCount(len(specs))
-        for r, sp in enumerate(specs):
-            have = sum(1 for s in slices if TS.value_in(p.series[sp.key], s.start, s.end, sp.agg)[0] is not None)
+        comp = V.completeness(p, slices)
+        wide = 0 < len(slices) <= MAP_COLS
+        cols = 4 + (len(slices) if wide else 0)
+        self.map.clear()
+        self.map.setColumnCount(cols)
+        heads = [self.t("ts_map_var"), self.t("ts_map_unit"), self.t("ts_map_periods"), self.t("ts_map_span")]
+        if wide:
+            heads += [(c[-2:] if self.ctx.step == "month" else c) for c in chart_labels(self.ctx)]
+        self.map.setHorizontalHeaderLabels(heads)
+        self.map.setRowCount(len(comp))
+        for r, (sp, filled) in enumerate(comp):
             pts = p.series[sp.key]
             span = f"{min(x.start for x in pts)}  →  {max(x.end for x in pts)}"
             put(self.map, r, 0, sp.label(self.t.lang), bold=True)
             put(self.map, r, 1, TS.unit_text(sp.unit, self.t.lang, p), True)
-            put(self.map, r, 2, f"{have} / {len(slices)}", True)
+            put(self.map, r, 2, f"{sum(filled)} / {len(slices)}", True)
             put(self.map, r, 3, span, True)
-        self.map_note.setText("" if specs else self.t("ts_map_empty"))
+            if wide:
+                for k, ok in enumerate(filled):
+                    it = QTableWidgetItem("")
+                    it.setBackground(OK_BG if ok else EMPTY_BG)
+                    it.setToolTip(slices[k].label)
+                    it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                    self.map.setItem(r, 4 + k, it)
+        if wide:
+            for k in range(len(slices)):
+                self.map.setColumnWidth(4 + k, 30)
+        self.map_note.setText("" if comp else self.t("ts_map_empty"))
+
+    def _fill_issues(self) -> None:
+        p = self.ctx.plant
+        if p is None:
+            return
+        found = V.check(p, self.ctx.slices, self.ctx.calendar)
+        shown = found[:200]
+        self.issues.clearContents()
+        self.issues.setRowCount(len(shown))
+        for r, i in enumerate(shown):
+            put(self.issues, r, 0, self.t("vd_error") if i.level == "error" else self.t("vd_warn"),
+                bg=BAD_BG if i.level == "error" else WARN_BG, bold=True)
+            put(self.issues, r, 1, i.when)
+            put(self.issues, r, 2, i.text(self.t.lang))
+        n_err = sum(1 for i in found if i.level == "error")
+        if not found:
+            self.issues_note.setText(self.t("vd_none"))
+        else:
+            self.issues_note.setText(self.t("vd_count", n=len(found), e=n_err) + (self.t("vd_cut") if len(found) > 200 else ""))
 
     # -- files
     def _all_specs(self) -> List[TS.VarSpec]:
