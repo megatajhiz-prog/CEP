@@ -22,7 +22,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force assets/fonts | Out-Null
-          Invoke-WebRequest "https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/vazirmatn-v33.003.zip" -OutFile v.zip
+          for ($i = 1; $i -le 4; $i++) {
+            try { Invoke-WebRequest "https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/vazirmatn-v33.003.zip" -OutFile v.zip; break } catch { if ($i -eq 4) { throw }; Start-Sleep -Seconds (5 * $i) }
+          }
           Expand-Archive v.zip -DestinationPath vz -Force
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Regular.ttf" | Select-Object -First 1).FullName assets/fonts/
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Bold.ttf" | Select-Object -First 1).FullName assets/fonts/
