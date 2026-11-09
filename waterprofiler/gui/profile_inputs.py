@@ -11,6 +11,7 @@ from .. import timeseries as TS
 from ..i18n import Translator
 from ..indicator_text import PROFILE_LABEL
 from ..model import Plant
+from .trend import TrendPeek, with_data
 from .widgets import dspin
 
 
@@ -25,6 +26,7 @@ class ProfileInputs(QWidget):
         self._loading = False
         self.spins: Dict[str, object] = {}
         self.tip = t("ft_driven")
+        self.peeks = []
         fa = t.lang == "fa"
         iv = QVBoxLayout(self)
         iv.setContentsMargins(0, 0, 0, 0)
@@ -60,6 +62,10 @@ class ProfileInputs(QWidget):
             for c in range(4):
                 grid.setColumnStretch(c, 1)
             iv.addWidget(gw)
+            keys = [k for k, (attr, _agg) in TS.PROFILE_MAP.items() if attr in names]
+            pk = TrendPeek(t, lambda p, ks=keys: with_data(p, ks))
+            self.peeks.append(pk)
+            iv.addWidget(pk)
 
     def load(self, plant: Plant) -> None:
         self.plant = plant
@@ -71,6 +77,8 @@ class ProfileInputs(QWidget):
             sp.setEnabled(on)
             sp.setToolTip("" if on else self.tip)
         self._loading = False
+        for pk in self.peeks:
+            pk.set_plant(plant)
 
     def _set(self, name: str, value: float) -> None:
         if self._loading or self.plant is None:

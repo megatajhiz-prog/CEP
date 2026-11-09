@@ -13,6 +13,7 @@ from waterprofiler.storage import load_project, save_project
 def small() -> Plant:
     return Plant(
         name="t", production_per_year=1000.0, production_unit="t",
+        site=Site(products=[Product("P", "t", per_year=1000.0)]),
         sources=[Source("A", 2.0), Source("B", 4.0)], outlets=[Outlet("S", 3.0)],
         subsystems=[Subsystem("X", "process", intake={"A": 600.0}, discharge={"S": 400.0}, product=100.0),
                     Subsystem("Y", "cooling_tower", intake={}, discharge={})],
@@ -90,7 +91,7 @@ def test_set_value_conserves_data_outside_the_slice():
 def test_put_uses_catalog_aggregation_and_unknown_keys_are_rejected():
     p = small()
     keys = {s.key for s in T.catalog(p)}
-    assert {"production", "source:A", "outlet:S", "sub:X:intake", "sub:Y:evaporation", "energy:el", "price:source:B",
+    assert {"production:P", "source:A", "outlet:S", "sub:X:intake", "sub:Y:evaporation", "energy:el", "price:source:B",
             "env:temp", "quality:cod_raw"} <= keys
     ok, bad = T.from_rows(p, [("source:A", "2025-01-01", "2025-01-31", "310"), ("source:ZZ", "2025-01-01", "2025-01-31", "1"),
                               ("source:A", "2025-02-01", "bad", "1")])
@@ -107,15 +108,16 @@ def _fill_months(p, key, values, start=date(2025, 3, 21)):
 def test_plan_and_commit_full_year():
     p = small()
     _fill_months(p, "source:A", [100.0] * 12)
-    _fill_months(p, "production", [50.0] * 12)
+    _fill_months(p, "production:P", [50.0] * 12)
     _fill_months(p, "price:source:A", [2.0] * 6 + [4.0] * 6)
     _fill_months(p, "sub:X:intake", [60.0] * 12)
     ch = {c.key: c for c in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20))}
     assert ch["source:A"].new == pytest.approx(1200.0) and ch["source:A"].note == ""
-    assert ch["production"].new == pytest.approx(600.0) and ch["production"].old == 1000.0
+    assert ch["production:P"].new == pytest.approx(600.0) and ch["production:P"].old == 1000.0
     assert ch["price:source:A"].new == pytest.approx((2 * 186 + 4 * 179) / 365)       # day-weighted mean
     assert ch["sub:X:intake"].new == pytest.approx(720.0)
     n = T.commit(p, list(ch.values()))
+    assert p.production_per_year == pytest.approx(600.0)                     # total = sum of products
     assert n == 4 and p.sources[0].metered_m3 == pytest.approx(1200.0) and p.production_per_year == pytest.approx(600.0)
     assert p.subsystems[0].intake["A"] == pytest.approx(720.0)         # scaled, source split kept
 
@@ -146,13 +148,27 @@ def test_subsystem_without_split_is_not_guessed():
     assert one.subsystems[1].intake == {"A": pytest.approx(120.0)}
 
 
-def test_products_sum_when_total_missing():
+def test_total_production_is_the_sum_of_products():
     p = small()
-    p.site.products = [Product("P1", "t"), Product("P2", "t")]
+    p.site.products = [Product("P1", "t", per_year=300.0), Product("P2", "t", per_year=200.0)]
+    assert p.sync_production() == 500.0 and "production" not in {s.key for s in T.catalog(p)}
     _fill_months(p, "production:P1", [10.0] * 12)
     _fill_months(p, "production:P2", [20.0] * 12)
-    c = [x for x in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20)) if x.key == "production"][0]
-    assert c.new == pytest.approx(360.0)
+    ch = {x.key: x for x in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20))}
+    assert ch["production:P1"].new == pytest.approx(120.0) and ch["production:P2"].new == pytest.approx(240.0)
+    T.commit(p, list(ch.values()))
+    assert p.production_per_year == pytest.approx(360.0)
+    sl = C.slices(date(2025, 3, 21), date(2026, 3, 20), "month", "jalali")
+    assert T.total_production_slices(p, sl)[0] == pytest.approx(30.0)
+
+
+def test_old_file_with_only_a_total_gets_one_product():
+    from waterprofiler.model import Plant as P
+    d = {"name": "x", "production_per_year": 800.0, "production_unit": "t",
+         "series": {"production": [{"start": "2025-01-01", "end": "2025-01-31", "value": 70.0}]}}
+    q = P.from_dict(d)
+    assert len(q.site.products) == 1 and q.site.products[0].per_year == 800.0 and q.production_per_year == 800.0
+    assert "production" not in q.series and q.series["production:" + q.site.products[0].name][0].value == 70.0
 
 
 # ------------------------------------------------------------------------------------------ time indicators
@@ -164,7 +180,7 @@ def monthly_plant(n=24, spike=None):
     for i, s in enumerate(sl):
         q = 100.0 + 10.0 * (i % 6)
         v = 50.0 + 2.0 * q + (400.0 if spike == i else 0.0)
-        T.put(p, "production", s.start, s.end, q)
+        T.put(p, "production:P", s.start, s.end, q)
         T.put(p, "source:A", s.start, s.end, v)
         T.put(p, "energy:el", s.start, s.end, v * 3.0)
     return p
@@ -201,19 +217,19 @@ def test_not_enough_data_is_reported_not_guessed():
 def test_site_and_series_roundtrip_and_old_files(tmp_path):
     p = monthly_plant(6)
     p.site = Site(name="Pasargad Plant", province="Tehran", calendar="jalali", commissioning_year=1390,
-                  areas=[Area("Hall A", "production")], products=[Product("Cement", "t")],
+                  areas=[Area("Hall A", "production")], products=[Product("Cement", "t", per_year=1000.0)],
                   meters=[Meter("M1", "source:A", "flow", "m3", 1.5, "2020-01-01", "2025-01-01")])
     p.subsystems[0].area = "Hall A"
     f = tmp_path / "a.wpj"
     save_project(p, str(f))
     q = load_project(str(f))
-    assert q == p and q.site.meters[0].accuracy_pct == 1.5 and q.series["production"][0].value == 100.0
+    assert q == p and q.site.meters[0].accuracy_pct == 1.5 and q.series["production:P"][0].value == 100.0
     d = p.to_dict()
     for k in ("site", "series", "window"):
         d.pop(k)
     d["subsystems"][0].pop("area")
     old = Plant.from_dict(d)
-    assert old.site == Site() and old.series == {} and old.window == {} and old.subsystems[0].area == ""
+    assert old.site == Site(products=[Product("محصول", "t", per_year=1000.0)]) and old.series == {} and old.window == {} and old.subsystems[0].area == ""
 
 
 def test_trend_of_a_linear_series_is_exact():
@@ -301,7 +317,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
 
     p = demo_with_history("fa")
     sl = C.slices(date(2025, 3, 21), date(2026, 3, 20), "month", "jalali", "fa")
-    keys = ["production", f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "env:rain",
+    keys = ["production:" + p.site.products[0].name, f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "env:rain",
             f"price:source:{p.sources[0].name}"]
     specs = [T.spec_of(p, k) for k in keys]
     f = tmp_path / "t.xlsx"
@@ -319,15 +335,15 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w.cell(row=6, column=5, value="abc")
     wb.save(f)
     q = demo_with_history("fa")
-    for k in ("env:rain", "production"):
+    for k in ("env:rain", "production:" + p.site.products[0].name):
         q.series.pop(k, None)
     ok, bad = X.import_template(q, str(f))
     assert len(bad) == 2 and ok > 40
     assert T.value_in(q.series["env:rain"], date(2025, 3, 21), date(2025, 4, 20), "sum")[0] == pytest.approx(150)
     assert len(q.series["env:rain"]) == 1                    # blanks and bad rows were skipped, nothing invented
     # production of the untouched months is back and equals the original
-    a = T.value_in(p.series["production"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
-    b = T.value_in(q.series["production"], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
+    a = T.value_in(p.series["production:" + p.site.products[0].name], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
+    b = T.value_in(q.series["production:" + p.site.products[0].name], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
     assert b == pytest.approx(a, abs=1e-4)
     # a file without the key row is reported, not guessed
     from openpyxl import Workbook

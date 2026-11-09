@@ -333,6 +333,7 @@ class MainWindow(QMainWindow):
         self._cur = row
         if 0 <= row < len(self.plant.subsystems):
             self.sub_editor.load(self.plant.subsystems[row])
+            self.sub_editor.peek.set_plant(self.plant)
 
     def _tab_changed(self, idx: int) -> None:
         self._sync_nav(idx)

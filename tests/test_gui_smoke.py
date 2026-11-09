@@ -383,7 +383,7 @@ def test_time_tab_presets_defaults_and_entry(app):
     tt._add_preset("loss")
     assert tt.checked_keys() == ["loss:measured"]
     tt._add_preset("prod")
-    assert f"sub:{first}:production" in tt.checked_keys() and "production" in tt.checked_keys()
+    assert f"sub:{first}:production" in tt.checked_keys() and any(k.startswith("production:") for k in tt.checked_keys())
     tt._add_preset("water")
     assert f"sub:{first}:intake" in tt.checked_keys() and any(k.startswith("source:") for k in tt.checked_keys())
     tt._add_preset("price")
@@ -509,7 +509,7 @@ def test_series_driven_fields_are_locked_everywhere(app):
     w._set_plant(demo_with_history("fa"), None)
     w.collect()
     pp = w.plant_panel
-    assert not pp.production.isEnabled()
+    assert not pp.production.isEnabled()                            # total production = sum of the products: display only
     assert pp.elec.isEnabled() and pp.heat_eff.isEnabled()          # no series for these: still typed here
     assert not (pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable)
     assert pp.sources.item(0, 3).flags() & Qt.ItemFlag.ItemIsUserCheckable
@@ -529,7 +529,31 @@ def test_series_driven_fields_are_locked_everywhere(app):
     # no series any more: everything is editable again
     w.plant.series.clear()
     w.tabs.setCurrentWidget(w.industrial_tab)
-    assert pp.production.isEnabled() and pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable
+    assert not pp.production.isEnabled() and pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable
+    w.close()
+
+
+def test_trend_views_under_entry_areas_and_in_indicators(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("fa")
+    w._set_plant(demo_with_history("fa"), None)
+    w.collect()
+    pk = w.plant_panel.peek_src
+    assert pk.isVisibleTo(w.plant_panel) or pk.var.count() > 0
+    pk.btn.setChecked(True)
+    assert pk.tb.rowCount() > 12 and pk.chart.mode == "bar"
+    pk.mode.setCurrentIndex(pk.mode.findData("line"))
+    assert pk.chart.mode == "line"
+    assert w.plant_panel.peek_prod.var.findData("total:production") >= 0       # total production: result only
+    w.tabs.setCurrentWidget(w.ind_tab)
+    tr = w.ind_tab.trend
+    assert tr.var.count() >= 3 and tr.tb.rowCount() > 12 and tr.var.findData("per_unit") >= 0
+    tr.mode.setCurrentIndex(tr.mode.findData("line"))
+    assert tr.chart.mode == "line"
+    w.tabs.setCurrentWidget(w.ts_tab)
+    ct = w.ts_tab
+    ct.set_checked([f"production:{p.name}" for p in w.plant.site.products])
+    assert ct.chart_var.findData("total:production") >= 0
     w.close()
 
 

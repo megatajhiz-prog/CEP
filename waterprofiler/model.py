@@ -172,6 +172,7 @@ class Product:
     name: str
     unit: str = "t"
     note: str = ""
+    per_year: float = 0.0               # fixed annual production; replaced by the series of the product when it has data
 
 
 @dataclass
@@ -236,6 +237,23 @@ class Plant:
     series: Dict[str, List[Point]] = field(default_factory=dict)    # time series by variable key
     window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
 
+    def sync_production(self) -> float:
+        """The plant's annual production is the sum of its products' annual production (never entered on its own).
+
+        A plant without products (or with all amounts at 0) keeps the older stored total until products are filled in."""
+        total = sum(p.per_year or 0.0 for p in self.site.products)
+        if total > 0:
+            self.production_per_year = total
+        return self.production_per_year
+
+    def ensure_products(self, name: str = "محصول") -> None:
+        """Give a plant that only has a total a single product carrying it (and its production series)."""
+        if self.site.products or (self.production_per_year <= 0 and not self.series.get("production")):
+            return
+        self.site.products.append(Product(name, self.production_unit, per_year=self.production_per_year))
+        if self.series.get("production"):
+            self.series[f"production:{name}"] = self.series.pop("production")
+
     def source(self, name: str) -> Source:
         for s in self.sources:
             if s.name == name:
@@ -287,6 +305,11 @@ class Plant:
         if plant.site.operating_days and not plant.profile.working_days:
             plant.profile.working_days = float(plant.site.operating_days)
         plant.site.operating_days = 0
+        # the total production is the sum of products: older files with only a total get one product carrying it
+        plant.ensure_products()
+        if len(plant.site.products) == 1 and not plant.site.products[0].per_year:
+            plant.site.products[0].per_year = plant.production_per_year
+        plant.sync_production()
         return plant
 
 

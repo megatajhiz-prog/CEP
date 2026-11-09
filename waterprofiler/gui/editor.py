@@ -14,6 +14,7 @@ from .. import timeseries as TS
 from ..i18n import Translator
 from ..model import Outlet, Plant, Pump, Source, Subsystem, Treatment
 from ..numparse import fmt_float, parse_float
+from .trend import TrendPeek, with_data
 from .widgets import DataTable, button, card, dspin, table_box
 
 KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "other"]
@@ -74,7 +75,9 @@ class PlantPanel(QScrollArea):
         il.setSpacing(40)
         il.addLayout(left, 1)
         il.addLayout(right, 1)
-        outer.addWidget(card(t("plant_info"), info, note=t("plant_info_note")))
+        self.peek_prod = TrendPeek(t, lambda p: with_data(p, ["total:production"] + [f"production:{x.name}" for x in p.site.products]))
+        self.peek_energy = TrendPeek(t, lambda p: with_data(p, ["price:electricity", "price:fuel", "energy:el", "energy:th"]))
+        outer.addWidget(card(t("plant_info"), info, self.peek_prod, self.peek_energy, note=t("plant_info_note")))
 
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
                                  ["text", "num", "num", "bool"])
@@ -85,6 +88,12 @@ class PlantPanel(QScrollArea):
         row.addWidget(table_box(t("sources"), self.sources, t("add"), t("remove"), lambda: ["", 0.0, None, False]))
         row.addWidget(table_box(t("outlets"), self.outlets, t("add"), t("remove"), lambda: ["", 0.0, None]))
         outer.addLayout(row, 1)
+        self.peek_src = TrendPeek(t, lambda p: with_data(p, [k for s in p.sources for k in (f"source:{s.name}", f"price:source:{s.name}")]))
+        self.peek_out = TrendPeek(t, lambda p: with_data(p, [k for o in p.outlets for k in (f"outlet:{o.name}", f"price:outlet:{o.name}")]))
+        prow = QHBoxLayout()
+        prow.addWidget(self.peek_src, 1)
+        prow.addWidget(self.peek_out, 1)
+        outer.addLayout(prow)
         outer.addWidget(table_box(t("treatments"), self.treatments, t("add"), t("remove"), lambda: ["", 0.0, False]), 1)
 
         for w in (self.name, self.currency, self.prod_unit):
@@ -108,12 +117,16 @@ class PlantPanel(QScrollArea):
         self.treatments.set_rows([[x.name, x.unit_cost, x.wastewater] for x in p.treatments])
         self.blockSignals(False)
         self._lock_driven(p)
+        for pk in (self.peek_prod, self.peek_energy, self.peek_src, self.peek_out):
+            pk.set_plant(p)
 
     def _lock_driven(self, p: Plant) -> None:
         """Values that come from the time series are shown but cannot be typed here (one entry point per datum)."""
         drv = TS.driven(p)
         tip = self.t("ft_driven")
-        for w, key in ((self.production, "production_per_year"), (self.elec, "costs:electricity_per_kwh"),
+        self.production.setEnabled(False)               # total production = sum of the products (Site page): display only
+        self.production.setToolTip(self.t("production_sum_tip"))
+        for w, key in ((self.elec, "costs:electricity_per_kwh"),
                        (self.fuel, "costs:fuel_per_kwh_thermal")):
             w.setEnabled(key not in drv)
             w.setToolTip(tip if key in drv else "")
@@ -125,8 +138,6 @@ class PlantPanel(QScrollArea):
     def store(self, p: Plant) -> None:
         p.name = self.name.text().strip() or p.name
         p.currency = self.currency.text().strip() or p.currency
-        if self.production.isEnabled():                 # a disabled field shows a series-driven value: never written back
-            p.production_per_year = self.production.value()
         p.production_unit = self.prod_unit.text().strip() or p.production_unit
         if self.elec.isEnabled():
             p.costs.electricity_per_kwh = self.elec.value()
@@ -185,7 +196,10 @@ class SubsystemEditor(QScrollArea):
         hl.setSpacing(24)
         hl.addLayout(form, 1)
         hl.addWidget(self.est_btn, 0, Qt.AlignmentFlag.AlignBottom)
-        lay.addWidget(card(t("sub_basic"), head))
+        self._sub_name = ""
+        self.peek = TrendPeek(t, lambda p: with_data(p, [f"sub:{self._sub_name}:{f}" for f in
+                                                         ("production", "intake", "discharge", "evaporation", "product", "recirc")]))
+        lay.addWidget(card(t("sub_basic"), head, self.peek))
         self.driven: Dict[str, str] = {}          # model fields currently taken from the time series (set by the window)
         self._locked: set = set()
         self.driven_note = QLabel(t("ft_driven_note"))
@@ -251,6 +265,7 @@ class SubsystemEditor(QScrollArea):
 
     # ------------------------------------------------------------ model <-> UI
     def load(self, s: Subsystem) -> None:
+        self._sub_name = s.name
         self.name.setText(s.name)
         i = self.kind.findData(s.kind)
         self.kind.setCurrentIndex(i if i >= 0 else KINDS.index("other"))
