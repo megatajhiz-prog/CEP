@@ -217,6 +217,10 @@ class Point:
     value: float
 
 
+# series that were never used by any calculation and are no longer offered; dropped when an older file is loaded
+RETIRED_SERIES = ("energy:th", "env:rain")
+
+
 @dataclass
 class Plant:
     name: str = "Plant"
@@ -301,6 +305,8 @@ class Plant:
             series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
         )
+        for k in RETIRED_SERIES:
+            plant.series.pop(k, None)
         # older files kept the working days on the site page; there is now one field (the profile's)
         if plant.site.operating_days and not plant.profile.working_days:
             plant.profile.working_days = float(plant.site.operating_days)

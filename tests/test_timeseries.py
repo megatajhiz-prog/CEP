@@ -317,7 +317,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
 
     p = demo_with_history("fa")
     sl = C.slices(date(2025, 3, 21), date(2026, 3, 20), "month", "jalali", "fa")
-    keys = ["production:" + p.site.products[0].name, f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "env:rain",
+    keys = ["production:" + p.site.products[0].name, f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "site:steam_t",
             f"price:source:{p.sources[0].name}"]
     specs = [T.spec_of(p, k) for k in keys]
     f = tmp_path / "t.xlsx"
@@ -325,7 +325,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     ws = load_workbook(f)["داده"]
     assert [c.value for c in ws[2]][3:] == keys and ws.cell(row=3, column=2).value == "2025-03-21"
     assert ws.cell(row=3, column=4).value is not None            # production is prefilled
-    assert ws.cell(row=3, column=7).value is None                # no rainfall data in the demo: left blank
+    assert ws.cell(row=3, column=7).value is None                # no steam data in the demo: left blank
     # fill the blanks, break one row, import into a plant that has none of this data
     wb = load_workbook(f)
     w = wb["داده"]
@@ -335,12 +335,12 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w.cell(row=6, column=5, value="abc")
     wb.save(f)
     q = demo_with_history("fa")
-    for k in ("env:rain", "production:" + p.site.products[0].name):
+    for k in ("site:steam_t", "production:" + p.site.products[0].name):
         q.series.pop(k, None)
     ok, bad = X.import_template(q, str(f))
     assert len(bad) == 2 and ok > 40
-    assert T.value_in(q.series["env:rain"], date(2025, 3, 21), date(2025, 4, 20), "sum")[0] == pytest.approx(150)
-    assert len(q.series["env:rain"]) == 1                    # blanks and bad rows were skipped, nothing invented
+    assert T.value_in(q.series["site:steam_t"], date(2025, 3, 21), date(2025, 4, 20), "sum")[0] == pytest.approx(150)
+    assert len(q.series["site:steam_t"]) == 1                    # blanks and bad rows were skipped, nothing invented
     # production of the untouched months is back and equals the original
     a = T.value_in(p.series["production:" + p.site.products[0].name], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
     b = T.value_in(q.series["production:" + p.site.products[0].name], date(2025, 4, 21), date(2025, 5, 21), "sum")[0]
@@ -351,3 +351,13 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     w2.active.append(["a", "b"])
     w2.save(tmp_path / "x.xlsx")
     assert X.import_template(q, str(tmp_path / "x.xlsx")) == (0, ["no key row"])
+
+
+def test_retired_series_dropped_on_load():
+    d = {"name": "x", "series": {"energy:th": [{"start": "2025-01-01", "end": "2025-01-31", "value": 5.0}],
+                                 "env:rain": [{"start": "2025-01-01", "end": "2025-01-31", "value": 7.0}],
+                                 "energy:el": [{"start": "2025-01-01", "end": "2025-01-31", "value": 9.0}]}}
+    from waterprofiler.model import Plant
+    q = Plant.from_dict(d)
+    assert set(q.series) == {"energy:el"}
+    assert not {"energy:th", "env:rain"} & {s.key for s in T.catalog(q)}

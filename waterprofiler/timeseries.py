@@ -92,10 +92,8 @@ def catalog(plant: Plant) -> List[VarSpec]:
     for s in plant.subsystems:
         for f, fa, en in SUB_FIELDS:
             v.append(VarSpec(f"sub:{s.name}:{f}", "subsystem", f"{s.name} — {fa}", f"{s.name} — {en}", "m3", "sum"))
-    v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum"),
-          VarSpec("energy:th", "energy", "انرژی حرارتی (سوخت)", "Thermal energy (fuel)", "kwh", "sum")]
+    v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
-          VarSpec("env:rain", "env", "بارندگی", "Rainfall", "mm", "sum"),
           VarSpec("site:employees", "site", "تعداد پرسنل", "Employees", "count", "mean"),
           VarSpec("site:steam_t", "site", "بخار تولیدی", "Steam produced", "t", "sum"),
           VarSpec("site:revenue", "site", "درآمد", "Revenue", "cur", "sum"),
