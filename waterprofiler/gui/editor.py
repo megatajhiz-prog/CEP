@@ -76,7 +76,7 @@ class PlantPanel(QScrollArea):
         il.addLayout(left, 1)
         il.addLayout(right, 1)
         self.peek_prod = TrendPeek(t, lambda p: with_data(p, ["total:production"] + [f"production:{x.name}" for x in p.site.products]))
-        self.peek_energy = TrendPeek(t, lambda p: with_data(p, ["price:electricity", "price:fuel", "energy:el", "energy:th"]))
+        self.peek_energy = TrendPeek(t, lambda p: with_data(p, ["price:electricity", "price:fuel", "energy:el"]))
         outer.addWidget(card(t("plant_info"), info, self.peek_prod, self.peek_energy, note=t("plant_info_note")))
 
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
