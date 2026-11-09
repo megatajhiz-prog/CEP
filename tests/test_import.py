@@ -42,6 +42,7 @@ def test_cross_language_headers(tmp_path):
     p = str(tmp_path / "in.xlsx")
     export_input_workbook(plant, p, "fa")
     back, warns = import_workbook(p, "en")
+    back.site.products[0].name = plant.site.products[0].name        # the default product is named in the UI language
     assert same(back.to_dict(), plant.to_dict())
     assert warns == []
 

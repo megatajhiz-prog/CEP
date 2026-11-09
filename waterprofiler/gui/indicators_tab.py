@@ -20,6 +20,7 @@ from ..model import Plant
 from .tabs import _Scroll, _message_label, make_table, put, stat_row
 from .theme import COL
 from .profile_inputs import ProfileInputs
+from .trend import IndicatorTrend, TrendPeek, with_data
 from .widgets import StatCard, card, dspin
 
 MUTED = QColor("#8A94A6")
@@ -75,7 +76,10 @@ class IndicatorsTab(_Scroll):
         self.prod_tb.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.AnyKeyPressed
                                      | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.prod_tb.itemChanged.connect(self._prod_changed)
-        self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, note=t("in_sub_prod_note")))
+        self.peek_sub = TrendPeek(t, lambda p: with_data(p, [f"sub:{x.name}:production" for x in p.subsystems]))
+        self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, self.peek_sub, note=t("in_sub_prod_note")))
+        self.trend = IndicatorTrend(t)
+        self.lay.addWidget(card(t("in_trend"), self.trend, note=t("in_trend_note")))
 
         fa = t.lang == "fa"
         # one table per group
@@ -114,6 +118,8 @@ class IndicatorsTab(_Scroll):
         self._loading = True
         pf = plant.profile
         self.inputs.load(plant)
+        self.peek_sub.set_plant(plant)
+        self.trend.set_plant(plant)
         drv = TS.driven(plant)
         self.prod_tb.blockSignals(True)
         self.prod_tb.setRowCount(len(plant.subsystems))

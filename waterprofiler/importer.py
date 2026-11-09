@@ -227,6 +227,8 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
                         num(fields.get("heat_eff"), "plant", 0.8) or 0.8),
     )
 
+    plant.ensure_products("Product" if lang == "en" else "محصول")
+
     # ---- catalogues
     for r, row in _rows(ws["sources"]):
         if _text(row[0]):

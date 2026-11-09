@@ -14,7 +14,7 @@ def test_no_series_nothing_driven():
 def test_series_drive_the_model_and_sync_is_idempotent():
     p = demo_with_history("en")
     d = TS.driven(p)
-    assert "production_per_year" in d and "profile:employees" in d
+    assert "product:Product A:per_year" in d and "profile:employees" in d
     assert any(k.startswith("source:") and k.endswith(":metered") for k in d)
     assert TS.sync(p) > 0
     assert TS.sync(p) == 0                                   # second run changes nothing

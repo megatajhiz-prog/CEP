@@ -71,7 +71,7 @@ def unit_text(code: str, lang: str, plant: Plant) -> str:
 
 def catalog(plant: Plant) -> List[VarSpec]:
     """Every variable that can carry a time series for this plant (built from its sources, outlets, subsystems ...)."""
-    v: List[VarSpec] = [VarSpec("production", "production", "تولید کل", "Total production", "units", "sum")]
+    v: List[VarSpec] = []       # the total production is not a variable: it is the sum of the products
     for p in plant.site.products:
         v.append(VarSpec(f"production:{p.name}", "production", f"تولید «{p.name}»", f"Production of {p.name}", "units", "sum"))
     for s in plant.subsystems:
@@ -228,10 +228,8 @@ def _sum_keys(plant: Plant, keys: Sequence[str], sl: Sequence[cal.Slice]) -> Lis
 
 
 def total_production_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[float]]:
-    if plant.series.get("production"):
-        return slice_values(plant, "production", sl)
-    keys = [f"production:{p.name}" for p in plant.site.products]
-    return _sum_keys(plant, keys, sl)
+    """Total production per slice = sum of the products' series (a slice where a product has no value has no total)."""
+    return _sum_keys(plant, [f"production:{p.name}" for p in plant.site.products], sl)
 
 
 def total_intake_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[float]]:
@@ -280,14 +278,9 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
         note = "low_coverage" if c < min_cov else ("extrapolated" if c < 0.999 else note_ok)
         out.append(Change(key, where, old, None if c < min_cov else val, c, note))
 
-    g = get("production")
-    if g is None:
-        keys = [f"production:{p.name}" for p in plant.site.products if plant.series.get(f"production:{p.name}")]
-        parts = [get(k) for k in keys]
-        if parts and all(parts):
-            g = (sum(x[0] for x in parts), min(x[1] for x in parts))
-    if g is not None:
-        add("production", "production_per_year", plant.production_per_year, g)
+    for p in plant.site.products:
+        if (g := get(f"production:{p.name}")):
+            add(f"production:{p.name}", f"product:{p.name}:per_year", p.per_year, g)
     for s in plant.sources:
         if (g := get(f"source:{s.name}")):
             add(f"source:{s.name}", f"source:{s.name}:metered", s.metered_m3, g)
@@ -329,7 +322,7 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
 def driven(plant: Plant, min_cov: float = 0.5) -> Dict[str, str]:
     """Model fields that currently take their value from the time series: ``where`` -> series key.
 
-    ``where`` is the target used by ``commit`` ("production_per_year", "source:<n>:metered", "costs:<attr>", "profile:<attr>",
+    ``where`` is the target used by ``commit`` ("product:<n>:per_year", "source:<n>:metered", "costs:<attr>", "profile:<attr>",
     "subprod:<name>", "sub:<n>:<flow>" ...). A field is driven when its variable has enough data in the reference window
     (the window of the time-series page, or the whole data span). Such fields are not entered anywhere else.
     """
@@ -377,8 +370,11 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
         parts = ch.where.split(":")
         if ch.where.startswith("subprod:"):
             plant.profile.sub_production[ch.where[len("subprod:"):]] = ch.new
-        elif ch.where == "production_per_year":
-            plant.production_per_year = ch.new
+        elif ch.where.startswith("product:"):
+            name = ch.where[len("product:"):-len(":per_year")]
+            for p in plant.site.products:
+                if p.name == name:
+                    p.per_year = ch.new
         elif parts[0] == "source":
             s = plant.source(parts[1])
             if parts[2] == "metered":
@@ -411,6 +407,7 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
             elif f == "recirc":
                 sub.recirculated = ch.new
         n += 1
+    plant.sync_production()
     return n
 
 

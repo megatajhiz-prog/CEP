@@ -21,6 +21,7 @@ from ..model import Plant
 from ..numparse import parse_float
 from .tabs import WARN_BG, _Scroll, make_table, put
 from .theme import COL
+from .trend import ModeBox, TsChart, key_label, key_unit
 from .widgets import button, card
 
 MAX_SLICES = 600
@@ -117,70 +118,6 @@ class PasteTable(QTableWidget):
         super().keyPressEvent(ev)
 
 
-class TsChart(QWidget):
-    """Bars per slice for the chosen variable; empty slices are left blank."""
-
-    def __init__(self):
-        super().__init__()
-        self.setMinimumHeight(250)
-        self.title, self.labels, self.values, self.unit = "", [], [], ""
-
-    def set_data(self, title: str, labels: List[str], values: List[Optional[float]], unit: str) -> None:
-        self.title, self.labels, self.values, self.unit = title, labels, values, unit
-        self.update()
-
-    def paintEvent(self, _ev) -> None:  # noqa: N802 (Qt API)
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        p.setPen(QColor(COL["navy"]))
-        f = p.font()
-        f.setBold(True)
-        p.setFont(f)
-        p.drawText(QRectF(0, 2, w, 24), Qt.AlignmentFlag.AlignCenter, f"{self.title}  ({self.unit})" if self.unit else self.title)
-        f.setBold(False)
-        p.setFont(f)
-        vals = [v for v in self.values if v is not None]
-        if not vals:
-            p.setPen(QColor(COL["sub"]))
-            p.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, "—")
-            p.end()
-            return
-        left, right, top, bottom = 64, 14, 34, 34
-        pw, ph = w - left - right, h - top - bottom
-        lo, hi = min(0.0, min(vals)), max(0.0, max(vals))
-        if hi == lo:
-            hi = lo + 1.0
-        span = hi - lo
-
-        def Y(v: float) -> float:
-            return top + ph * (1 - (v - lo) / span)
-
-        for k in range(5):
-            v = lo + span * k / 4
-            p.setPen(QPen(QColor(COL["line"]), 1))
-            p.drawLine(QPointF(left, Y(v)), QPointF(left + pw, Y(v)))
-            p.setPen(QColor(COL["sub"]))
-            from .widgets import _short
-            p.drawText(QRectF(0, Y(v) - 9, left - 6, 18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                       "‎" + _short(v))
-        n = len(self.values)
-        gw = pw / n
-        step = max(1, -(-n // max(1, int(pw // 78))))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(COL["blue"]))
-        for i, v in enumerate(self.values):
-            cx = left + (i + 0.5) * gw
-            if v is not None:
-                y0, y1 = Y(max(v, 0)), Y(min(v, 0))
-                p.drawRoundedRect(QRectF(cx - gw * 0.34, y0, gw * 0.68, max(1.0, y1 - y0)), 2, 2)
-            if i % step == 0:
-                p.setPen(QColor(COL["text"]))
-                p.drawText(QRectF(cx - 34, top + ph + 6, 68, 18), Qt.AlignmentFlag.AlignCenter, self.labels[i])
-                p.setPen(Qt.PenStyle.NoPen)
-        p.end()
-
-
 class ApplyDialog(QDialog):
     def __init__(self, t: Translator, plant: Plant, changes: List[TS.Change], parent=None):
         super().__init__(parent)
@@ -214,8 +151,8 @@ class ApplyDialog(QDialog):
 
 def where_text(t: Translator, where: str) -> str:
     parts = where.split(":")
-    if where == "production_per_year":
-        return t("ts_tg_production")
+    if parts[0] == "product":
+        return f"{t('ts_tg_product')} «{where[len('product:'):-len(':per_year')]}»"
     if parts[0] in ("source", "outlet"):
         what = t("ts_tg_metered") if parts[-1] == "metered" else t("ts_tg_price")
         return f"{t('ts_tg_' + parts[0])} «{parts[1]}» — {what}"
@@ -328,7 +265,9 @@ class TimeTab(_Scroll):
         self.chart_var = QComboBox()
         self.chart_var.currentIndexChanged.connect(self._draw_chart)
         self.chart = TsChart()
-        self.lay.addWidget(card(t("ts_chart"), self.chart_var, self.chart))
+        self.chart_mode = ModeBox(t)
+        self.chart_mode.currentIndexChanged.connect(self._draw_chart)
+        self.lay.addWidget(card(t("ts_chart"), self.chart_var, self.chart_mode, self.chart))
 
         # ---- window / apply
         self.w_start = CalDate("jalali", lang)
@@ -580,6 +519,8 @@ class TimeTab(_Scroll):
         self.chart_var.clear()
         for sp in self.cols:
             self.chart_var.addItem(sp.label(t.lang), sp.key)
+        if any(sp.key.startswith("production:") for sp in self.cols):       # the total is a result, shown only here
+            self.chart_var.addItem(key_label(plant, "total:production", t.lang), "total:production")
         i = self.chart_var.findData(cur)
         self.chart_var.setCurrentIndex(i if i >= 0 else 0)
         self.chart_var.blockSignals(False)
@@ -631,17 +572,24 @@ class TimeTab(_Scroll):
 
     def _draw_chart(self, *_a) -> None:
         key = self.chart_var.currentData()
-        sp = next((s for s in self.cols if s.key == key), None)
-        if sp is None:
+        self.chart.set_mode(self.chart_mode.currentData())
+        if self.plant is None or key is None:
             self.chart.set_data("", [], [], "")
             return
-        vals = [self._cell_value(r, 2 + self.cols.index(sp))[0] for r in range(len(self.slices))]
         calendar = self.start.cal
         labels = []
         for s in self.slices:
             y, m, _d = cal.parts(s.start, calendar)
             labels.append(f"{y}" if self.step_combo.currentData() == "year" else f"{y}/{m:02d}")
-        self.chart.set_data(sp.label(self.t.lang), labels, vals, TS.unit_text(sp.unit, self.t.lang, self.plant))
+        if key == "total:production":                          # result only: the sum of the products, never typed
+            vals = TS.total_production_slices(self.plant, self.slices)
+        else:
+            sp = next((s for s in self.cols if s.key == key), None)
+            if sp is None:
+                self.chart.set_data("", [], [], "")
+                return
+            vals = [self._cell_value(r, 2 + self.cols.index(sp))[0] for r in range(len(self.slices))]
+        self.chart.set_data(key_label(self.plant, key, self.t.lang), labels, vals, key_unit(self.plant, key, self.t.lang))
 
     # ------------------------------------------------------------------ editing
     def set_cell(self, r: int, c: int, text: str, ask: bool = True) -> bool:

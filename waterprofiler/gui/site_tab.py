@@ -14,6 +14,7 @@ from ..i18n import Translator
 from ..model import Area, Meter, Plant, Product, Site
 from .profile_inputs import ProfileInputs
 from .tabs import _Scroll, make_table, put
+from .trend import TrendPeek, with_data
 from .widgets import DataTable, card, dspin, table_box
 
 AREA_KINDS = ("production", "utility", "services", "landscape", "other")
@@ -86,15 +87,19 @@ class SiteTab(_Scroll):
         # ---- areas, products
         self.areas = DataTable([t("col_name"), t("site_kind"), t("site_note")], ["text", "combo", "text"],
                                {1: self.area_kinds.labels})
-        self.products = DataTable([t("col_name"), t("site_note")], ["text", "text"])
+        self.products = DataTable([t("col_name"), t("site_prod_year"), t("site_note")], ["text", "num", "text"])
         self.areas.setMinimumHeight(170)
         self.products.setMinimumHeight(170)
         row = QHBoxLayout()
         row.setSpacing(16)
         row.addWidget(table_box(t("site_areas"), self.areas, t("add"), t("remove"),
                                 lambda: ["", self.area_kinds.labels[0], ""]))
-        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", ""]))
+        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", 0.0, ""]))
         self.lay.addLayout(row)
+        self.prod_total = QLabel("")
+        self.prod_total.setObjectName("cardnote")
+        self.peek_prod = TrendPeek(t, lambda p: with_data(p, ["total:production"] + [f"production:{x.name}" for x in p.site.products]))
+        self.lay.addWidget(card(t("site_prod_total"), self.prod_total, self.peek_prod, note=t("production_sum_tip")))
 
         # ---- subsystems -> areas
         self.assign = make_table([t("subsystem"), t("site_area"), t("site_intake"), t("site_share")])
@@ -146,7 +151,12 @@ class SiteTab(_Scroll):
         self.f_cal.setCurrentIndex(max(0, self.f_cal.findData(s.calendar)))
         self.struct.load(plant)
         self.areas.set_rows([[a.name, self.area_kinds.label(a.kind), a.note] for a in s.areas])
-        self.products.set_rows([[p.name, p.note] for p in s.products])
+        self.products.set_rows([[p.name, p.per_year, p.note] for p in s.products])
+        self._show_total(plant)
+        self.peek_prod.set_plant(plant)
+        drv = TS.driven(plant)
+        self.products.lock_cells([(r, 1) for r, p in enumerate(s.products) if f"product:{p.name}:per_year" in drv],
+                                 self.t("ft_driven"), (1,))
         self._load_meters(plant)
         self._load_assign(plant)
         self._loading = False
@@ -180,6 +190,10 @@ class SiteTab(_Scroll):
             put(self.assign, r, 2, f"{s.total_intake:,.0f}", True)
             put(self.assign, r, 3, f"{100 * s.total_intake / total:.1f}%" if total > 0 else "—", True)
 
+    def _show_total(self, plant: Plant) -> None:
+        plant.sync_production()
+        self.prod_total.setText(f"{plant.production_per_year:,.2f}  {plant.production_unit}")
+
     def store(self, plant: Plant) -> None:
         """Write the page into the plant. Does nothing until the page has been loaded for this plant."""
         if self.plant is not plant:
@@ -200,10 +214,11 @@ class SiteTab(_Scroll):
                 s.areas.append(Area(n, self.area_kinds.id(k), note))
         seen = set()
         s.products = []
-        for n, note in self.products.rows():
+        for n, per_year, note in self.products.rows():
             if n and n not in seen:
                 seen.add(n)
-                s.products.append(Product(n, plant.production_unit, note))      # products share the plant's unit
+                s.products.append(Product(n, plant.production_unit, note, float(per_year or 0.0)))   # products share the plant's unit
+        self._show_total(plant)                 # total production = sum of the products
         s.meters = []
         for n, tag, k, u, acc, ins, cal_, note in self.meters.rows():
             if n:

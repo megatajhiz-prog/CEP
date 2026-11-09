@@ -76,7 +76,7 @@ def demo_plant(lang: str = "en") -> Plant:
     sum_well = sum(s.intake.get(well, 0.0) for s in subs)
     sum_sew = sum(s.discharge.get(sewer, 0.0) for s in subs)
 
-    return Plant(
+    plant = Plant(
         name=n["plant"], currency="USD", production_per_year=50_000, production_unit=n["unit"],
         sources=[Source(city, 1.40, round(sum_city * 1.03)), Source(well, 0.15, round(sum_well * 0.98))],
         outlets=[Outlet(sewer, 1.90, round(sum_sew * 1.02)), Outlet(n["none"], 0.0)],
@@ -91,6 +91,8 @@ def demo_plant(lang: str = "en") -> Plant:
             PlanItem(33, n["process"], 15.0, capex=20000, opex=1500, life_years=15, rate_pct=10),  # filter and reuse process water
         ],
     )
+    plant.ensure_products("محصول" if lang == "fa" else "Product")
+    return plant
 
 
 def demo_with_history(lang: str = "en") -> Plant:
@@ -116,10 +118,12 @@ def demo_with_history(lang: str = "en") -> Plant:
                Area("تأسیسات" if fa else "Utilities", "utility"),
                Area("اداری و رفاهی" if fa else "Administration", "services"),
                Area("فضای سبز" if fa else "Landscape", "landscape")],
-        products=[Product("محصول الف" if fa else "Product A", n["unit"]), Product("محصول ب" if fa else "Product B", n["unit"])],
+        products=[Product("محصول الف" if fa else "Product A", n["unit"], per_year=30_000),
+                  Product("محصول ب" if fa else "Product B", n["unit"], per_year=20_000)],
         meters=[Meter("کنتور چاه" if fa else "Well meter", f"source:{n['well']}", "flow", "m3", 1.0, "", "2026-03-10"),
                 Meter("کنتور شهری" if fa else "City meter", f"source:{n['city']}", "flow", "m3", 1.0, "", "2026-03-10"),
                 Meter("کنتور برق" if fa else "Power meter", "energy:el", "energy", "kwh", 0.5, "", "2025-11-02")])
+    p.sync_production()
     p.profile.working_days = 300
     for s in p.subsystems:
         s.area = {n["process"]: p.site.areas[0].name, n["ct"]: p.site.areas[1].name, n["boiler"]: p.site.areas[1].name,
@@ -135,7 +139,8 @@ def demo_with_history(lang: str = "en") -> Plant:
         city_m = sum(sub[x].intake.get(city, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac)) * leak
         well_m = sum(sub[x].intake.get(well, 0.0) for x in sub) * frac * (1.0 + 0.30 * season)
         sew_m = sum(sub[x].discharge.get(sewer, 0.0) for x in sub) * frac * (prod / (p.production_per_year * frac))
-        rows = {"production": prod, f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
+        rows = {f"production:{p.site.products[0].name}": prod * 0.6, f"production:{p.site.products[1].name}": prod * 0.4,
+                f"source:{city}": city_m, f"source:{well}": well_m, f"outlet:{sewer}": sew_m,
                 f"sub:{n['ct']}:intake": sub[n["ct"]].total_intake * frac * (1.0 + 0.30 * season),
                 f"sub:{n['process']}:intake": sub[n["process"]].total_intake * frac * (prod / (p.production_per_year * frac)),
                 "loss:measured": 0.02 * (city_m + well_m) * (3.5 if i in (12, 13, 14) else 1.0),
