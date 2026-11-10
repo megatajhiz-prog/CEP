@@ -161,6 +161,11 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawLine(P(19, 7), P(19, 16))
         p.drawArc(QRectF(5, 7.5, 14, 6), 180 * 16, 180 * 16)
         p.drawArc(QRectF(5, 13, 14, 6), 180 * 16, 180 * 16)
+    elif name == "product":
+        p.drawRect(QRectF(4, 12, 7, 8))
+        p.drawRect(QRectF(13, 12, 7, 8))
+        p.drawRect(QRectF(8.5, 4, 7, 8))
+        p.drawLine(P(12, 12), P(12, 15))
     elif name == "savings":
         path = QPainterPath()
         path.moveTo(12, 3)

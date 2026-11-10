@@ -629,3 +629,22 @@ def test_storage_change_and_uncertainty_in_the_window(app, tmp_path):
     w.export_xlsx_to(str(tmp_path / "r.xlsx"))
     w.export_pdf_to(str(tmp_path / "r.pdf"))
     w.close()
+
+
+def test_water_by_product_page(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.tabs.setCurrentWidget(w.product_tab)
+    app.processEvents()
+    tab = w.product_tab
+    assert tab.matrix.rowCount() == len(w.plant.ordered())
+    assert tab.result.rowCount() >= len(w.plant.site.products)
+    p0 = w.plant.site.products[0].name
+    r = next(i for i, s in enumerate(tab._nodes) if s.name not in w.plant.allocation and not w.plant.has_children(s.name))
+    tab.matrix.item(r, 1).setText("100")                  # allocate a general node wholly to product 1
+    assert w.plant.allocation[tab._nodes[r].name] == {p0: 1.0}
+    tab.matrix.item(r, 2).setText("50")                   # 150 % is refused, the row keeps its old values
+    assert w.plant.allocation[tab._nodes[r].name] == {p0: 1.0}
+    assert tab.msg.text()

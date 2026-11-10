@@ -125,6 +125,8 @@ def demo_with_history(lang: str = "en") -> Plant:
                 Meter("کنتور برق" if fa else "Power meter", "energy:el", "energy", "kwh", 0.5, "", "2025-11-02")])
     p.sync_production()
     p.profile.working_days = 300
+    a_, b_ = p.site.products[0].name, p.site.products[1].name
+    p.allocation = {n["process"]: {a_: 0.6, b_: 0.4}, n["ct"]: {a_: 0.5, b_: 0.5}, n["boiler"]: {a_: 0.6, b_: 0.4}}   # sanitary and landscape stay general
     for s in p.subsystems:
         s.area = {n["process"]: p.site.areas[0].name, n["ct"]: p.site.areas[1].name, n["boiler"]: p.site.areas[1].name,
                   n["sanitary"]: p.site.areas[2].name, n["land"]: p.site.areas[3].name}.get(s.name, "")
