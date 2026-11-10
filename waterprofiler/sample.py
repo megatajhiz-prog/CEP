@@ -109,6 +109,8 @@ def demo_with_history(lang: str = "en") -> Plant:
     p = demo_plant(lang)
     n = _NAMES.get(lang, _NAMES["en"])
     fa = lang == "fa"
+    pa, pb = ("محصول الف", "محصول ب") if fa else ("Product A", "Product B")
+    p.allocation = {n["process"]: {pa: 60.0, pb: 40.0}, n["ct"]: {pa: 50.0, pb: 50.0}}      # utilities, sanitary, landscape: shared
     p.site = Site(
         name="کارخانهٔ نمونه" if fa else "Demo plant site", owner="شرکت نمونه" if fa else "Demo Co.",
         sector="صنایع غذایی" if fa else "Food and beverage", province="البرز" if fa else "Alborz",

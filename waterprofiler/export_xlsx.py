@@ -99,7 +99,7 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
         for pr in p.site.products:
             r += 1
             ws.cell(row=r, column=1, value=pr.name)
-            ws.cell(row=r, column=2, value=p.production_unit)
+            ws.cell(row=r, column=2, value=pr.unit or p.production_unit)
     if p.site.meters:
         r += 2
         _header(ws, r, [t("cx_meters"), t("site_tag"), t("site_munit"), t("site_acc"), t("site_calibrated"), ""])
@@ -234,6 +234,19 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
     from . import indicators as _ik
     from .indicator_text import GROUP_TITLE, PROFILE_LABEL, SUB_COLS, TEXT, UNITS, format_value, unit_label
     ires = _ik.compute(p, a)
+    if a.allocation is not None and a.allocation.products:
+        ws = wb.create_sheet(t("alloc_title")[:31])
+        ws.sheet_view.rightToLeft = rtl
+        _header(ws, 1, [t("col_name"), t("production_unit"), t("site_prod_year"), t("alloc_direct"), t("alloc_total_intake"),
+                        t("alloc_per_unit"), t("alloc_cost"), t("alloc_cost_unit")])
+        for r, x in enumerate(a.allocation.products, 2):
+            for j, v in enumerate([x.name, x.unit, x.per_year, x.direct["intake"], x.total("intake"), x.intake_per_unit,
+                                   x.total("cost"), x.cost_per_unit], 1):
+                c = ws.cell(row=r, column=j, value=v)
+                if isinstance(v, float):
+                    c.number_format = "#,##0.000" if j in (6, 8) else "#,##0.0"
+        _autowidth(ws)
+
     ws = wb.create_sheet(t("sheet_ind")[:31])
     ws.sheet_view.rightToLeft = rtl
     _header(ws, 1, [t("in_col_name"), t("in_col_value"), t("in_col_unit"), t("in_col_formula"), t("in_col_note")])
