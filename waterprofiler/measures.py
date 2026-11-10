@@ -172,10 +172,10 @@ def _subs_for(plant: Plant, m: Measure) -> List[Tuple[str, float]]:
     for t in m.targets:
         if t == "plant":
             if "" not in seen:
-                out.append(("", sum(s.total_intake for s in plant.subsystems)))
+                out.append(("", sum(s.total_intake for s in plant.leaves())))
                 seen.add("")
         else:
-            for s in plant.subsystems:
+            for s in plant.leaves():                       # equipment carry the kind; a unit with equipment does not
                 if s.kind == t and s.name not in seen:
                     out.append((s.name, s.total_intake))
                     seen.add(s.name)
@@ -183,8 +183,9 @@ def _subs_for(plant: Plant, m: Measure) -> List[Tuple[str, float]]:
 
 
 def baseline_volume(plant: Plant, target: str) -> float:
+    plant.rollup()
     if not target:
-        return sum(s.total_intake for s in plant.subsystems)
+        return sum(s.total_intake for s in plant.leaves())
     for s in plant.subsystems:
         if s.name == target:
             return s.total_intake
@@ -204,13 +205,9 @@ def value_per_m3(plant: Plant, target: str = "") -> float:
         treat = sum(tmap[k].unit_cost * f for k, f in s.water_treatments.items() if k in tmap)
         return water + treat
 
-    if target:
-        for s in plant.subsystems:
-            if s.name == target:
-                return one(s)
-        return 0.0
-    tot = sum(s.total_intake for s in plant.subsystems)
-    return sum(one(s) * s.total_intake for s in plant.subsystems) / tot if tot > 0 else 0.0
+    pool = plant.leaves_of(target) if target else plant.leaves()      # a unit with equipment: weighted over its equipment
+    tot = sum(s.total_intake for s in pool)
+    return sum(one(s) * s.total_intake for s in pool) / tot if tot > 0 else 0.0
 
 
 @dataclass
@@ -333,18 +330,27 @@ def evaluate_plan(plant: Plant) -> PlanResult:
     intake that remains after all subsystem-level savings.
     """
     items = [i for i in plant.plan if i.measure_id in _BY_ID]
-    total_in = sum(s.total_intake for s in plant.subsystems)
+    plant.rollup()
+    total_in = sum(s.total_intake for s in plant.leaves())
     warnings: List[str] = []
     groups: Dict[str, List[PlanItem]] = {}
     for it in items:
         groups.setdefault(it.target, []).append(it)
+    # a unit and its own equipment can both be targets: the equipment's savings come off the unit's base first
+    def _depth(t: str) -> int:
+        n = plant.node(t)
+        return 0 if n is not None and n.parent else 1
 
     combined: Dict[str, float] = {}
     sub_saved = 0.0
-    for tgt, its in groups.items():
+    for tgt, its in sorted(groups.items(), key=lambda kv: _depth(kv[0])):
         if not tgt:
             continue
         base = baseline_volume(plant, tgt)
+        inner = [c for c in combined if (plant.node(c) is not None and plant.node(c).parent == tgt)]
+        if inner:
+            base = max(base - sum(combined[c] for c in inner), 0.0)
+            warnings.append("nested:" + tgt)
         keep = 1.0
         for it in its:
             keep *= 1.0 - min(max(it.saving_pct, 0.0), 100.0) / 100.0

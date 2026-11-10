@@ -75,7 +75,7 @@ def period_plant(plant: Plant, start: date, end: date, fill: str = "prorate", ba
     base = plant
     p = copy.deepcopy(plant)
     changes = TS.plan_changes(p, start, end, min_cov)
-    info.total_vars = len(base.sources) + len(base.outlets) + len(base.subsystems) * len(_FLOW_FIELDS)
+    info.total_vars = len(base.sources) + len(base.outlets) + len(base.leaves()) * len(_FLOW_FIELDS)
     used: Set[str] = {c.key for c in changes if c.new is not None and _is_flow_key(c.key)}
     TS.commit(p, [c for c in changes if c.new is not None])
     info.applied = len(used)
@@ -86,7 +86,7 @@ def period_plant(plant: Plant, start: date, end: date, fill: str = "prorate", ba
         info.empty = True
         return p, info
 
-    old_in = {s.name: s.total_intake for s in base.subsystems}
+    old_in = {s.name: s.total_intake for s in base.leaves()}
     touched_out: Set[Tuple[str, str]] = set()           # (subsystem, outlet) already set from data
 
     # rule 2: spread meter-level data over the subsystems of the base model
@@ -95,36 +95,36 @@ def period_plant(plant: Plant, start: date, end: date, fill: str = "prorate", ba
     for s in p.sources:
         key = f"source:{s.name}"
         if key in used and not sub_intake_data and s.metered_m3 is not None:
-            cur = sum(x.intake.get(s.name, 0.0) for x in p.subsystems)
+            cur = sum(x.intake.get(s.name, 0.0) for x in p.leaves())
             if cur > 0:
                 k = s.metered_m3 / cur
-                for x in p.subsystems:
+                for x in p.leaves():
                     if s.name in x.intake:
                         x.intake[s.name] *= k
-            elif len([x for x in p.subsystems if s.name in x.intake]) == 0:
+            elif len([x for x in p.leaves() if s.name in x.intake]) == 0:
                 info.notes.append(f"{key}:no_subsystem")
     for o in p.outlets:
         key = f"outlet:{o.name}"
         if key in used and not sub_disch_data and o.metered_m3 is not None:
-            cur = sum(x.discharge.get(o.name, 0.0) for x in p.subsystems)
+            cur = sum(x.discharge.get(o.name, 0.0) for x in p.leaves())
             if cur > 0:
                 k = o.metered_m3 / cur
-                for x in p.subsystems:
+                for x in p.leaves():
                     if o.name in x.discharge:
                         x.discharge[o.name] *= k
                         touched_out.add((x.name, o.name))
     if sub_disch_data:
-        for x in p.subsystems:
+        for x in p.leaves():
             if f"sub:{x.name}:discharge" in used:
                 touched_out.update((x.name, o) for o in x.discharge)
 
     # rule 3: what has no data of its own
     if fill == "prorate":
         ratio = {}
-        for x in p.subsystems:
+        for x in p.leaves():
             o = old_in.get(x.name, 0.0)
             ratio[x.name] = x.total_intake / o if o > 0 else 1.0
-        for x in p.subsystems:
+        for x in p.leaves():
             r = ratio[x.name]
             for attr, f in (("evaporation", "evaporation"), ("product", "product"), ("recirculated", "recirc")):
                 if f"sub:{x.name}:{f}" not in used and getattr(x, attr) > 0 and abs(r - 1.0) > 1e-12:
@@ -137,11 +137,12 @@ def period_plant(plant: Plant, start: date, end: date, fill: str = "prorate", ba
         if p.links:
             for lk in p.links:
                 lk.volume *= ratio.get(lk.src, 1.0)
-            sync_transfers(p, touched=[x.name for x in p.subsystems])
+            sync_transfers(p, touched=[x.name for x in p.leaves()])
             info.estimated += len(p.links)
 
     if basis == "period":
         scale_volumes(p, info.scale)
+    p.rollup()
     return p, info
 
 

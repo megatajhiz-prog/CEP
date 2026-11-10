@@ -116,7 +116,7 @@ class MeasuresTab(_Scroll):
         self._fill()
 
     def _kinds(self) -> set:
-        return {s.kind for s in self.plant.subsystems} if self.plant else set()
+        return {s.kind for s in self.plant.leaves()} if self.plant else set()
 
     def _fill(self, *_a) -> None:
         t = self.t
@@ -292,7 +292,7 @@ class PlanTab(_Scroll):
         self._recalc()
 
     def _targets(self) -> List[str]:
-        return [""] + [s.name for s in (self.plant.subsystems if self.plant else [])]
+        return [""] + [s.name for s in (self.plant.ordered() if self.plant else [])]
 
     def _build_inputs(self) -> None:
         t = self.t
@@ -378,6 +378,8 @@ class PlanTab(_Scroll):
             if code.startswith("overlap:"):
                 tgt = code.split(":", 1)[1] or t("ms_plant_wide")
                 warns.append("⚠ " + t("pl_w_overlap", target=tgt))
+            elif code.startswith("nested:"):
+                warns.append("ℹ " + t("pl_w_nested", target=code.split(":", 1)[1]))
         self.warn.setText("\n".join(warns))
         self.warn.setVisible(bool(warns))
         self.results.setRowCount(len(res.lines))

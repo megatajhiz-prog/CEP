@@ -218,13 +218,9 @@ def discharge_value_per_m3(plant: Plant, target: str = "") -> float:
         wt = sum(tmap[k].unit_cost * f for k, f in s.wastewater_treatments.items() if k in tmap) * vd
         return (fees + wt) / vi, vi
 
-    if target:
-        for s in plant.subsystems:
-            if s.name == target:
-                return one(s)[0]
-        return 0.0
-    tot = sum(s.total_intake for s in plant.subsystems)
-    return sum(one(s)[0] * one(s)[1] for s in plant.subsystems) / tot if tot > 0 else 0.0
+    pool = plant.leaves_of(target) if target else plant.leaves()      # a unit with equipment: weighted over its equipment
+    tot = sum(s.total_intake for s in pool)
+    return sum(one(s)[0] * one(s)[1] for s in pool) / tot if tot > 0 else 0.0
 
 
 def default_price(plant: Plant, target: str = "") -> float:

@@ -508,7 +508,7 @@ class FlowTab(_Scroll):
 
     # ------------------------------------------------------------------ data
     def _names(self) -> List[str]:
-        return [s.name for s in (self.plant.subsystems if self.plant else [])]
+        return [s.name for s in (self.plant.leaves() if self.plant else [])]      # transfers connect the nodes that carry data
 
     def refresh(self, plant: Plant, a: Optional[Analysis]) -> None:
         fresh = plant is not self._owner

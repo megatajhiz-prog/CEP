@@ -193,10 +193,12 @@ class BalancePanel(QWidget):
         pct = (100.0 * b.unknown_loss / b.sum_intake) if b.sum_intake else 0.0
         bad = abs(pct) > 2.0
         self.c_loss.set(_fmt(b.unknown_loss), f"{pct:.1f}%", COL["red"] if bad else COL["green"])
-        self.table.setRowCount(len(b.subsystems))
-        for r, s in enumerate(b.subsystems):
+        rows_b = [b.nodes.get(x.name) for x in a.plant.ordered() if b.nodes.get(x.name)] or list(b.subsystems)
+        par = {x.name: x.parent for x in a.plant.subsystems}
+        self.table.setRowCount(len(rows_b))
+        for r, s in enumerate(rows_b):
             bg = None if s.status == "balanced" else (WARN_BG if s.status == "unaccounted loss" else BAD_BG)
-            put(self.table, r, 0, s.name)
+            put(self.table, r, 0, ("    ↳ " if par.get(s.name) else "") + s.name)
             put(self.table, r, 1, _fmt(s.inflow), True)
             put(self.table, r, 2, _fmt(s.outflow), True)
             put(self.table, r, 3, _fmt(s.unknown_loss), True, bg)
@@ -426,7 +428,7 @@ class SavingsTab(_Scroll):
         for combo, kind in ((self.ct_sub, "cooling_tower"), (self.bo_sub, "boiler"), (self.lk_sub, None)):
             cur = combo.currentText()
             combo.clear()
-            for s in plant.subsystems:
+            for s in plant.leaves():
                 if kind is None or s.kind == kind:
                     combo.addItem(s.name)
             if cur:

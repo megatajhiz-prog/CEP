@@ -61,6 +61,7 @@ class PlantCost:
     water_share: Dict[str, float]      # subsystem -> share of total intake
     cost_share: Dict[str, float]       # subsystem -> share of true cost
     warnings: List[str] = field(default_factory=list)
+    nodes: Dict[str, "SubsystemCost"] = field(default_factory=dict)   # every unit and every equipment, by name
 
 
 def heat_lost_kwh(discharge_m3: float, t_intake_c: Optional[float], t_wastewater_c: Optional[float],
@@ -105,29 +106,51 @@ def subsystem_cost(plant: Plant, s: Subsystem) -> SubsystemCost:
     return SubsystemCost(s.name, s.total_intake, s.total_discharge, comp, kwh, heat, treated_w, treated_ww)
 
 
+def _aggregate(name: str, parts: List[SubsystemCost]) -> SubsystemCost:
+    """A unit's cost is the sum of its equipment's."""
+    comp = {k: sum(p.components[k] for p in parts) for k in COMPONENTS}
+    tw: Dict[str, float] = {}
+    tww: Dict[str, float] = {}
+    for p in parts:
+        for k, v in p.treated_water_m3.items():
+            tw[k] = tw.get(k, 0.0) + v
+        for k, v in p.treated_wastewater_m3.items():
+            tww[k] = tww.get(k, 0.0) + v
+    return SubsystemCost(name, sum(p.intake_m3 for p in parts), sum(p.discharge_m3 for p in parts), comp,
+                         sum(p.electricity_kwh for p in parts), sum(p.heat_kwh_thermal for p in parts), tw, tww)
+
+
 def plant_cost(plant: Plant) -> PlantCost:
     warnings: List[str] = []
-    subs = []
-    for s in plant.subsystems:
+    plant.rollup()
+    leaf_cost: Dict[str, SubsystemCost] = {}
+    for s in plant.leaves():
         for t in list(s.water_treatments) + list(s.wastewater_treatments):
             if not any(x.name == t for x in plant.treatments):
                 warnings.append(f"{s.name}: unknown treatment '{t}'")
         for t, f in {**s.water_treatments, **s.wastewater_treatments}.items():
             if not 0.0 <= f <= 1.0:
                 warnings.append(f"{s.name}: treated fraction for '{t}' is {f}, expected 0..1")
-        subs.append(subsystem_cost(plant, s))
+        leaf_cost[s.name] = subsystem_cost(plant, s)
+    nodes: Dict[str, SubsystemCost] = dict(leaf_cost)
+    subs = []
+    for u in plant.units():
+        ch = plant.children(u.name)
+        if ch:
+            nodes[u.name] = _aggregate(u.name, [leaf_cost[c.name] for c in ch])
+        subs.append(nodes[u.name])
 
     by_comp = {k: sum(sc.components[k] for sc in subs) for k in COMPONENTS}
     total = sum(by_comp.values())
     direct = by_comp["intake"] + by_comp["discharge"]
     total_intake = sum(sc.intake_m3 for sc in subs)
 
-    water_share = {sc.name: (sc.intake_m3 / total_intake if total_intake > 0 else 0.0) for sc in subs}
-    cost_share = {sc.name: (sc.total / total if total > 0 else 0.0) for sc in subs}
+    water_share = {n: (sc.intake_m3 / total_intake if total_intake > 0 else 0.0) for n, sc in nodes.items()}
+    cost_share = {n: (sc.total / total if total > 0 else 0.0) for n, sc in nodes.items()}
 
     return PlantCost(
         subsystems=subs, by_component=by_comp, total=total, direct_billed_cost=direct,
         true_to_direct_ratio=(total / direct) if direct > 0 else None,
         true_cost_per_m3_intake=(total / total_intake) if total_intake > 0 else None,
-        water_share=water_share, cost_share=cost_share, warnings=warnings,
+        water_share=water_share, cost_share=cost_share, warnings=warnings, nodes=nodes,
     )

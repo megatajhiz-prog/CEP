@@ -48,14 +48,15 @@ def meter_due(calibrated: str, today: Optional[date] = None, max_days: int = 365
 
 def area_rows(plant: Plant) -> List[AreaRow]:
     """Every area of the site plus the subsystems that belong to none (kind ``""``, name ``""``)."""
-    total = sum(s.total_intake for s in plant.subsystems)
+    total = sum(s.total_intake for s in plant.leaves())
+    units = plant.units()
     names = [a.name for a in plant.site.areas]
     kinds = {a.name: a.kind for a in plant.site.areas}
-    for s in plant.subsystems:
+    for s in units:
         if s.area and s.area not in names:
             names.append(s.area)
-    groups = [(n, [s for s in plant.subsystems if s.area == n]) for n in names]
-    free = [s for s in plant.subsystems if not s.area or s.area not in names]
+    groups = [(n, [s for s in units if s.area == n]) for n in names]
+    free = [s for s in units if not s.area or s.area not in names]
     if free:
         groups.append(("", free))
     out = []

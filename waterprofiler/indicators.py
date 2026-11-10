@@ -76,7 +76,8 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
     a = a or analyse(plant)
     b, c, k = a.balance, a.cost, a.kpi
     pf = plant.profile
-    subs = plant.subsystems
+    plant.rollup()
+    subs = plant.leaves()                    # totals over the nodes that carry data
     intake = b.sum_intake
     disch = b.sum_discharge
     ev, prod_w, loss = b.sum_evaporation, b.sum_product, b.unknown_loss
@@ -239,7 +240,8 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
     bal = {x.name: x for x in b.subsystems}
     cst = {x.name: x for x in c.subsystems}
     sub_rows: List[SubIndicators] = []
-    for s in subs:
+    bal, cst = b.nodes or bal, c.nodes or cst
+    for s in plant.ordered():
         bx, cx = bal.get(s.name), cst.get(s.name)
         inflow = s.total_intake + s.from_other
         gross_x = inflow + s.recirculated
