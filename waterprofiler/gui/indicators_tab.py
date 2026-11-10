@@ -122,9 +122,11 @@ class IndicatorsTab(_Scroll):
         self.trend.set_plant(plant)
         drv = TS.driven(plant)
         self.prod_tb.blockSignals(True)
-        self.prod_tb.setRowCount(len(plant.subsystems))
-        for r, s in enumerate(plant.subsystems):
-            name_it = QTableWidgetItem(s.name)
+        nodes = plant.ordered()
+        self.prod_tb.setRowCount(len(nodes))
+        for r, s in enumerate(nodes):
+            name_it = QTableWidgetItem(("    ↳ " if s.parent else "") + s.name)
+            name_it.setData(Qt.ItemDataRole.UserRole, s.name)
             name_it.setFlags(Qt.ItemFlag.ItemIsEnabled)
             self.prod_tb.setItem(r, 0, name_it)
             it = QTableWidgetItem(f"{pf.sub_production.get(s.name, 0.0):g}")
@@ -132,6 +134,9 @@ class IndicatorsTab(_Scroll):
             if f"subprod:{s.name}" in drv:                      # taken from the time series: shown, not typed
                 it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 it.setToolTip(self.t("ft_driven"))
+            if plant.has_children(s.name):                      # a unit with equipment: the sum of them, never typed
+                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                it.setToolTip(self.t("ts_derived_col"))
             self.prod_tb.setItem(r, 1, it)
         self.prod_tb.blockSignals(False)
         _fit(self.prod_tb)
@@ -141,7 +146,8 @@ class IndicatorsTab(_Scroll):
     def _prod_changed(self, item: QTableWidgetItem) -> None:
         if self._loading or self.plant is None or item.column() != 1:
             return
-        name = self.prod_tb.item(item.row(), 0).text()
+        name0 = self.prod_tb.item(item.row(), 0)
+        name = name0.data(Qt.ItemDataRole.UserRole) or name0.text()
         try:
             v = float(item.text().replace(",", "").replace("٫", "."))
         except ValueError:

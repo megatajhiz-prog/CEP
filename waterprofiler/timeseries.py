@@ -225,6 +225,24 @@ def slice_values(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float
     return out
 
 
+def derived_value_in(plant: Plant, key: str, start: date, end: date):
+    """(value, coverage) of a unit's series over start..end: the sum of its equipment's (None if one of them has none)."""
+    _, name, f = key.split(":", 2)
+    attr = {"intake": "total_intake", "discharge": "total_discharge", "evaporation": "evaporation",
+            "product": "product", "recirc": "recirculated"}.get(f)
+    total, cov, got = 0.0, 1.0, False
+    for c in plant.children(name):
+        ck = f"sub:{c.name}:{f}"
+        if plant.series.get(ck):
+            v, cv = value_in(plant.series[ck], start, end, "sum")
+            if v is None:
+                return None, 0.0
+            total, cov, got = total + v, min(cov, cv), True
+        elif (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production" else (getattr(c, attr) > 0 if attr else False)):
+            return None, 0.0
+    return (total, cov) if got else (None, 0.0)
+
+
 def _unit_slices(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float = 0.5) -> List[Optional[float]]:
     """Series of a unit = sum of its equipment's. A slice is known only when every equipment that has a value has data."""
     _, name, f = key.split(":", 2)

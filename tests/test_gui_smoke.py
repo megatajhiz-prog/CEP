@@ -564,3 +564,43 @@ def test_estimator_asks_staff_once(app):
     assert d.fields["employees"].value() == 250.0 and not d.fields["employees"].isEnabled()
     assert d.fields["lpd"].isEnabled()
     w.close()
+
+
+def test_unit_equipment_tree_in_the_window(app, tmp_path):
+    from waterprofiler import timeseries as TS
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    n0 = len(w.plant.subsystems)
+    intake0 = sum(s.total_intake for s in w.plant.leaves())
+    w.sub_list.setCurrentRow(0)
+    unit = w.plant.subsystems[0].name
+    w._add_equipment()                                    # first equipment: the unit's own data moves to a holder
+    w._add_equipment()
+    assert len(w.plant.subsystems) == n0 + 3
+    assert w.plant.has_children(unit)
+    assert w.sub_list.count() == n0 + 3
+    assert w.sub_list.item(1).text().strip().startswith("↳")
+    assert sum(s.total_intake for s in w.plant.leaves()) == pytest.approx(intake0)
+    # the unit's editor is read-only; equipment's is not
+    w.sub_list.setCurrentRow(0)
+    assert not w.sub_editor.intake.isEnabled() and w.sub_editor.derived_note.isVisibleTo(w.sub_editor)
+    w.sub_list.setCurrentRow(2)
+    assert w.sub_editor.intake.isEnabled() and not w.sub_editor.derived_note.isVisibleTo(w.sub_editor)
+    # rename the equipment through the editor: links, series and parent follow
+    old = w.plant.subsystems[2].name
+    w.sub_editor.name.setText("Line A")
+    w.collect()
+    assert w.plant.node("Line A") is not None and w.plant.node(old) is None
+    for i in range(w.tabs.count()):                       # every page opens on a tree
+        w.tabs.setCurrentIndex(i)
+        app.processEvents()
+    assert w.balance_tab.table.rowCount() == len(w.plant.ordered())
+    w.export_xlsx_to(str(tmp_path / "r.xlsx"))
+    w.export_pdf_to(str(tmp_path / "r.pdf"))
+    # removing the unit asks and removes its equipment
+    w.sub_list.setCurrentRow(0)
+    w._remove_subsystem()
+    assert w.plant.node(unit) is None and not [s for s in w.plant.subsystems if s.parent == unit]
+    w.close()

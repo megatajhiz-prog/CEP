@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, branding
+from .. import structure as ST
 from .. import timeseries as TS
 from ..analysis import Analysis, analyse
 from ..estimate_apply import apply_estimate, shared_params
@@ -113,6 +114,7 @@ class MainWindow(QMainWindow):
         sl.addWidget(self.sub_list, 1)
         ll.addWidget(card(t("tab_subsystems"), side), 1)
         ll.addWidget(button("+  " + t("add"), "primary", self._add_subsystem))
+        ll.addWidget(button(t("add_equipment"), "", self._add_equipment))
         ll.addWidget(button(t("remove"), "danger", self._remove_subsystem))
         subs = QWidget()
         sh = QHBoxLayout(subs)
@@ -294,20 +296,38 @@ class MainWindow(QMainWindow):
     def collect(self) -> Plant:
         """Pull every editor's content into self.plant."""
         self.industrial_tab.store(self.plant)
-        if 0 <= self._cur < len(self.plant.subsystems):
-            self.sub_editor.store(self.plant.subsystems[self._cur])
-            item = self.sub_list.item(self._cur)
-            if item is not None:
-                item.setText(self.plant.subsystems[self._cur].name)
+        self._store_current()
         # one entry point per datum: whatever the time series determines is (re)written into the model
         self._synced = TS.sync(self.plant) > 0
         return self.plant
 
+    def _label(self, s) -> str:
+        return ("      ↳ " if s.parent else "") + s.name
+
+    def _store_current(self) -> None:
+        """Write the open subsystem back; a new name is a rename of the node (links, series, plan targets follow)."""
+        subs = self.plant.subsystems
+        if not (0 <= self._cur < len(subs)):
+            return
+        s = subs[self._cur]
+        new = self.sub_editor.name.text().strip()
+        if new and new != s.name:
+            if self.plant.node(new) is None:
+                ST.rename_node(self.plant, s.name, new)
+            else:
+                self.sub_editor.name.setText(s.name)
+                self.statusBar().showMessage(self.t("eq_dup_name"), 6000)
+        self.sub_editor.store(s)
+        item = self.sub_list.item(self._cur)
+        if item is not None:
+            item.setText(self._label(s))
+
     def _refresh_sub_list(self, select: int) -> None:
+        ST.tidy(self.plant)
         self.sub_list.blockSignals(True)
         self.sub_list.clear()
         for s in self.plant.subsystems:
-            self.sub_list.addItem(s.name)
+            self.sub_list.addItem(self._label(s))
         self.sub_list.blockSignals(False)
         self._cur = -1
         if self.plant.subsystems:
@@ -324,15 +344,14 @@ class MainWindow(QMainWindow):
         self.sub_editor.set_catalog(*self._catalog())
         self._refresh_sub_list(select)
 
+    def _load_editor(self, s) -> None:
+        self.sub_editor.load(s, derived=self.plant.has_children(s.name))
+
     def _row_changed(self, row: int) -> None:
-        if 0 <= self._cur < len(self.plant.subsystems):
-            self.sub_editor.store(self.plant.subsystems[self._cur])
-            item = self.sub_list.item(self._cur)
-            if item is not None:
-                item.setText(self.plant.subsystems[self._cur].name)
+        self._store_current()
         self._cur = row
         if 0 <= row < len(self.plant.subsystems):
-            self.sub_editor.load(self.plant.subsystems[row])
+            self._load_editor(self.plant.subsystems[row])
             self.sub_editor.peek.set_plant(self.plant)
 
     def _tab_changed(self, idx: int) -> None:
@@ -367,7 +386,7 @@ class MainWindow(QMainWindow):
             # subsystems tab: pick up renamed sources / outlets / treatments
             self.sub_editor.set_catalog(*self._catalog())
             if 0 <= self._cur < len(self.plant.subsystems):
-                self.sub_editor.load(self.plant.subsystems[self._cur])
+                self._load_editor(self.plant.subsystems[self._cur])
 
     def _to_plan(self, measure_id: int, target: str) -> None:
         self.collect()
@@ -393,7 +412,7 @@ class MainWindow(QMainWindow):
         if TS.sync(self.plant):                   # a flow driven by the time series cannot be changed by hand
             self.statusBar().showMessage(self.t("ft_driven_reverted"), 8000)
         if 0 <= self._cur < len(self.plant.subsystems):
-            self.sub_editor.load(self.plant.subsystems[self._cur])
+            self._load_editor(self.plant.subsystems[self._cur])
         a = self._run_analysis()
         self.flow_tab.refresh(self.plant, a)
 
@@ -627,11 +646,32 @@ class MainWindow(QMainWindow):
         self.plant.subsystems.append(Subsystem(name))
         self._load_all(select=len(self.plant.subsystems) - 1)
 
+    def _add_equipment(self) -> None:
+        """Equipment of the selected unit (or of the unit the selected equipment belongs to)."""
+        if not (0 <= self._cur < len(self.plant.subsystems)):
+            return
+        self.collect()
+        cur = self.plant.subsystems[self._cur]
+        unit = self.plant.node(cur.parent) if cur.parent else cur
+        base = self.t("new_equipment")
+        name, i = base, 2
+        while self.plant.node(name) is not None:
+            name, i = f"{base} {i}", i + 1
+        eq = ST.add_equipment(self.plant, unit.name, name, unit.kind,
+                              holder=f"{unit.name} · {self.t('eq_unallocated')}")
+        self._load_all(select=self.plant.subsystems.index(eq))
+
     def _remove_subsystem(self) -> None:
         if not (0 <= self._cur < len(self.plant.subsystems)):
             return
         self.collect()
-        del self.plant.subsystems[self._cur]
+        s = self.plant.subsystems[self._cur]
+        if self.plant.has_children(s.name):
+            q = QMessageBox.question(self, self.t("app_title"), self.t("eq_remove_unit_q"),
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if q != QMessageBox.StandardButton.Yes:
+                return
+        ST.remove_node(self.plant, s.name)
         self._load_all(select=max(0, self._cur - 1))
 
     def _estimate(self) -> None:
@@ -657,7 +697,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, t("error"), localize(str(e), t.lang))
                 return
             TS.sync(self.plant)
-            self.sub_editor.load(s)
+            self._load_editor(s)
 
     def _apply_reconciled(self, plant: Plant) -> None:
         self.plant = plant

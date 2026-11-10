@@ -202,6 +202,12 @@ class SubsystemEditor(QScrollArea):
         lay.addWidget(card(t("sub_basic"), head, self.peek))
         self.driven: Dict[str, str] = {}          # model fields currently taken from the time series (set by the window)
         self._locked: set = set()
+        self.derived_note = QLabel(t("eq_derived_note"))
+        self.derived_note.setObjectName("cardnote")
+        self.derived_note.setWordWrap(True)
+        self.derived_note.setVisible(False)
+        self._derived = False
+        lay.addWidget(self.derived_note)
         self.driven_note = QLabel(t("ft_driven_note"))
         self.driven_note.setObjectName("cardnote")
         self.driven_note.setWordWrap(True)
@@ -264,8 +270,9 @@ class SubsystemEditor(QScrollArea):
         self.wwtreat.combo_items = {0: [""] + list(treatments)}
 
     # ------------------------------------------------------------ model <-> UI
-    def load(self, s: Subsystem) -> None:
+    def load(self, s: Subsystem, derived: bool = False) -> None:
         self._sub_name = s.name
+        self._derived = derived
         self.name.setText(s.name)
         i = self.kind.findData(s.kind)
         self.kind.setCurrentIndex(i if i >= 0 else KINDS.index("other"))
@@ -284,6 +291,20 @@ class SubsystemEditor(QScrollArea):
         self.t_in.set(s.t_intake_c)
         self.t_ww.set(s.t_wastewater_c)
         self._lock_driven(s)
+        self._set_derived(derived)
+
+    def _set_derived(self, derived: bool) -> None:
+        """A unit that has equipment is the sum of them: everything but name and kind is read-only here."""
+        self.derived_note.setVisible(derived)
+        for w in (self.intake, self.discharge, self.wtreat, self.wwtreat, self.pumps, self.recirc, self.from_other,
+                  self.to_other, self.product, self.evap, self.t_in, self.t_ww, self.est_btn):
+            w.setEnabled(not derived)
+        if not derived:
+            self._lock_driven_refresh()
+
+    def _lock_driven_refresh(self) -> None:
+        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc)):
+            w.setEnabled(f not in self._locked)
 
     def _lock_driven(self, s: Subsystem) -> None:
         drv = self.driven
@@ -299,6 +320,8 @@ class SubsystemEditor(QScrollArea):
     def store(self, s: Subsystem) -> None:
         s.name = self.name.text().strip() or s.name
         s.kind = self.kind.currentData() or "other"
+        if self._derived:                                  # the unit's flows come from its equipment
+            return
         lk = self._locked                                   # fields driven by the time series are not written back
         if "intake" not in lk:
             s.intake = _sum_dict(self.intake.rows())

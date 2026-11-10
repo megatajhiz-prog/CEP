@@ -530,13 +530,18 @@ class TimeTab(_Scroll):
     def _cell_value(self, r: int, c: int):
         sp = self.cols[c - 2]
         s = self.slices[r]
+        if sp.derived:                                    # a unit with equipment: the sum of its equipment
+            return TS.derived_value_in(self.plant, sp.key, s.start, s.end)
         return TS.value_in(self.plant.series.get(sp.key, []), s.start, s.end, sp.agg)
 
     def _render_cell(self, r: int, c: int) -> None:
         v, cov = self._cell_value(r, c)
         it = QTableWidgetItem(_fmt(v))
         it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        if v is not None and cov < 0.999:
+        if self.cols[c - 2].derived:
+            it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            it.setToolTip(self.t("ts_derived_col"))
+        elif v is not None and cov < 0.999:
             it.setBackground(WARN_BG)
             it.setToolTip(self.t("ts_cov_tip", pct=f"{100 * cov:.0f}"))
         self.tb.setItem(r, c, it)
@@ -554,7 +559,8 @@ class TimeTab(_Scroll):
         self.tb.setItem(r, 1, blank)
         for c, sp in enumerate(self.cols, start=2):
             pts = self.plant.series.get(sp.key, [])
-            got = [(TS.value_in(pts, x.start, x.end, sp.agg)[0], x.days) for x in self.slices]
+            got = [((TS.derived_value_in(self.plant, sp.key, x.start, x.end) if sp.derived
+                     else TS.value_in(pts, x.start, x.end, sp.agg))[0], x.days) for x in self.slices]
             got = [(val, d) for val, d in got if val is not None]
             if not got:
                 v = None
@@ -595,6 +601,8 @@ class TimeTab(_Scroll):
     def set_cell(self, r: int, c: int, text: str, ask: bool = True) -> bool:
         """Store the value typed into slice r, variable column c. Returns False if the text is not a number."""
         sp, s = self.cols[c - 2], self.slices[r]
+        if sp.derived:
+            return False
         text = text.strip()
         v = parse_float(text)
         if text and v is None:

@@ -40,7 +40,7 @@ def _heads(t: Translator) -> Dict[str, List[str]]:
         "sources": [t("col_name"), t("col_unit_cost"), t("col_metered")],
         "outlets": [t("col_name"), t("col_unit_cost"), t("col_metered")],
         "treatments": [t("col_name"), t("col_unit_cost"), t("col_wastewater")],
-        "subsystems": [t("col_name"), t("kind"), t("t_in"), t("t_ww")],
+        "subsystems": [t("col_name"), t("kind"), t("t_in"), t("t_ww"), t("eq_unit")],
         "flows": [t("subsystem"), t("imp_flow"), t("imp_item"), t("imp_amount")],
         "pumps": [t("subsystem"), t("col_name"), t("pump_hours"), t("pump_kw"), t("pump_eff"),
                   t("pump_load"), t("pump_volts"), t("pump_amps"), t("pump_pf"), t("pump_phases")],
@@ -91,7 +91,9 @@ def _fill_sheets(wb: Workbook, plant: Plant, t: Translator, first_sheet_active: 
     for x in plant.treatments:
         sheets["treatments"].append([x.name, x.unit_cost, 1 if x.wastewater else 0])
     for s in plant.subsystems:
-        sheets["subsystems"].append([s.name, s.kind, s.t_intake_c, s.t_wastewater_c])
+        sheets["subsystems"].append([s.name, s.kind, s.t_intake_c, s.t_wastewater_c, s.parent or None])
+        if plant.has_children(s.name):         # a unit with equipment is the sum of them: its flows are not entered
+            continue
         fl = sheets["flows"]
         for k, v in s.intake.items():
             fl.append([s.name, "intake", k, v])
@@ -259,6 +261,9 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
             kind = "other"
         s = Subsystem(name, kind, t_intake_c=num(row[2] if len(row) > 2 else None, f"{name}"),
                       t_wastewater_c=num(row[3] if len(row) > 3 else None, f"{name}"))
+        par = _text(row[4] if len(row) > 4 else None)
+        if par:
+            s.parent = par
         subs[name] = s
         plant.subsystems.append(s)
 
@@ -311,6 +316,9 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
         if sname in subs and key and v is not None:
             subs[sname].params[key] = v
 
+    for note in plant.normalize_tree():
+        warnings.append(note)
+    plant.rollup()
     if not plant.subsystems:
         warnings.append(t("imp_warn_empty"))
     return plant, warnings

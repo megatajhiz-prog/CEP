@@ -81,6 +81,13 @@ def _prepare_unit(plant: Plant, unit: Subsystem, holder: str) -> Optional[Subsys
     return h
 
 
+def tidy(plant: Plant) -> None:
+    """Keep the stored list in tree order (each unit followed by its equipment); the editors index into it."""
+    ordered = plant.ordered()
+    if len(ordered) == len(plant.subsystems):
+        plant.subsystems = ordered
+
+
 def add_equipment(plant: Plant, unit: str, name: str, kind: str = "other", holder: str = "") -> Subsystem:
     """Add equipment ``name`` to ``unit``. If the unit already carries data, that moves to a holder equipment first."""
     u = plant.node(unit)
@@ -95,6 +102,7 @@ def add_equipment(plant: Plant, unit: str, name: str, kind: str = "other", holde
     eq = Subsystem(name, kind, parent=unit)
     plant.subsystems.append(eq)
     plant.rollup()
+    tidy(plant)
     return eq
 
 
@@ -140,6 +148,7 @@ def remove_node(plant: Plant, name: str) -> None:
             _clear_flows(u, plant)
     plant.rollup()
     plant.sync_production()
+    tidy(plant)
 
 
 def move_equipment(plant: Plant, name: str, unit: str, holder: str = "") -> None:
@@ -159,3 +168,4 @@ def move_equipment(plant: Plant, name: str, unit: str, holder: str = "") -> None
     if ou is not None and not plant.has_children(old):
         _clear_flows(ou, plant)
     plant.rollup()
+    tidy(plant)

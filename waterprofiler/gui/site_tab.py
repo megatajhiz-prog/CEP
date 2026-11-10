@@ -173,11 +173,12 @@ class SiteTab(_Scroll):
 
     def _load_assign(self, plant: Plant) -> None:
         names = [""] + self._area_names()
-        self.assign_rows = [s.name for s in plant.subsystems]
+        units = plant.units()                      # areas are assigned to units; their equipment belong with them
+        self.assign_rows = [s.name for s in units]
         self.assign.clearContents()
-        self.assign.setRowCount(len(plant.subsystems))
-        total = sum(s.total_intake for s in plant.subsystems)
-        for r, s in enumerate(plant.subsystems):
+        self.assign.setRowCount(len(units))
+        total = sum(s.total_intake for s in plant.leaves())
+        for r, s in enumerate(units):
             put(self.assign, r, 0, s.name, bold=True)
             cb = QComboBox()
             items = list(names)
