@@ -43,6 +43,8 @@ def _rename_refs(plant: Plant, old: str, new: str, series: bool = True) -> None:
             it.target = new
     if old in plant.profile.sub_production:
         plant.profile.sub_production[new] = plant.profile.sub_production.pop(old)
+    if old in plant.allocation:
+        plant.allocation[new] = plant.allocation.pop(old)
     pre = f"sub:{old}:"
     for m in plant.site.meters:
         if m.tag.startswith(pre):
@@ -74,6 +76,8 @@ def _prepare_unit(plant: Plant, unit: Subsystem, holder: str) -> Optional[Subsys
             x.dst = holder
     if unit.name in plant.profile.sub_production:
         plant.profile.sub_production[holder] = plant.profile.sub_production.pop(unit.name)
+    if unit.name in plant.allocation:
+        plant.allocation[holder] = plant.allocation.pop(unit.name)       # the unit's product shares follow its data
     for m in plant.site.meters:
         if m.tag.startswith(pre):
             m.tag = f"sub:{holder}:" + m.tag[len(pre):]
@@ -127,6 +131,7 @@ def _drop_refs(plant: Plant, name: str) -> None:
     plant.plan = [it for it in plant.plan if it.target != name]
     plant.layout.pop(f"subsystem:{name}", None)
     plant.profile.sub_production.pop(name, None)
+    plant.allocation.pop(name, None)
     for k in [k for k in plant.series if k.startswith(f"sub:{name}:")]:
         plant.series.pop(k)
     plant.site.meters = [m for m in plant.site.meters if not m.tag.startswith(f"sub:{name}:")]

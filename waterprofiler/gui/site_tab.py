@@ -5,17 +5,19 @@ from __future__ import annotations
 from typing import List, Optional
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QWidget
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QWidget
 
 from .. import complex as CX
 from .. import timeseries as TS
+from ..allocation import allocate, node_shares
+from ..cost import plant_cost
 from ..indicator_text import STRUCT_GROUPS
 from ..i18n import Translator
 from ..model import Area, Meter, Plant, Product, Site
 from .profile_inputs import ProfileInputs
-from .tabs import _Scroll, make_table, put
+from .tabs import BAD_BG, _Scroll, make_table, put
 from .trend import TrendPeek, with_data
-from .widgets import DataTable, card, dspin, table_box
+from .widgets import DataTable, button, card, dspin, table_box
 
 AREA_KINDS = ("production", "utility", "services", "landscape", "other")
 METER_KINDS = ("flow", "energy", "quality", "level", "other")
@@ -87,19 +89,37 @@ class SiteTab(_Scroll):
         # ---- areas, products
         self.areas = DataTable([t("col_name"), t("site_kind"), t("site_note")], ["text", "combo", "text"],
                                {1: self.area_kinds.labels})
-        self.products = DataTable([t("col_name"), t("site_prod_year"), t("site_note")], ["text", "num", "text"])
+        self.products = DataTable([t("col_name"), t("site_prod_year"), t("production_unit"), t("site_note")],
+                                   ["text", "num", "text", "text"])
         self.areas.setMinimumHeight(170)
         self.products.setMinimumHeight(170)
         row = QHBoxLayout()
         row.setSpacing(16)
         row.addWidget(table_box(t("site_areas"), self.areas, t("add"), t("remove"),
                                 lambda: ["", self.area_kinds.labels[0], ""]))
-        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", 0.0, ""]))
+        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", 0.0, "", ""]))
         self.lay.addLayout(row)
         self.prod_total = QLabel("")
         self.prod_total.setObjectName("cardnote")
         self.peek_prod = TrendPeek(t, lambda p: with_data(p, ["total:production"] + [f"production:{x.name}" for x in p.site.products]))
         self.lay.addWidget(card(t("site_prod_total"), self.prod_total, self.peek_prod, note=t("production_sum_tip")))
+
+        # ---- water allocation to products
+        self.alloc_nodes: List[str] = []
+        self.alloc_products: List[str] = []
+        self.alloc_matrix = make_table([t("subsystem")])
+        self.alloc_matrix.setMinimumHeight(220)
+        self.alloc_spread = QCheckBox(t("alloc_spread"))
+        self.alloc_spread.toggled.connect(self._edited)
+        self.alloc_btn = button(t("alloc_update"), "", self._alloc_update)
+        self.alloc_info = QLabel("")
+        self.alloc_info.setObjectName("cardnote")
+        self.alloc_info.setWordWrap(True)
+        self.alloc_result = make_table([t("col_name"), t("production_unit"), t("site_prod_year"), t("alloc_direct"),
+                                        t("alloc_total_intake"), t("alloc_per_unit"), t("alloc_cost"), t("alloc_cost_unit")])
+        self.alloc_result.setMinimumHeight(170)
+        self.lay.addWidget(card(t("alloc_title"), self.alloc_matrix, self.alloc_spread, self.alloc_btn, self.alloc_result,
+                                self.alloc_info, note=t("alloc_note")))
 
         # ---- subsystems -> areas
         self.assign = make_table([t("subsystem"), t("site_area"), t("site_intake"), t("site_share")])
@@ -151,7 +171,7 @@ class SiteTab(_Scroll):
         self.f_cal.setCurrentIndex(max(0, self.f_cal.findData(s.calendar)))
         self.struct.load(plant)
         self.areas.set_rows([[a.name, self.area_kinds.label(a.kind), a.note] for a in s.areas])
-        self.products.set_rows([[p.name, p.per_year, p.note] for p in s.products])
+        self.products.set_rows([[p.name, p.per_year, p.unit, p.note] for p in s.products])
         self._show_total(plant)
         self.peek_prod.set_plant(plant)
         drv = TS.driven(plant)
@@ -159,6 +179,7 @@ class SiteTab(_Scroll):
                                  self.t("ft_driven"), (1,))
         self._load_meters(plant)
         self._load_assign(plant)
+        self._load_alloc(plant)
         self._loading = False
         self._update_summary()
 
@@ -193,7 +214,10 @@ class SiteTab(_Scroll):
 
     def _show_total(self, plant: Plant) -> None:
         plant.sync_production()
-        self.prod_total.setText(f"{plant.production_per_year:,.2f}  {plant.production_unit}")
+        if plant.production_units_mixed():
+            self.prod_total.setText(self.t("prod_mixed"))
+        else:
+            self.prod_total.setText(f"{plant.production_per_year:,.2f}  {plant.production_unit}")
 
     def store(self, plant: Plant) -> None:
         """Write the page into the plant. Does nothing until the page has been loaded for this plant."""
@@ -215,15 +239,16 @@ class SiteTab(_Scroll):
                 s.areas.append(Area(n, self.area_kinds.id(k), note))
         seen = set()
         s.products = []
-        for n, per_year, note in self.products.rows():
+        for n, per_year, unit, note in self.products.rows():
             if n and n not in seen:
                 seen.add(n)
-                s.products.append(Product(n, plant.production_unit, note, float(per_year or 0.0)))   # products share the plant's unit
+                s.products.append(Product(n, (unit or "").strip() or plant.production_unit, note, float(per_year or 0.0)))
         self._show_total(plant)                 # total production = sum of the products
         s.meters = []
         for n, tag, k, u, acc, ins, cal_, note in self.meters.rows():
             if n:
                 s.meters.append(Meter(n, tag, self.meter_kinds.id(k), u, float(acc or 0.0), ins, cal_, note))
+        self._store_alloc(plant)
         by_name = {x.name: x for x in plant.subsystems}
         for r, name in enumerate(self.assign_rows):
             cb = self.assign.cellWidget(r, 1)
@@ -246,13 +271,117 @@ class SiteTab(_Scroll):
         self.plant = plant
         self._load_meters(plant)
         self._load_assign(plant)
+        self._load_alloc(plant)
         self._loading = False
         self._update_summary()
+
+    # ------------------------------------------------------------------ water allocation to products
+    def _load_alloc(self, plant: Plant) -> None:
+        """Matrix: one row per node that carries data (equipment, or a unit without equipment), one column per product."""
+        prods = [p.name for p in plant.site.products]
+        nodes = plant.leaves()
+        self.alloc_nodes, self.alloc_products = [s.name for s in nodes], prods
+        tb = self.alloc_matrix
+        tb.clear()
+        tb.setColumnCount(len(prods) + 2)
+        tb.setHorizontalHeaderLabels([self.t("subsystem")] + prods + [self.t("alloc_rest")])
+        tb.setRowCount(len(nodes))
+        for r, s in enumerate(nodes):
+            put(tb, r, 0, s.name, bold=True)
+            sh = node_shares(plant, s.name, prods)
+            for c, p in enumerate(prods, 1):
+                sp = QDoubleSpinBox()
+                sp.setRange(0.0, 100.0)
+                sp.setDecimals(1)
+                sp.setSuffix(" %")
+                sp.setValue(100.0 * sh.get(p, 0.0))
+                sp.valueChanged.connect(self._alloc_edited)
+                tb.setCellWidget(r, c, sp)
+            put(tb, r, len(prods) + 1, "", True)
+        self.alloc_spread.blockSignals(True)
+        self.alloc_spread.setChecked(plant.alloc_spread)
+        self.alloc_spread.blockSignals(False)
+        self._update_alloc_rest()
+        self._update_alloc_result()
+
+    def _alloc_values(self, r: int) -> dict:
+        out = {}
+        for c, p in enumerate(self.alloc_products, 1):
+            sp = self.alloc_matrix.cellWidget(r, c)
+            if sp is not None and sp.value() > 0:
+                out[p] = sp.value()
+        return out
+
+    def _store_alloc(self, plant: Plant) -> None:
+        if len(self.alloc_nodes) != self.alloc_matrix.rowCount():
+            return
+        plant.alloc_spread = self.alloc_spread.isChecked()
+        live = {s.name for s in plant.leaves()}
+        for r, name in enumerate(self.alloc_nodes):
+            if name not in live:                          # renamed or removed since the matrix was built
+                continue
+            vals = self._alloc_values(r)
+            if vals:
+                plant.allocation[name] = vals
+            else:
+                plant.allocation.pop(name, None)
+
+    def _update_alloc_rest(self) -> None:
+        n = len(self.alloc_products)
+        for r in range(self.alloc_matrix.rowCount()):
+            used = sum(self._alloc_values(r).values())
+            put(self.alloc_matrix, r, n + 1, f"{100.0 - used:.1f} %", True, BAD_BG if used > 100.0 + 1e-9 else None)
+
+    def _alloc_edited(self, *_a) -> None:
+        if self._loading:
+            return
+        self._update_alloc_rest()
+        self._edited()
+
+    def _alloc_update(self) -> None:
+        """Rebuild the matrix after products or nodes were added, renamed or removed on this page."""
+        if self.plant is None:
+            return
+        self.store(self.plant)
+        self._loading = True
+        self._load_alloc(self.plant)
+        self._loading = False
+
+    def _update_alloc_result(self) -> None:
+        plant, t = self.plant, self.t
+        tb = self.alloc_result
+        tb.clearContents()
+        if plant is None or not plant.site.products:
+            tb.setRowCount(0)
+            self.alloc_info.setText(t("alloc_no_products"))
+            return
+        try:
+            a = allocate(plant, plant_cost(plant))
+        except Exception:                                  # incomplete data: the matrix stays usable
+            tb.setRowCount(0)
+            return
+        tb.setRowCount(len(a.products))
+        for r, x in enumerate(a.products):
+            put(tb, r, 0, x.name, bold=True)
+            put(tb, r, 1, x.unit)
+            put(tb, r, 2, f"{x.per_year:,.0f}", True)
+            put(tb, r, 3, f"{x.direct['intake']:,.0f}", True)
+            put(tb, r, 4, f"{x.total('intake'):,.0f}", True)
+            put(tb, r, 5, "—" if x.intake_per_unit is None else f"{x.intake_per_unit:,.3f}", True)
+            put(tb, r, 6, f"{x.total('cost'):,.0f}", True)
+            put(tb, r, 7, "—" if x.cost_per_unit is None else f"{x.cost_per_unit:,.3f}", True)
+        txt = t("alloc_cover", pct=f"{a.coverage_pct:.0f}")
+        if a.unallocated["intake"] > 0:
+            txt += "  " + t("alloc_unalloc", v=f"{a.unallocated['intake']:,.0f}")
+        if a.nodes_without_share:
+            txt += "  " + t("alloc_missing", names=", ".join(a.nodes_without_share))
+        self.alloc_info.setText(txt)
 
     def _update_summary(self) -> None:
         plant = self.plant
         if plant is None:
             return
+        self._update_alloc_result()
         rows = CX.area_rows(plant)
         self.summary.clearContents()
         self.summary.setRowCount(len(rows))

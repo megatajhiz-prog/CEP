@@ -245,6 +245,9 @@ class Plant:
     site: Site = field(default_factory=Site)
     series: Dict[str, List[Point]] = field(default_factory=dict)    # time series by variable key
     window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
+    # share (percent, 0-100) of the water of a node (equipment, or a unit without equipment) that goes to each product
+    allocation: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    alloc_spread: bool = True          # spread the water of nodes that serve all products (utilities) over the products
 
     # ------------------------------------------------------------------ three levels: site -> unit -> equipment
     def node(self, name: str) -> Optional[Subsystem]:
@@ -348,10 +351,21 @@ class Plant:
         """The plant's annual production is the sum of its products' annual production (never entered on its own).
 
         A plant without products (or with all amounts at 0) keeps the older stored total until products are filled in."""
+        if self.production_units_mixed():          # tonnes + pieces + m3 cannot be added: no plant-wide total exists
+            self.production_per_year = 0.0
+            return 0.0
         total = sum(p.per_year or 0.0 for p in self.site.products)
         if total > 0:
             self.production_per_year = total
+            units = {(p.unit or self.production_unit) for p in self.site.products if p.per_year}
+            if len(units) == 1:
+                self.production_unit = units.pop()
         return self.production_per_year
+
+    def production_units_mixed(self) -> bool:
+        """True when the products that have an amount are measured in different units."""
+        units = {(p.unit or self.production_unit).strip().lower() for p in self.site.products if p.per_year}
+        return len(units) > 1
 
     def ensure_products(self, name: str = "محصول") -> None:
         """Give a plant that only has a total a single product carrying it (and its production series)."""
@@ -407,6 +421,8 @@ class Plant:
             site=_site_from(d.get("site", {})),
             series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
+            allocation={str(n): {str(p): float(v) for p, v in (m or {}).items()} for n, m in (d.get("allocation") or {}).items()},
+            alloc_spread=bool(d.get("alloc_spread", True)),
         )
         for k in RETIRED_SERIES:
             plant.series.pop(k, None)

@@ -629,3 +629,25 @@ def test_storage_change_and_uncertainty_in_the_window(app, tmp_path):
     w.export_xlsx_to(str(tmp_path / "r.xlsx"))
     w.export_pdf_to(str(tmp_path / "r.pdf"))
     w.close()
+
+
+def test_product_water_allocation_in_the_window(app, tmp_path):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    st = w.site_tab
+    n = len(w.plant.leaves())
+    assert st.alloc_matrix.rowCount() == n and st.alloc_matrix.columnCount() == len(w.plant.site.products) + 2
+    assert st.alloc_result.rowCount() == len(w.plant.site.products)
+    sp = st.alloc_matrix.cellWidget(0, 1)                 # first node, first product
+    sp.setValue(25.0)
+    app.processEvents()
+    assert w.plant.allocation[w.plant.leaves()[0].name]["Product A"] == pytest.approx(25.0)
+    # the products table has a unit column; different units: no plant-wide total
+    st.products.set_rows([["Steel", 100.0, "t", ""], ["Pipes", 5000.0, "piece", ""]])
+    st._edited()
+    assert w.plant.production_units_mixed() and w.plant.production_per_year == 0.0
+    st._alloc_update()
+    assert st.alloc_matrix.columnCount() == 4
+    w.export_xlsx_to(str(tmp_path / "a.xlsx"))
