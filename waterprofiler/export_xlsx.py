@@ -7,6 +7,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .analysis import Analysis
+from . import allocation as AL
 from .cost import COMPONENTS
 from . import complex as CX
 from .i18n import Translator
@@ -148,6 +149,23 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
     c = ws.cell(row=n, column=len(COMPONENTS) + 2, value=f"=SUM({col}2:{col}{n - 1})")
     c.number_format, c.font = "#,##0.00", Font(bold=True)
     _autowidth(ws)
+
+    # --- Water by product
+    if a.plant.site.products:
+        res = AL.allocate(a.plant, a.cost)
+        ws = wb.create_sheet(t("tab_product")[:31])
+        ws.sheet_view.rightToLeft = rtl
+        _header(ws, 1, [t("pw_product"), t("site_munit"), t("pw_production"), t("sum_intake"), t("series_consumptive"),
+                        t("sum_discharge"), t("pw_share"), t("pw_cost"), t("pw_m3_unit"), t("pw_cost_unit")])
+        rows = res.products + [res.general]
+        for i, x in enumerate(rows, 2):
+            vals = [x.name or t("pw_general"), x.unit, x.production if x.name else None, x.intake, x.consumption,
+                    x.discharge, x.intake_share_pct / 100.0, x.cost, x.per_unit_intake, x.per_unit_cost]
+            for j, v in enumerate(vals, 1):
+                c = ws.cell(row=i, column=j, value=v)
+                if isinstance(v, float):
+                    c.number_format = "0.0%" if j == 7 else "#,##0.00"
+        _autowidth(ws)
 
     # --- Flows by subsystem
     ws = wb.create_sheet(t("tab_subsystems")[:31])

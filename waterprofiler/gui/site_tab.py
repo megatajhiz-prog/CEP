@@ -87,14 +87,14 @@ class SiteTab(_Scroll):
         # ---- areas, products
         self.areas = DataTable([t("col_name"), t("site_kind"), t("site_note")], ["text", "combo", "text"],
                                {1: self.area_kinds.labels})
-        self.products = DataTable([t("col_name"), t("site_prod_year"), t("site_note")], ["text", "num", "text"])
+        self.products = DataTable([t("col_name"), t("site_prod_year"), t("site_munit"), t("site_note")], ["text", "num", "text", "text"])
         self.areas.setMinimumHeight(170)
         self.products.setMinimumHeight(170)
         row = QHBoxLayout()
         row.setSpacing(16)
         row.addWidget(table_box(t("site_areas"), self.areas, t("add"), t("remove"),
                                 lambda: ["", self.area_kinds.labels[0], ""]))
-        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", 0.0, ""]))
+        row.addWidget(table_box(t("site_products"), self.products, t("add"), t("remove"), lambda: ["", 0.0, "", ""]))
         self.lay.addLayout(row)
         self.prod_total = QLabel("")
         self.prod_total.setObjectName("cardnote")
@@ -151,7 +151,7 @@ class SiteTab(_Scroll):
         self.f_cal.setCurrentIndex(max(0, self.f_cal.findData(s.calendar)))
         self.struct.load(plant)
         self.areas.set_rows([[a.name, self.area_kinds.label(a.kind), a.note] for a in s.areas])
-        self.products.set_rows([[p.name, p.per_year, p.note] for p in s.products])
+        self.products.set_rows([[p.name, p.per_year, p.unit or plant.production_unit, p.note] for p in s.products])
         self._show_total(plant)
         self.peek_prod.set_plant(plant)
         drv = TS.driven(plant)
@@ -193,7 +193,8 @@ class SiteTab(_Scroll):
 
     def _show_total(self, plant: Plant) -> None:
         plant.sync_production()
-        self.prod_total.setText(f"{plant.production_per_year:,.2f}  {plant.production_unit}")
+        mixed = len({p.unit or plant.production_unit for p in plant.site.products}) > 1
+        self.prod_total.setText(f"{plant.production_per_year:,.2f}  {plant.production_unit}" + (("  ⚠ " + self.t("site_prod_mixed")) if mixed else ""))
 
     def store(self, plant: Plant) -> None:
         """Write the page into the plant. Does nothing until the page has been loaded for this plant."""
@@ -215,10 +216,10 @@ class SiteTab(_Scroll):
                 s.areas.append(Area(n, self.area_kinds.id(k), note))
         seen = set()
         s.products = []
-        for n, per_year, note in self.products.rows():
+        for n, per_year, unit, note in self.products.rows():
             if n and n not in seen:
                 seen.add(n)
-                s.products.append(Product(n, plant.production_unit, note, float(per_year or 0.0)))   # products share the plant's unit
+                s.products.append(Product(n, (unit or "").strip() or plant.production_unit, note, float(per_year or 0.0)))
         self._show_total(plant)                 # total production = sum of the products
         s.meters = []
         for n, tag, k, u, acc, ins, cal_, note in self.meters.rows():

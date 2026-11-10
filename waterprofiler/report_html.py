@@ -7,6 +7,7 @@ from typing import Optional
 
 from . import __version__, branding
 from . import measures as _ms
+from . import allocation as AL
 from .analysis import Analysis
 from .cost import COMPONENTS
 from . import complex as CX
@@ -126,6 +127,19 @@ td.n {{ text-align:right; direction:ltr; }}
     parts.append("<tr><td><b>" + escape(t("total")) + "</b></td>"
                  + "".join(f"<td class='n'><b>{_n(c.by_component[x])}</b></td>" for x in COMPONENTS)
                  + f"<td class='n'><b>{_n(c.total)}</b></td><td></td><td></td><td></td></tr></table>")
+    if a.plant.site.products:
+        pw = AL.allocate(a.plant, c)
+        parts.append(f"<h2>{escape(t('tab_product'))}</h2><table><tr><th>{escape(t('pw_product'))}</th>"
+                     f"<th>{escape(t('site_munit'))}</th><th>{escape(t('pw_production'))}</th><th>{escape(t('sum_intake'))}</th>"
+                     f"<th>{escape(t('pw_share'))}</th><th>{escape(t('pw_cost'))}</th><th>{escape(t('pw_m3_unit'))}</th>"
+                     f"<th>{escape(t('pw_cost_unit'))}</th></tr>")
+        for x in pw.products + [pw.general]:
+            parts.append(f"<tr><td>{escape(x.name or t('pw_general'))}</td><td>{escape(x.unit)}</td>"
+                         f"<td class='n'>{_n(x.production) if x.name else ''}</td><td class='n'>{_n(x.intake)}</td>"
+                         f"<td class='n'>{x.intake_share_pct:.1f}%</td><td class='n'>{_n(x.cost)}</td>"
+                         f"<td class='n'>{_n(x.per_unit_intake, 3) if x.per_unit_intake is not None else ''}</td>"
+                         f"<td class='n'>{_n(x.per_unit_cost) if x.per_unit_cost is not None else ''}</td></tr>")
+        parts.append("</table>")
     if a.plant.plan:
         res = _ms.evaluate_plan(a.plant)
         parts.append(f"<h2>{escape(t('sheet_plan'))}</h2><table><tr>"

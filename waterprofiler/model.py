@@ -245,6 +245,8 @@ class Plant:
     site: Site = field(default_factory=Site)
     series: Dict[str, List[Point]] = field(default_factory=dict)    # time series by variable key
     window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
+    # share of a node's water that serves a product: node -> {product -> fraction 0..1}; the rest is general (utilities)
+    allocation: Dict[str, Dict[str, float]] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ three levels: site -> unit -> equipment
     def node(self, name: str) -> Optional[Subsystem]:
@@ -407,6 +409,7 @@ class Plant:
             site=_site_from(d.get("site", {})),
             series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
+            allocation={str(n): {str(p): float(f) for p, f in (m or {}).items()} for n, m in d.get("allocation", {}).items()},
         )
         for k in RETIRED_SERIES:
             plant.series.pop(k, None)
