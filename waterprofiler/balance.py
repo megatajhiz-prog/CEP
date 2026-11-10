@@ -52,6 +52,7 @@ class PlantBalance:
     intake_by_source: Dict[str, float] = field(default_factory=dict)
     discharge_by_outlet: Dict[str, float] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
+    nodes: Dict[str, "SubsystemBalance"] = field(default_factory=dict)   # every unit and every equipment, by name
 
     @property
     def closure_pct(self) -> Optional[float]:
@@ -79,18 +80,21 @@ def subsystem_balance(s: Subsystem, tol: float = 0.02) -> SubsystemBalance:
 
 
 def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
-    subs = [subsystem_balance(s, tol) for s in plant.subsystems]
+    plant.rollup()
+    leaves = plant.leaves()                 # plant totals are sums over the nodes that carry data
+    subs = [subsystem_balance(s, tol) for s in plant.units()]            # a partition: units (with their equipment summed)
+    nodes = {s.name: subsystem_balance(s, tol) for s in plant.subsystems}
 
-    sum_i = sum(s.total_intake for s in plant.subsystems)
-    sum_w = sum(s.total_discharge for s in plant.subsystems)
-    sum_e = sum(s.evaporation for s in plant.subsystems)
-    sum_p = sum(s.product for s in plant.subsystems)
+    sum_i = sum(s.total_intake for s in leaves)
+    sum_w = sum(s.total_discharge for s in leaves)
+    sum_e = sum(s.evaporation for s in leaves)
+    sum_p = sum(s.product for s in leaves)
     l = sum_i - (sum_p + sum_e + sum_w)
 
     by_src: Dict[str, float] = {src.name: 0.0 for src in plant.sources}
     by_out: Dict[str, float] = {o.name: 0.0 for o in plant.outlets}
     warnings: List[str] = []
-    for s in plant.subsystems:
+    for s in leaves:
         for k, v in s.intake.items():
             if k not in by_src:
                 warnings.append(f"{s.name}: intake from unknown source '{k}'")
@@ -101,7 +105,7 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
             by_out[k] = by_out.get(k, 0.0) + v
 
     # Internal transfers must cancel across the plant.
-    transfer_gap = sum(s.to_other for s in plant.subsystems) - sum(s.from_other for s in plant.subsystems)
+    transfer_gap = sum(s.to_other for s in leaves) - sum(s.from_other for s in leaves)
     if abs(transfer_gap) > 1e-6 * max(1.0, sum_i):
         warnings.append(
             f"Inter-subsystem transfers do not cancel (sent minus received = {transfer_gap:.1f} m3); "
@@ -122,5 +126,5 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
         sum_product=sum_p, unknown_loss=l, metered_intake=m_in, metered_discharge=m_out,
         source_side_imbalance=src_imb, discharge_side_imbalance=out_imb,
         plant_imbalance=plant_imb, intake_by_source=by_src, discharge_by_outlet=by_out,
-        warnings=warnings,
+        warnings=warnings, nodes=nodes,
     )

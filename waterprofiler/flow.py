@@ -60,8 +60,11 @@ def build_flow(a: Analysis, labels: Dict[str, str]) -> FlowGraph:
     """``labels``: translated names for the fixed nodes: evap, product, loss, pool."""
     plant = a.plant
     g = FlowGraph()
+    plant.rollup()
+    units = plant.units()                    # the diagram shows the units; their equipment are summed into them
     status = {b.name: b for b in a.balance.subsystems}
-    names = {s.name for s in plant.subsystems}
+    names = {s.name for s in units}
+    root = {s.name: plant.root_of(s.name) for s in plant.subsystems}
 
     def add(kind: str, name: str, col: int, st: str = "") -> str:
         nid = f"{kind}:{name}"
@@ -75,10 +78,10 @@ def build_flow(a: Analysis, labels: Dict[str, str]) -> FlowGraph:
         if vol > 1e-9:
             g.edges.append(FlowEdge(src, dst, vol, kind, sub, ref))
 
-    for s in plant.subsystems:
+    for s in units:
         b = status.get(s.name)
         add("subsystem", s.name, 1, b.status if b else "")
-    for sub in plant.subsystems:
+    for sub in units:
         sid = f"subsystem:{sub.name}"
         for src, v in sub.intake.items():
             edge(add("source", src, 0), sid, v, "intake", sub.name, src)
@@ -95,19 +98,24 @@ def build_flow(a: Analysis, labels: Dict[str, str]) -> FlowGraph:
     # transfers between subsystems
     linked: Dict[str, float] = {}
     for lk in plant.links:
-        if lk.src in names and lk.dst in names and lk.src != lk.dst and lk.volume > 0:
-            linked[lk.src] = linked.get(lk.src, 0.0) + lk.volume
-        elif lk.volume > 0:
+        rs, rd = root.get(lk.src), root.get(lk.dst)
+        if rs in names and rd in names and rs != rd and lk.volume > 0:
+            linked[rs] = linked.get(rs, 0.0) + lk.volume
+        elif lk.volume > 0 and not (rs is not None and rs == rd):      # a transfer inside one unit is internal
             g.warnings.append(f"{lk.src} -> {lk.dst}")
-    for sub in plant.subsystems:
+    for sub in units:
         total = sub.to_other
         done = linked.get(sub.name, 0.0)
         if total <= 0:
             continue
         scale = min(1.0, total / done) if done > 0 else 0.0
+        per_dst: Dict[str, float] = {}
         for lk in plant.links:
-            if lk.src == sub.name and lk.dst in names and lk.dst != lk.src and lk.volume > 0:
-                edge(f"subsystem:{sub.name}", f"subsystem:{lk.dst}", lk.volume * scale, "transfer", sub.name, lk.dst)
+            rs, rd = root.get(lk.src), root.get(lk.dst)
+            if rs == sub.name and rd in names and rd != rs and lk.volume > 0:
+                per_dst[rd] = per_dst.get(rd, 0.0) + lk.volume
+        for rd, vol in per_dst.items():
+            edge(f"subsystem:{sub.name}", f"subsystem:{rd}", vol * scale, "transfer", sub.name, rd)
         rest = total - done * scale
         if rest > 1e-6:
             edge(f"subsystem:{sub.name}", add("pool", labels["pool"], 2), rest, "transfer", sub.name)
@@ -152,6 +160,8 @@ def set_flow(plant: Plant, kind: str, sub: str, ref: str, volume: float) -> None
     if volume < 0 or volume != volume:
         raise ValueError("volume must be >= 0")
     s = _sub(plant, sub)
+    if plant.has_children(sub) or (kind == "transfer" and ref and plant.has_children(ref)):
+        raise ValueError("derived: this unit takes its flows from its equipment; edit the equipment")
     if kind == "intake":
         plant.source(ref)
         s.intake.pop(ref, None)

@@ -83,6 +83,9 @@ class Subsystem:
     t_wastewater_c: Optional[float] = None
     # --- optional estimation parameters (kept so the UI can re-derive flows)
     params: Dict[str, float] = field(default_factory=dict)
+    # --- three-level structure: site -> unit -> equipment. "" = a unit (top level); otherwise the name of the unit the
+    # equipment belongs to. A unit that has equipment takes its flows from them (see Plant.rollup); equipment carry the data.
+    parent: str = ""
 
     @property
     def total_intake(self) -> float:
@@ -241,6 +244,103 @@ class Plant:
     series: Dict[str, List[Point]] = field(default_factory=dict)    # time series by variable key
     window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
 
+    # ------------------------------------------------------------------ three levels: site -> unit -> equipment
+    def node(self, name: str) -> Optional[Subsystem]:
+        for s in self.subsystems:
+            if s.name == name:
+                return s
+        return None
+
+    def children(self, name: str) -> List[Subsystem]:
+        return [s for s in self.subsystems if s.parent == name and s.name != name]
+
+    def has_children(self, name: str) -> bool:
+        return any(s.parent == name and s.name != name for s in self.subsystems)
+
+    def units(self) -> List[Subsystem]:
+        """Top-level nodes: a partition of the plant. A unit with equipment carries the sum of its equipment."""
+        self.rollup()
+        names = {s.name for s in self.subsystems}
+        return [s for s in self.subsystems if not s.parent or s.parent not in names or s.parent == s.name]
+
+    def leaves(self) -> List[Subsystem]:
+        """The nodes that carry data: equipment, and units without equipment. Plant totals are sums over these."""
+        parents = {s.parent for s in self.subsystems if s.parent}
+        return [s for s in self.subsystems if s.name not in parents]
+
+    def leaves_of(self, name: str) -> List[Subsystem]:
+        ch = self.children(name)
+        if ch:
+            return ch
+        s = self.node(name)
+        return [s] if s else []
+
+    def ordered(self) -> List[Subsystem]:
+        """All nodes in tree order: each unit followed by its equipment."""
+        out: List[Subsystem] = []
+        for u in self.units():
+            out.append(u)
+            out.extend(self.children(u.name))
+        return out
+
+    def root_of(self, name: str) -> str:
+        s = self.node(name)
+        if s is not None and s.parent and self.node(s.parent) is not None and s.parent != s.name:
+            return s.parent
+        return name
+
+    def normalize_tree(self) -> List[str]:
+        """Repair a stored tree (dangling parent, parent that is itself equipment, self reference). Returns the notes."""
+        notes: List[str] = []
+        by = {s.name: s for s in self.subsystems}
+        for s in self.subsystems:
+            if not s.parent:
+                continue
+            par = by.get(s.parent)
+            if par is None or s.parent == s.name or par.parent:
+                notes.append(f"{s.name}: parent '{s.parent}' is not a unit; made a unit")
+                s.parent = ""
+        return notes
+
+    def rollup(self) -> None:
+        """Write the derived flows of every unit that has equipment (idempotent).
+
+        intake / discharge by source and outlet, product, evaporation: sums of its equipment. Transfers between two of its
+        own equipment are internal: they count as the unit's internal recirculation and are not R'out / R'in of the unit.
+        The unit's production is the sum of its equipment's.
+        """
+        kids: Dict[str, List[Subsystem]] = {}
+        names = {s.name for s in self.subsystems}
+        for s in self.subsystems:
+            if s.parent and s.parent in names and s.parent != s.name:
+                kids.setdefault(s.parent, []).append(s)
+        if not kids:
+            return
+        for u in self.subsystems:
+            ch = kids.get(u.name)
+            if not ch or (u.parent and u.parent in names):
+                continue
+            cn = {c.name for c in ch}
+            internal = sum(x.volume for x in self.links if x.src in cn and x.dst in cn and x.src != x.dst)
+            u.intake, u.discharge = {}, {}
+            for c in ch:
+                for k, v in c.intake.items():
+                    if v:
+                        u.intake[k] = u.intake.get(k, 0.0) + v
+                for k, v in c.discharge.items():
+                    if v:
+                        u.discharge[k] = u.discharge.get(k, 0.0) + v
+            u.product = sum(c.product for c in ch)
+            u.evaporation = sum(c.evaporation for c in ch)
+            u.recirculated = sum(c.recirculated for c in ch) + internal
+            u.to_other = max(0.0, sum(c.to_other for c in ch) - internal)
+            u.from_other = max(0.0, sum(c.from_other for c in ch) - internal)
+            q = sum(self.profile.sub_production.get(c.name, 0.0) for c in ch)
+            if q > 0:
+                self.profile.sub_production[u.name] = q
+            else:
+                self.profile.sub_production.pop(u.name, None)
+
     def sync_production(self) -> float:
         """The plant's annual production is the sum of its products' annual production (never entered on its own).
 
@@ -312,6 +412,11 @@ class Plant:
             plant.profile.working_days = float(plant.site.operating_days)
         plant.site.operating_days = 0
         # the total production is the sum of products: older files with only a total get one product carrying it
+        plant.normalize_tree()
+        for u in {s.parent for s in plant.subsystems if s.parent}:      # a unit with equipment has no series of its own
+            for k in [k for k in plant.series if k.startswith(f"sub:{u}:")]:
+                plant.series.pop(k)
+        plant.rollup()
         plant.ensure_products()
         if len(plant.site.products) == 1 and not plant.site.products[0].per_year:
             plant.site.products[0].per_year = plant.production_per_year
@@ -337,7 +442,8 @@ def _site_from(d: dict) -> Site:
 def sync_transfers(plant: Plant, touched=()) -> None:
     """Set R'_out / R'_in of every subsystem named in ``plant.links`` (or in ``touched``) to the link sums."""
     names = {x.src for x in plant.links} | {x.dst for x in plant.links} | set(touched)
+    parents = {s.parent for s in plant.subsystems if s.parent}
     for s in plant.subsystems:
-        if s.name in names:
+        if s.name in names and s.name not in parents:      # a unit with equipment takes its transfers from them (rollup)
             s.to_other = sum(x.volume for x in plant.links if x.src == s.name)
             s.from_other = sum(x.volume for x in plant.links if x.dst == s.name)

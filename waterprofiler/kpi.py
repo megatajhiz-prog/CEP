@@ -38,7 +38,7 @@ class RankedSubsystem:
 
 def plant_kpi(plant: Plant, bal: PlantBalance, cost: PlantCost) -> PlantKPI:
     intake = bal.sum_intake
-    recirc = sum(s.recirculated + s.from_other for s in plant.subsystems)
+    recirc = sum(s.recirculated + s.from_other for s in plant.leaves())
     gross = intake + recirc
     prod = plant.production_per_year or 0.0
 

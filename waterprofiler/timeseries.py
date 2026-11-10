@@ -59,6 +59,7 @@ class VarSpec:
     en: str
     unit: str
     agg: str                       # "sum" | "mean"
+    derived: bool = False          # a unit that has equipment: the sum of its equipment, not entered
 
     def label(self, lang: str) -> str:
         return self.fa if lang == "fa" else self.en
@@ -74,9 +75,11 @@ def catalog(plant: Plant) -> List[VarSpec]:
     v: List[VarSpec] = []       # the total production is not a variable: it is the sum of the products
     for p in plant.site.products:
         v.append(VarSpec(f"production:{p.name}", "production", f"تولید «{p.name}»", f"Production of {p.name}", "units", "sum"))
-    for s in plant.subsystems:
+    nodes = plant.ordered()
+    parents = {s.name for s in nodes if plant.has_children(s.name)}
+    for s in nodes:
         v.append(VarSpec(f"sub:{s.name}:production", "production", f"تولید واحد «{s.name}»", f"Production of unit {s.name}",
-                         "units", "sum"))
+                         "units", "sum", s.name in parents))
     for s in plant.sources:
         v.append(VarSpec(f"source:{s.name}", "source", f"برداشت از «{s.name}»", f"Intake from {s.name}", "m3", "sum"))
     for o in plant.outlets:
@@ -89,9 +92,10 @@ def catalog(plant: Plant) -> List[VarSpec]:
         v.append(VarSpec(f"price:outlet:{o.name}", "price", f"تعرفهٔ تخلیه به «{o.name}»", f"Discharge tariff of {o.name}", "cur_m3", "mean"))
     v += [VarSpec("price:electricity", "price", "قیمت برق", "Electricity price", "cur_kwh", "mean"),
           VarSpec("price:fuel", "price", "قیمت انرژی حرارتی", "Thermal energy price", "cur_kwh", "mean")]
-    for s in plant.subsystems:
+    for s in nodes:
         for f, fa, en in SUB_FIELDS:
-            v.append(VarSpec(f"sub:{s.name}:{f}", "subsystem", f"{s.name} — {fa}", f"{s.name} — {en}", "m3", "sum"))
+            v.append(VarSpec(f"sub:{s.name}:{f}", "subsystem", f"{s.name} — {fa}", f"{s.name} — {en}", "m3", "sum",
+                             s.name in parents))
     v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
           VarSpec("site:employees", "site", "تعداد پرسنل", "Employees", "count", "mean"),
@@ -171,6 +175,8 @@ def set_value(points: Sequence[Point], s: date, e: date, value: Optional[float],
 
 def put(plant: Plant, key: str, s: date, e: date, value: Optional[float]) -> None:
     sp = spec_of(plant, key)
+    if sp is not None and sp.derived:
+        raise ValueError(f"{key} is the sum of the unit's equipment; enter the data on the equipment")
     agg = sp.agg if sp else "sum"
     pts = set_value(plant.series.get(key, []), s, e, value, agg)
     if pts:
@@ -204,6 +210,8 @@ def window_of(plant: Plant) -> Optional[Tuple[date, date]]:
 def slice_values(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float = 0.5) -> List[Optional[float]]:
     """One value per slice; amounts are scaled to the whole slice when coverage is partial (needs >= min_cov)."""
     sp = spec_of(plant, key)
+    if sp is not None and sp.derived:                 # a unit with equipment: the sum of its equipment
+        return _unit_slices(plant, key, sl, min_cov)
     pts = plant.series.get(key, [])
     if sp is None or not pts:
         return [None] * len(sl)
@@ -215,6 +223,25 @@ def slice_values(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float
         else:
             out.append(v / c if sp.agg == "sum" else v)
     return out
+
+
+def _unit_slices(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float = 0.5) -> List[Optional[float]]:
+    """Series of a unit = sum of its equipment's. A slice is known only when every equipment that has a value has data."""
+    _, name, f = key.split(":", 2)
+    attr = {"intake": "total_intake", "discharge": "total_discharge", "evaporation": "evaporation",
+            "product": "product", "recirc": "recirculated"}.get(f)
+    cols = []
+    for c in plant.children(name):
+        ck = f"sub:{c.name}:{f}"
+        has_value = (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production"
+                     else (getattr(c, attr) > 0 if attr else False))
+        if plant.series.get(ck):
+            cols.append(slice_values(plant, ck, sl, min_cov))
+        elif has_value:
+            return [None] * len(sl)               # an equipment with water but no series: the unit's total is unknown
+    if not cols:
+        return [None] * len(sl)
+    return [None if any(c[i] is None for c in cols) else sum(c[i] for c in cols) for i in range(len(sl))]
 
 
 def _sum_keys(plant: Plant, keys: Sequence[str], sl: Sequence[cal.Slice]) -> List[Optional[float]]:
@@ -234,7 +261,7 @@ def total_intake_slices(plant: Plant, sl: Sequence[cal.Slice]) -> List[Optional[
     src = _sum_keys(plant, [f"source:{s.name}" for s in plant.sources], sl)
     if any(v is not None for v in src):
         return src
-    return _sum_keys(plant, [f"sub:{s.name}:intake" for s in plant.subsystems], sl)
+    return _sum_keys(plant, [f"sub:{s.name}:intake" for s in plant.leaves()], sl)
 
 
 # ------------------------------------------------------------------- applying a period to the annual model
@@ -289,7 +316,7 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
             add(f"outlet:{o.name}", f"outlet:{o.name}:metered", o.metered_m3, g)
         if (g := get(f"price:outlet:{o.name}")):
             add(f"price:outlet:{o.name}", f"outlet:{o.name}:unit_cost", o.unit_cost, g)
-    for sub in plant.subsystems:
+    for sub in plant.leaves():                          # a unit with equipment is derived: only equipment take series
         for f, _fa, _en in SUB_FIELDS:
             g = get(f"sub:{sub.name}:{f}")
             if g is None:
@@ -311,7 +338,7 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
     for key, (attr, _agg) in PROFILE_MAP.items():
         if (g := get(key)):
             add(key, f"profile:{attr}", getattr(plant.profile, attr), g)
-    for sub in plant.subsystems:
+    for sub in plant.leaves():
         if (g := get(f"sub:{sub.name}:production")):
             add(f"sub:{sub.name}:production", "subprod:" + sub.name, plant.profile.sub_production.get(sub.name), g)
     return out
@@ -405,6 +432,7 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
             elif f == "recirc":
                 sub.recirculated = ch.new
         n += 1
+    plant.rollup()
     plant.sync_production()
     return n
 
@@ -531,7 +559,7 @@ def time_indicators(plant: Plant) -> List[Tuple[str, str, Optional[float], str]]
     out("ts_loss_measured", "pct", 100.0 * sum(a for a, _ in lp) / sum(b for _, b in lp) if lp and sum(b for _, b in lp) > 0 else None,
         "series")
     od = _sum_keys(plant, [f"outlet:{o.name}" for o in plant.outlets], sl)
-    ep_year = sum(x.evaporation + x.product for x in plant.subsystems)
+    ep_year = sum(x.evaporation + x.product for x in plant.leaves())
     bal = [(intake[i] - od[i] - ep_year * sl[i].days / 365.0, intake[i]) for i in range(len(sl))
            if intake[i] is not None and od[i] is not None]
     out("ts_loss_balance", "pct", 100.0 * sum(a for a, _ in bal) / sum(b for _, b in bal) if bal and sum(b for _, b in bal) > 0 else None,
@@ -568,7 +596,8 @@ def from_rows(plant: Plant, rows: Sequence[Sequence[str]]) -> Tuple[int, List[st
     for i, r in enumerate(rows, 1):
         try:
             key, a, b, v = str(r[0]).strip(), _d(str(r[1]).strip()), _d(str(r[2]).strip()), float(str(r[3]).replace(",", ""))
-            if b < a or spec_of(plant, key) is None:
+            sp = spec_of(plant, key)
+            if b < a or sp is None or sp.derived:
                 raise ValueError
         except (ValueError, IndexError, TypeError):
             bad.append(f"{i}: {list(r)}")

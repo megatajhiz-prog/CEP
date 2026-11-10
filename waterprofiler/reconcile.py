@@ -61,7 +61,10 @@ def _flows(plant: Plant) -> List[Tuple[Key, float]]:
         if v != 0.0:
             out.append((key, v))
 
+    leaf = {s.name for s in plant.leaves()}
     for i, s in enumerate(plant.subsystems):
+        if s.name not in leaf:               # a unit with equipment is derived from them
+            continue
         for src, v in s.intake.items():
             add((i, f"intake:{src}"), v)
         add((i, "from_other"), s.from_other)
@@ -110,7 +113,10 @@ def reconcile(
     rhs: List[float] = []
 
     # 1) each subsystem closes: inflows - outflows = 0
+    leaf = {s.name for s in plant.leaves()}
     for i, s in enumerate(plant.subsystems):
+        if s.name not in leaf:
+            continue
         a = np.zeros(n)
         for src in s.intake:
             put(a, (i, f"intake:{src}"), 1.0)
@@ -192,6 +198,7 @@ def reconcile(
         if abs(nv - v) > 1e-9 * max(1.0, abs(v)):
             adjustments.append(Adjustment(s.name, key, v, nv))
 
+    new_plant.rollup()
     chi2 = float(np.sum(((x - x0) / sig) ** 2))
     return ReconcileResult(
         plant=new_plant,
