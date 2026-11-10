@@ -2,17 +2,19 @@
 
 Corrected sign convention
 -------------------------
-For subsystem x the unknown (unaccounted) loss is
+For subsystem x the balance residual is
 
-    L_x = I_x + R'_in - R'_out - P_x - E_x - W_x
+    L_x = I_x + R'_in - R'_out - P_x - E_x - W_x - dS_x
 
-i.e. everything entering minus everything leaving. ``R_x`` (recirculation
+i.e. everything entering minus everything leaving minus the change of stored volume. ``R_x`` (recirculation
 inside the subsystem) cancels and does not enter the balance. The report
-prints the signs of this equation inconsistently.
+prints the signs of this equation inconsistently. The residual is *not* assumed to be a leak: it holds
+meter error, unrecorded use and leakage together. ``sigma`` is its measurement uncertainty (see uncertainty.py) and
+``significant`` says whether it is larger than 2 sigma.
 
 For the plant:
 
-    L = sum(I_x) - [sum(P_x) + sum(E_x) + sum(W_x)]
+    L = sum(I_x) - [sum(P_x) + sum(E_x) + sum(W_x) + sum(dS_x)]
 
 Calibration compares sum(I_x) with the metered/billed source intake and
 sum(W_x) with the metered discharge.
@@ -23,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from . import uncertainty as U
 from .model import Plant, Subsystem
 
 
@@ -34,6 +37,9 @@ class SubsystemBalance:
     unknown_loss: float          # L_x  (negative -> outflow exceeds inflow)
     unknown_loss_pct_of_inflow: float
     status: str                  # "balanced" | "unaccounted loss" | "excess outflow"
+    storage_change: float = 0.0  # dS_x
+    sigma: float = 0.0           # standard uncertainty of the residual
+    significant: bool = False    # |residual| > 2 sigma
 
 
 @dataclass
@@ -53,6 +59,10 @@ class PlantBalance:
     discharge_by_outlet: Dict[str, float] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
     nodes: Dict[str, "SubsystemBalance"] = field(default_factory=dict)   # every unit and every equipment, by name
+    sum_storage: float = 0.0
+    sigma: float = 0.0                        # standard uncertainty of the plant residual
+    significant: bool = False                 # |L| > 2 sigma
+    unmetered_share: float = 0.0              # share of the flow volume without a stated meter accuracy
 
     @property
     def closure_pct(self) -> Optional[float]:
@@ -71,25 +81,29 @@ def _status(l: float, inflow: float, tol: float) -> str:
     return "unaccounted loss" if r > 0 else "excess outflow"
 
 
-def subsystem_balance(s: Subsystem, tol: float = 0.02) -> SubsystemBalance:
+def subsystem_balance(s: Subsystem, tol: float = 0.02, sigma: float = 0.0) -> SubsystemBalance:
     inflow = s.total_intake + s.from_other
     outflow = s.to_other + s.product + s.evaporation + s.total_discharge
-    l = inflow - outflow
+    l = inflow - outflow - s.storage_change
     pct = 100.0 * l / inflow if inflow > 0 else 0.0
-    return SubsystemBalance(s.name, inflow, outflow, l, pct, _status(l, inflow, tol))
+    return SubsystemBalance(s.name, inflow, outflow, l, pct, _status(l, inflow, tol), s.storage_change, sigma,
+                            abs(l) > U.K * sigma and sigma > 0)
 
 
 def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
     plant.rollup()
     leaves = plant.leaves()                 # plant totals are sums over the nodes that carry data
-    subs = [subsystem_balance(s, tol) for s in plant.units()]            # a partition: units (with their equipment summed)
-    nodes = {s.name: subsystem_balance(s, tol) for s in plant.subsystems}
+    acc = U.meter_accuracy(plant)
+    subs = [subsystem_balance(s, tol, U.node_sigma(plant, s, acc)) for s in plant.units()]   # a partition of the plant
+    nodes = {s.name: subsystem_balance(s, tol, U.node_sigma(plant, s, acc)) for s in plant.subsystems}
 
     sum_i = sum(s.total_intake for s in leaves)
     sum_w = sum(s.total_discharge for s in leaves)
     sum_e = sum(s.evaporation for s in leaves)
     sum_p = sum(s.product for s in leaves)
-    l = sum_i - (sum_p + sum_e + sum_w)
+    sum_s = sum(s.storage_change for s in leaves)
+    l = sum_i - (sum_p + sum_e + sum_w + sum_s)
+    sig, unmet = U.plant_sigma(plant)
 
     by_src: Dict[str, float] = {src.name: 0.0 for src in plant.sources}
     by_out: Dict[str, float] = {o.name: 0.0 for o in plant.outlets}
@@ -119,12 +133,13 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
 
     src_imb = (m_in - sum_i) if m_in is not None else None
     out_imb = (m_out - sum_w) if m_out is not None else None
-    plant_imb = (m_in - m_out - sum_e - sum_p) if (m_in is not None and m_out is not None) else None
+    plant_imb = (m_in - m_out - sum_e - sum_p - sum_s) if (m_in is not None and m_out is not None) else None
 
     return PlantBalance(
         subsystems=subs, sum_intake=sum_i, sum_discharge=sum_w, sum_evaporation=sum_e,
         sum_product=sum_p, unknown_loss=l, metered_intake=m_in, metered_discharge=m_out,
         source_side_imbalance=src_imb, discharge_side_imbalance=out_imb,
         plant_imbalance=plant_imb, intake_by_source=by_src, discharge_by_outlet=by_out,
-        warnings=warnings, nodes=nodes,
+        warnings=warnings, nodes=nodes, sum_storage=sum_s, sigma=sig, significant=abs(l) > U.K * sig > 0,
+        unmetered_share=unmet,
     )

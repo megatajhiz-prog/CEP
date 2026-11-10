@@ -198,7 +198,7 @@ class SubsystemEditor(QScrollArea):
         hl.addWidget(self.est_btn, 0, Qt.AlignmentFlag.AlignBottom)
         self._sub_name = ""
         self.peek = TrendPeek(t, lambda p: with_data(p, [f"sub:{self._sub_name}:{f}" for f in
-                                                         ("production", "intake", "discharge", "evaporation", "product", "recirc")]))
+                                                         ("production", "intake", "discharge", "evaporation", "product", "recirc", "storage")]))
         lay.addWidget(card(t("sub_basic"), head, self.peek))
         self.driven: Dict[str, str] = {}          # model fields currently taken from the time series (set by the window)
         self._locked: set = set()
@@ -228,8 +228,9 @@ class SubsystemEditor(QScrollArea):
         self.to_other = dspin(decimals=2)
         self.product = dspin(decimals=2)
         self.evap = dspin(decimals=2)
+        self.storage = dspin(decimals=2, minimum=-1e12)         # may be negative: the stored volume fell
         for label, w in (("recirculated", self.recirc), ("from_other", self.from_other), ("to_other", self.to_other),
-                         ("product", self.product), ("evaporation", self.evap)):
+                         ("product", self.product), ("evaporation", self.evap), ("storage_change", self.storage)):
             ff.addRow(t(label), w)
         lay.addWidget(flows)
 
@@ -283,6 +284,7 @@ class SubsystemEditor(QScrollArea):
         self.to_other.setValue(s.to_other)
         self.product.setValue(s.product)
         self.evap.setValue(s.evaporation)
+        self.storage.setValue(s.storage_change)
         self.wtreat.set_rows([[k, v] for k, v in s.water_treatments.items()])
         self.wwtreat.set_rows([[k, v] for k, v in s.wastewater_treatments.items()])
         self.pumps.set_rows([[p.name, p.hours_per_year, p.power_kw if p.power_kw is not None else (
@@ -297,20 +299,23 @@ class SubsystemEditor(QScrollArea):
         """A unit that has equipment is the sum of them: everything but name and kind is read-only here."""
         self.derived_note.setVisible(derived)
         for w in (self.intake, self.discharge, self.wtreat, self.wwtreat, self.pumps, self.recirc, self.from_other,
-                  self.to_other, self.product, self.evap, self.t_in, self.t_ww, self.est_btn):
+                  self.to_other, self.product, self.evap, self.storage, self.t_in, self.t_ww, self.est_btn):
             w.setEnabled(not derived)
         if not derived:
             self._lock_driven_refresh()
 
     def _lock_driven_refresh(self) -> None:
-        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc)):
+        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc),
+                     ("storage", self.storage)):
             w.setEnabled(f not in self._locked)
 
     def _lock_driven(self, s: Subsystem) -> None:
         drv = self.driven
         tip = self.t("ft_driven")
-        self._locked = {f for f in ("intake", "discharge", "evaporation", "product", "recirc") if f"sub:{s.name}:{f}" in drv}
-        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc)):
+        self._locked = {f for f in ("intake", "discharge", "evaporation", "product", "recirc", "storage")
+                        if f"sub:{s.name}:{f}" in drv}
+        for f, w in (("evaporation", self.evap), ("product", self.product), ("recirc", self.recirc),
+                     ("storage", self.storage)):
             w.setEnabled(f not in self._locked)
             w.setToolTip(tip if f in self._locked else "")
         for f, tb in (("intake", self.intake), ("discharge", self.discharge)):
@@ -335,6 +340,8 @@ class SubsystemEditor(QScrollArea):
             s.product = self.product.value()
         if "evaporation" not in lk:
             s.evaporation = self.evap.value()
+        if "storage" not in lk:
+            s.storage_change = self.storage.value()
         s.water_treatments = _sum_dict(self.wtreat.rows())
         s.wastewater_treatments = _sum_dict(self.wwtreat.rows())
         pumps = []

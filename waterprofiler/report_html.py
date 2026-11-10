@@ -34,7 +34,9 @@ def build_report_html(a: Analysis, lang: str = "fa", logo: Optional[str] = None,
         (t("sum_discharge") + " (m³)", _n(b.sum_discharge)),
         (t("sum_evap") + " (m³)", _n(b.sum_evaporation)),
         (t("sum_product") + " (m³)", _n(b.sum_product)),
+        (t("storage_ds") + " (m³)", _n(b.sum_storage)),
         (t("unknown_loss") + " (m³)", _n(b.unknown_loss)),
+        (t("res_sigma") + " (m³)", _n(b.sigma)),
         (t("closure") + " %", "—" if b.closure_pct is None else f"{b.closure_pct:.1f}"),
         (t("direct_cost") + f" ({cur})", _n(c.direct_billed_cost)),
         (t("tab_cost") + f" ({cur})", _n(c.total)),
@@ -99,11 +101,14 @@ td.n {{ text-align:right; direction:ltr; }}
 
     parts.append(f"<h2>{escape(t('tab_balance'))}</h2><table><tr>"
                  + "".join(f"<th>{escape(t(x))}</th>" for x in
-                           ("subsystem", "inflow", "outflow", "unknown_loss", "loss_pct", "status"))
+                           ("subsystem", "inflow", "outflow", "storage_ds", "unknown_loss", "loss_pct", "col_sigma",
+                            "col_signif", "status"))
                  + "</tr>")
     for s in b.subsystems:
         parts.append(f"<tr><td>{escape(s.name)}</td><td class='n'>{_n(s.inflow)}</td><td class='n'>{_n(s.outflow)}</td>"
-                     f"<td class='n'>{_n(s.unknown_loss)}</td><td class='n'>{s.unknown_loss_pct_of_inflow:.1f}</td>"
+                     f"<td class='n'>{_n(s.storage_change)}</td><td class='n'>{_n(s.unknown_loss)}</td>"
+                     f"<td class='n'>{s.unknown_loss_pct_of_inflow:.1f}</td><td class='n'>{_n(s.sigma)}</td>"
+                     f"<td>{escape(t('yes') if s.significant else t('no'))}</td>"
                      f"<td>{escape(t('st_' + s.status))}</td></tr>")
     parts.append("</table>")
 

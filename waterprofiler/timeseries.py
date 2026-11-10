@@ -23,7 +23,8 @@ from .model import Plant, Point
 
 # ---------------------------------------------------------------------------------------------- variables
 SUB_FIELDS = (("intake", "برداشت", "intake"), ("discharge", "تخلیه", "discharge"), ("evaporation", "تبخیر", "evaporation"),
-              ("product", "آب در محصول", "water in product"), ("recirc", "بازچرخانی داخلی", "internal recirculation"))
+              ("product", "آب در محصول", "water in product"), ("recirc", "بازچرخانی داخلی", "internal recirculation"),
+              ("storage", "تغییر موجودی (ΔS)", "storage change (ΔS)"))
 
 # profile fields fed by a series: key -> (attribute, aggregation)
 PROFILE_MAP = {
@@ -229,7 +230,7 @@ def derived_value_in(plant: Plant, key: str, start: date, end: date):
     """(value, coverage) of a unit's series over start..end: the sum of its equipment's (None if one of them has none)."""
     _, name, f = key.split(":", 2)
     attr = {"intake": "total_intake", "discharge": "total_discharge", "evaporation": "evaporation",
-            "product": "product", "recirc": "recirculated"}.get(f)
+            "product": "product", "recirc": "recirculated", "storage": "storage_change"}.get(f)
     total, cov, got = 0.0, 1.0, False
     for c in plant.children(name):
         ck = f"sub:{c.name}:{f}"
@@ -238,7 +239,7 @@ def derived_value_in(plant: Plant, key: str, start: date, end: date):
             if v is None:
                 return None, 0.0
             total, cov, got = total + v, min(cov, cv), True
-        elif (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production" else (getattr(c, attr) > 0 if attr else False)):
+        elif (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production" else (abs(getattr(c, attr)) > 0 if attr else False)):
             return None, 0.0
     return (total, cov) if got else (None, 0.0)
 
@@ -247,12 +248,12 @@ def _unit_slices(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float
     """Series of a unit = sum of its equipment's. A slice is known only when every equipment that has a value has data."""
     _, name, f = key.split(":", 2)
     attr = {"intake": "total_intake", "discharge": "total_discharge", "evaporation": "evaporation",
-            "product": "product", "recirc": "recirculated"}.get(f)
+            "product": "product", "recirc": "recirculated", "storage": "storage_change"}.get(f)
     cols = []
     for c in plant.children(name):
         ck = f"sub:{c.name}:{f}"
         has_value = (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production"
-                     else (getattr(c, attr) > 0 if attr else False))
+                     else (abs(getattr(c, attr)) > 0 if attr else False))
         if plant.series.get(ck):
             cols.append(slice_values(plant, ck, sl, min_cov))
         elif has_value:
@@ -388,7 +389,7 @@ def sync(plant: Plant, min_cov: float = 0.5) -> int:
 
 def _sub_get(sub, f: str) -> float:
     return {"intake": sub.total_intake, "discharge": sub.total_discharge, "evaporation": sub.evaporation,
-            "product": sub.product, "recirc": sub.recirculated}[f]
+            "product": sub.product, "recirc": sub.recirculated, "storage": sub.storage_change}[f]
 
 
 def _scale_dict(d: Dict[str, float], new_total: float, fallback: List[str]) -> bool:
@@ -449,6 +450,8 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
                 sub.product = ch.new
             elif f == "recirc":
                 sub.recirculated = ch.new
+            elif f == "storage":
+                sub.storage_change = ch.new
         n += 1
     plant.rollup()
     plant.sync_production()

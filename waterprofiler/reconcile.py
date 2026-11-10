@@ -104,15 +104,24 @@ def reconcile(
     x0 = np.array([v for _, v in flows], dtype=float)
     mean_flow = float(np.mean(np.abs(x0))) or 1.0
 
+    from .uncertainty import meter_accuracy
+    acc = meter_accuracy(plant)
+
+    def _default_rel(name: str, key: str) -> float:
+        """A stated meter accuracy of the node's flow replaces the default relative sigma."""
+        f = key.split(":", 1)[0]
+        return acc.get(f"sub:{name}:{f}", default_rel_sigma)
+
     sig = np.empty(n)
     for j, ((i, key), v) in enumerate(flows):
-        r = rel_sigma.get((plant.subsystems[i].name, key), default_rel_sigma)
+        nm = plant.subsystems[i].name
+        r = rel_sigma.get((nm, key), _default_rel(nm, key))
         sig[j] = max(r * max(abs(v), 0.01 * mean_flow), 1e-9)
 
     rows: List[np.ndarray] = []
     rhs: List[float] = []
 
-    # 1) each subsystem closes: inflows - outflows = 0
+    # 1) each subsystem closes: inflows - outflows = change of stored volume
     leaf = {s.name for s in plant.leaves()}
     for i, s in enumerate(plant.subsystems):
         if s.name not in leaf:
@@ -126,7 +135,7 @@ def reconcile(
         put(a, (i, "evaporation"), -1.0)
         for o in s.discharge:
             put(a, (i, f"discharge:{o}"), -1.0)
-        rows.append(a); rhs.append(0.0)
+        rows.append(a); rhs.append(s.storage_change)
 
     # 2) transfers between subsystems cancel
     a = np.zeros(n)

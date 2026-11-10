@@ -11,7 +11,7 @@ from typing import Optional
 
 from .model import Plant, Subsystem
 
-_FLOW_ATTRS = ("recirculated", "from_other", "to_other", "product", "evaporation")
+_FLOW_ATTRS = ("recirculated", "from_other", "to_other", "product", "evaporation", "storage_change")
 
 
 def _has_data(s: Subsystem, plant: Plant) -> bool:

@@ -74,6 +74,7 @@ class Subsystem:
     to_other: float = 0.0               # R'_out
     product: float = 0.0                # P_x
     evaporation: float = 0.0            # E_x
+    storage_change: float = 0.0         # dS_x: change of stored volume over the period (+ = stored volume rose)
     discharge: Dict[str, float] = field(default_factory=dict)      # by outlet name
     # --- true-cost inputs
     water_treatments: Dict[str, float] = field(default_factory=dict)       # treatment -> fraction of (intake+R_in) treated
@@ -159,6 +160,7 @@ class Profile:
     target_intake_per_unit: float = 0.0
     target_recirc_pct: float = 0.0
     target_loss_pct: float = 0.0
+    unmetered_unc_pct: float = 10.0    # relative uncertainty assumed for a flow without a stated meter accuracy, %
     sub_production: Dict[str, float] = field(default_factory=dict)   # subsystem -> product units per year
 
 
@@ -332,6 +334,7 @@ class Plant:
                         u.discharge[k] = u.discharge.get(k, 0.0) + v
             u.product = sum(c.product for c in ch)
             u.evaporation = sum(c.evaporation for c in ch)
+            u.storage_change = sum(c.storage_change for c in ch)
             u.recirculated = sum(c.recirculated for c in ch) + internal
             u.to_other = max(0.0, sum(c.to_other for c in ch) - internal)
             u.from_other = max(0.0, sum(c.from_other for c in ch) - internal)

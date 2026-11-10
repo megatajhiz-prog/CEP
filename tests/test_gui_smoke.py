@@ -604,3 +604,28 @@ def test_unit_equipment_tree_in_the_window(app, tmp_path):
     w._remove_subsystem()
     assert w.plant.node(unit) is None and not [s for s in w.plant.subsystems if s.parent == unit]
     w.close()
+
+
+def test_storage_change_and_uncertainty_in_the_window(app, tmp_path):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.sub_list.setCurrentRow(0)
+    assert w.sub_editor.storage.minimum() < 0
+    w.sub_editor.storage.setValue(-250.0)
+    w.collect()
+    assert w.plant.subsystems[0].storage_change == pytest.approx(-250.0)
+    app.processEvents()
+    for i in range(w.tabs.count()):
+        w.tabs.setCurrentIndex(i)
+        app.processEvents()
+    t = w.balance_tab.table
+    assert t.columnCount() == 9 and t.rowCount() == len(w.plant.ordered())
+    assert t.item(0, 6) is not None and t.item(0, 6).text() != ""
+    w.ind_tab.inputs.load(w.plant)
+    w.ind_tab.inputs.spins["unmetered_unc_pct"].setValue(25.0)
+    assert w.plant.profile.unmetered_unc_pct == pytest.approx(25.0)
+    w.export_xlsx_to(str(tmp_path / "r.xlsx"))
+    w.export_pdf_to(str(tmp_path / "r.pdf"))
+    w.close()

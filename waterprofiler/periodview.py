@@ -27,7 +27,7 @@ from .model import Plant, sync_transfers
 
 FILLS = ("prorate", "base")
 BASES = ("period", "annual")
-_FLOW_FIELDS = ("intake", "discharge", "evaporation", "product", "recirc")
+_FLOW_FIELDS = ("intake", "discharge", "evaporation", "product", "recirc", "storage")
 
 
 @dataclass
@@ -64,6 +64,7 @@ def scale_volumes(p: Plant, k: float) -> None:
         sub.to_other *= k
         sub.product *= k
         sub.evaporation *= k
+        sub.storage_change *= k
     for lk in p.links:
         lk.volume *= k
 

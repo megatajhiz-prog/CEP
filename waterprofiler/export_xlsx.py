@@ -48,7 +48,9 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
         (t("sum_discharge"), a.balance.sum_discharge),
         (t("sum_evap"), a.balance.sum_evaporation),
         (t("sum_product"), a.balance.sum_product),
+        (t("storage_ds"), a.balance.sum_storage),
         (t("unknown_loss"), a.balance.unknown_loss),
+        (t("res_sigma"), a.balance.sigma),
         (t("metered_intake"), a.balance.metered_intake),
         (t("metered_discharge"), a.balance.metered_discharge),
         (t("closure") + " %", a.balance.closure_pct),
@@ -111,10 +113,12 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
     # --- Balance
     ws = wb.create_sheet(t("tab_balance")[:31])
     ws.sheet_view.rightToLeft = rtl
-    _header(ws, 1, [t("subsystem"), t("inflow"), t("outflow"), t("unknown_loss"), t("loss_pct"), t("status")])
+    _header(ws, 1, [t("subsystem"), t("inflow"), t("outflow"), t("storage_ds"), t("unknown_loss"), t("loss_pct"),
+                    t("col_sigma"), t("col_signif"), t("status")])
     for i, s in enumerate(a.balance.subsystems, 2):
-        for j, v in enumerate([s.name, s.inflow, s.outflow, s.unknown_loss,
-                               s.unknown_loss_pct_of_inflow, t("st_" + s.status)], 1):
+        for j, v in enumerate([s.name, s.inflow, s.outflow, s.storage_change, s.unknown_loss,
+                               s.unknown_loss_pct_of_inflow, s.sigma, t("yes") if s.significant else t("no"),
+                               t("st_" + s.status)], 1):
             c = ws.cell(row=i, column=j, value=v)
             if isinstance(v, float):
                 c.number_format = "#,##0.00"

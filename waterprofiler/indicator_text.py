@@ -35,9 +35,9 @@ TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
     "sup_pump_specific": ("انرژی ویژهٔ پمپاژ", "Specific pumping energy", "sum kWh(pumps) / sum I",
                           "kWh به‌ازای هر m³ آب برداشتی؛ مقدار زیاد یعنی پمپ‌های پرمصرف یا بازچرخانی سنگین.",
                           "kWh per m³ of intake; high values point to inefficient or recirculation-heavy pumping."),
-    "sup_ili": ("شاخص تلفات زیرساخت (ILI)", "Infrastructure leakage index (ILI)", "L / UARL",
-                "تقریبی: تمام تلفات ناشناخته را نشت فیزیکی فرض می‌کند. UARL=(۱۸·طول+۰٫۸·انشعاب)·فشار.",
-                "Approximate: treats all unaccounted loss as physical leakage. UARL = (18·length + 0.8·connections)·pressure."),
+    "sup_ili": ("شاخص تلفات زیرساخت (ILI)", "Infrastructure leakage index (ILI)", "R / UARL",
+                "تقریبی: تمام باقیمانده بیلان را نشت فیزیکی فرض می‌کند (خطای کنتور و تغییر موجودی هم در آن است). UARL=(۱۸·طول+۰٫۸·انشعاب)·فشار.",
+                "Approximate: treats the whole balance residual as physical leakage (meter error and storage change are in it too). UARL = (18·length + 0.8·connections)·pressure."),
     # --------------------------------------------------------------------- use
     "use_gross": ("مصرف ناخالص آب", "Gross water use", "sum I + sum R + sum R'in",
                   "کل آبی که در تجهیزات می‌گردد، شامل بازچرخانی و آب منتقل‌شده.", "All water passing through equipment, including recirculated and transferred water."),
@@ -50,17 +50,17 @@ TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
     "use_transfer_share": ("سهم آب منتقل‌شده بین زیرسیستم‌ها", "Inter-subsystem transfer share", "sum R'in / gross",
                            "استفادهٔ مجدد از پساب یک زیرسیستم در زیرسیستم دیگر.", "Reuse of one subsystem's outflow in another."),
     "use_consumption": ("مصرف آب (تعریف GRI 303-5)", "Water consumption (GRI 303-5)", "sum I - sum W",
-                        "برداشت منهای تخلیه؛ شامل تبخیر، آب در محصول و تلفات ناشناخته.", "Withdrawal minus discharge; includes evaporation, product water and unaccounted loss."),
+                        "برداشت منهای تخلیه؛ شامل تبخیر، آب در محصول، تغییر موجودی و باقیمانده بیلان.", "Withdrawal minus discharge; includes evaporation, product water, storage change and the balance residual."),
     "use_consumptive_fraction": ("کسر مصرفی", "Consumptive fraction", "(sum E + sum P) / sum I",
                                  "سهم آبی که از چرخهٔ کارخانه خارج و به محیط یا محصول می‌رود.", "Share of intake that leaves the plant as vapour or product."),
     "use_evap_share": ("سهم تبخیر", "Evaporation share", "sum E / sum I",
                        "عمدتاً برج‌های خنک‌کن و فضای سبز.", "Mostly cooling towers and landscaping."),
     "use_product_share": ("سهم آب در محصول", "Product-water share", "sum P / sum I",
                           "آبی که در محصول باقی می‌ماند.", "Water that stays in the product."),
-    "use_loss_m3": ("تلفات ناشناخته", "Unaccounted loss", "L = sum I - sum W - sum E - sum P",
+    "use_loss_m3": ("باقیمانده بیلان", "Balance residual", "R = sum I - sum W - sum E - sum P - sum dS",
                     "نشت، خطای اندازه‌گیری یا مصرف ثبت‌نشده. مقدار منفی یعنی خروجی‌ها بیش از ورودی ثبت شده‌اند.",
                     "Leakage, metering error or unrecorded use. A negative value means recorded outflows exceed recorded inflows."),
-    "use_loss_fraction": ("سهم تلفات ناشناخته", "Unaccounted-loss fraction", "L / sum I",
+    "use_loss_fraction": ("سهم باقیمانده بیلان", "Balance residual fraction", "R / sum I",
                           "هدف معمول کاهش آن با کنتورگذاری و نشت‌یابی است.", "Usually reduced by metering and leak detection."),
     "use_per_unit": ("شدت مصرف آب", "Water intensity", "sum I / Q",
                      "m³ آب برداشتی به‌ازای هر واحد محصول.", "m³ of intake per product unit."),
@@ -223,7 +223,9 @@ PROFILE_LABEL = {
     "tds_discharge": ("TDS پساب", "Discharge TDS", "mg/L", "mg/L", 1e6, 0),
     "target_intake_per_unit": ("هدف شدت مصرف آب", "Water-intensity target", "m³/واحد", "m³/unit", 1e9, 3),
     "target_recirc_pct": ("هدف نسبت بازچرخانی", "Recirculation target", "٪", "%", 100, 1),
-    "target_loss_pct": ("هدف تلفات ناشناخته", "Loss target", "٪", "%", 100, 1),
+    "target_loss_pct": ("هدف باقیمانده بیلان", "Residual target", "٪", "%", 100, 1),
+    "unmetered_unc_pct": ("عدم قطعیت فرضی جریان بدون دقت کنتور", "Assumed uncertainty of a flow without meter accuracy",
+                          "٪", "%", 100, 1),
 }
 
 # inputs entered on the "industrial complex" page (structure and capacity: they do not change from month to month)
@@ -237,6 +239,7 @@ PROFILE_GROUPS = (
     ("پرسنل و اقتصاد", "People and economics", ("employees", "revenue", "value_added", "production_cost")),
     ("تأمین و کیفیت", "Supply and quality", ("steam_t", "outage_hours", "cod_raw", "cod_out", "tds_intake", "tds_discharge")),
     ("اهداف", "Targets", ("target_intake_per_unit", "target_recirc_pct", "target_loss_pct")),
+    ("عدم قطعیت بیلان", "Balance uncertainty", ("unmetered_unc_pct",)),
 )
 STRUCT_FIELDS = frozenset(n for g in STRUCT_GROUPS for n in g[2])
 
@@ -246,7 +249,7 @@ SUB_COLS = (
     ("intake_share", "سهم از برداشت", "Share of intake", "pct"),
     ("cost_share", "سهم از هزینه", "Share of cost", "pct"),
     ("cost_per_m3", "هزینهٔ هر m³", "Cost per m³", "cur_m3"),
-    ("loss_pct", "تلفات ناشناخته", "Unaccounted loss", "pct"),
+    ("loss_pct", "باقیمانده بیلان", "Balance residual", "pct"),
     ("consumptive", "کسر مصرفی", "Consumptive", "pct"),
     ("discharge", "نسبت پساب", "Discharge ratio", "pct"),
     ("reuse", "سهم آب منتقل‌شده", "Transferred share", "pct"),
