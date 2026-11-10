@@ -152,7 +152,8 @@ class BalancePanel(QWidget):
         self.c_cons = StatCard(t("series_consumptive") + " (m³)", COL["green"])
         self.c_loss = StatCard(t("unknown_loss") + " (m³)", COL["orange"])
         self.lay.addLayout(stat_row(self.c_intake, self.c_disch, self.c_cons, self.c_loss))
-        self.table = make_table([t("subsystem"), t("inflow"), t("outflow"), t("unknown_loss"), t("loss_pct"), t("status")])
+        self.table = make_table([t("subsystem"), t("inflow"), t("outflow"), t("storage_ds"), t("unknown_loss"), t("loss_pct"),
+                                 t("col_sigma"), t("col_signif"), t("status")])
         self.table.setMinimumHeight(230)
         self.lay.addWidget(card(t("tab_balance") + " — " + t("subsystem"), self.table))
         self.totals_box = QGroupBox(t("plant_totals"))
@@ -201,16 +202,23 @@ class BalancePanel(QWidget):
             put(self.table, r, 0, ("    ↳ " if par.get(s.name) else "") + s.name)
             put(self.table, r, 1, _fmt(s.inflow), True)
             put(self.table, r, 2, _fmt(s.outflow), True)
-            put(self.table, r, 3, _fmt(s.unknown_loss), True, bg)
-            put(self.table, r, 4, f"{s.unknown_loss_pct_of_inflow:.1f}", True, bg)
-            put(self.table, r, 5, t("st_" + s.status), False, bg)
+            put(self.table, r, 3, _fmt(s.storage_change), True)
+            put(self.table, r, 4, _fmt(s.unknown_loss), True, bg)
+            put(self.table, r, 5, f"{s.unknown_loss_pct_of_inflow:.1f}", True, bg)
+            put(self.table, r, 6, _fmt(s.sigma), True)
+            put(self.table, r, 7, "✓" if s.significant else "—", False)
+            put(self.table, r, 8, t("st_" + s.status), False, bg)
 
         while self.totals.rowCount():
             self.totals.removeRow(0)
         rows = [
             (t("sum_intake"), _fmt(b.sum_intake)), (t("sum_discharge"), _fmt(b.sum_discharge)),
             (t("sum_evap"), _fmt(b.sum_evaporation)), (t("sum_product"), _fmt(b.sum_product)),
+            (t("storage_ds"), _fmt(b.sum_storage)),
             (t("unknown_loss"), _fmt(b.unknown_loss)),
+            (t("res_sigma"), _fmt(b.sigma)),
+            (t("res_signif"), t("yes") if b.significant else t("no")),
+            (t("unmetered_share"), f"{100 * b.unmetered_share:.0f}%"),
             (t("metered_intake"), _fmt(b.metered_intake)), (t("metered_discharge"), _fmt(b.metered_discharge)),
             (t("src_gap"), _fmt(b.source_side_imbalance)), (t("out_gap"), _fmt(b.discharge_side_imbalance)),
             (t("closure"), "—" if b.closure_pct is None else f"{b.closure_pct:.1f}%"),
