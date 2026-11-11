@@ -30,7 +30,7 @@ from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import SubsystemEditor
 from .measures_tabs import MeasuresTab, PlanTab
-from .econ_tab import EconTab
+from .ranking_tab import EconPage
 from .indicators_tab import IndicatorsTab
 from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
@@ -98,7 +98,9 @@ class MainWindow(QMainWindow):
         self.savings_tab = SavingsTab(t)
         self.measures_tab = MeasuresTab(t)
         self.plan_tab = PlanTab(t)
-        self.econ_tab = EconTab(t)
+        self.econ_page = EconPage(t)
+        self.econ_tab = self.econ_page.eval_tab
+        self.rank_tab = self.econ_page.rank_tab
         self.ind_tab = IndicatorsTab(t)
         self.product_tab = ProductWaterTab(t)
         self.baseline_tab = BaselineTab(t)
@@ -144,7 +146,7 @@ class MainWindow(QMainWindow):
             ("savings", "tab_savings", "desc_savings", self.savings_tab),
             ("measures", "tab_measures", "desc_measures", self.measures_tab),
             ("plan", "tab_plan", "desc_plan", self.plan_tab),
-            ("econ", "tab_econ", "desc_econ", self.econ_tab),
+            ("econ", "tab_econ", "desc_econ", self.econ_page),
             ("ind", "tab_ind", "desc_ind", self.ind_tab),
             ("reconcile", "tab_reconcile", "desc_reconcile", self.reconcile_tab),
         ]
@@ -382,8 +384,8 @@ class MainWindow(QMainWindow):
             self.measures_tab.refresh(self.plant)
         elif w is self.plan_tab:
             self.plan_tab.refresh(self.plant)
-        elif w is self.econ_tab:
-            self.econ_tab.refresh(self.plant)
+        elif w is self.econ_page:
+            self.econ_page.refresh(self.plant)
         elif w is self.ind_tab:
             self.ind_tab.refresh(self.plant)
         elif w is self.industrial_tab:

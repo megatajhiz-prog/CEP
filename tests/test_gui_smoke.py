@@ -269,7 +269,7 @@ def test_flow_diagram_interactive_editing(app, monkeypatch):
 def test_econ_tab_shows_indicators_edits_and_exports(app, tmp_path):
     w = _win("fa")
     w.action_demo()
-    w.tabs.setCurrentWidget(w.econ_tab)
+    w.tabs.setCurrentWidget(w.econ_page)
     et = w.econ_tab
     assert et.combo.count() == len(w.plant.plan) > 0
     assert et.cmp.rowCount() == len(w.plant.plan)
@@ -304,10 +304,10 @@ def test_econ_tab_shows_indicators_edits_and_exports(app, tmp_path):
 def test_econ_tab_empty_plan_and_english(app):
     w = _win("en")
     w.action_new()
-    w.tabs.setCurrentWidget(w.econ_tab)
+    w.tabs.setCurrentWidget(w.econ_page)
     assert w.econ_tab.combo.count() == 0 and w.econ_tab.msg.text()
     w.action_demo()
-    w.tabs.setCurrentWidget(w.econ_tab)
+    w.tabs.setCurrentWidget(w.econ_page)
     assert w.econ_tab.combo.count() > 0 and "NPV" in w.econ_tab.c_npv.title.text()
     w.close()
 
@@ -662,3 +662,25 @@ def test_baseline_page(app):
     tab.n_report.setValue(3)
     app.processEvents()
     assert tab.c_sav.value.text() != "—"
+
+
+def test_ranking_page_inside_economics(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.tabs.setCurrentWidget(w.econ_page)
+    w.econ_page.setCurrentWidget(w.rank_tab)
+    app.processEvents()
+    rt = w.rank_tab
+    assert rt.table.rowCount() == len(w.plant.plan) and len(rt.w_spins) == 7
+    first = rt.table.item(0, 1).text()
+    for c, sp in rt.w_spins.items():                      # only the investment counts: the cheapest measure wins
+        sp.setValue(100.0 if c == "capex" else 0.0)
+    assert w.plant.ranking["weights"]["capex"] == 100.0
+    cheapest = min(w.plant.plan, key=lambda i: i.capex)
+    assert rt._name(cheapest) == rt.table.item(0, 1).text()
+    rt._score_spins[0][0].setValue(5.0)
+    assert w.plant.plan[0].ease == 5.0
+    rt.budget.setValue(1.0)                                # nothing fits
+    assert rt.pf_label.text() == w.t("rk_pf_none")
