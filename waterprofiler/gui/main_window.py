@@ -35,6 +35,7 @@ from .indicators_tab import IndicatorsTab
 from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
+from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
@@ -100,6 +101,7 @@ class MainWindow(QMainWindow):
         self.econ_tab = EconTab(t)
         self.ind_tab = IndicatorsTab(t)
         self.product_tab = ProductWaterTab(t)
+        self.baseline_tab = BaselineTab(t)
         self.ts_tab = TimeTab(t)
         self.ts_tab.model_changed.connect(self._series_applied)
         self.measures_tab.plan_requested.connect(self._to_plan)
@@ -138,6 +140,7 @@ class MainWindow(QMainWindow):
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("product", "tab_product", "desc_product", self.product_tab),
+            ("baseline", "tab_baseline", "desc_baseline", self.baseline_tab),
             ("savings", "tab_savings", "desc_savings", self.savings_tab),
             ("measures", "tab_measures", "desc_measures", self.measures_tab),
             ("plan", "tab_plan", "desc_plan", self.plan_tab),
@@ -371,6 +374,8 @@ class MainWindow(QMainWindow):
             self.flow_tab.refresh(self.plant, a)
         elif w is self.product_tab:
             self.product_tab.refresh(self.plant)
+        elif w is self.baseline_tab:
+            self.baseline_tab.refresh(self.plant)
         elif w is self.savings_tab:
             self.savings_tab.refresh(self.plant)
         elif w is self.measures_tab:

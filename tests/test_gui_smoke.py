@@ -648,3 +648,17 @@ def test_water_by_product_page(app):
     tab.matrix.item(r, 2).setText("50")                   # 150 % is refused, the row keeps its old values
     assert w.plant.allocation[tab._nodes[r].name] == {p0: 1.0}
     assert tab.msg.text()
+
+
+def test_baseline_page(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.tabs.setCurrentWidget(w.baseline_tab)
+    app.processEvents()
+    tab = w.baseline_tab
+    assert tab.table.rowCount() == 18 and tab.coef.rowCount() >= 1
+    tab.n_report.setValue(3)
+    app.processEvents()
+    assert tab.c_sav.value.text() != "—"
