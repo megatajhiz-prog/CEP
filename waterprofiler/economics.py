@@ -18,6 +18,8 @@ Indicators (r = discount rate):
     BCR      = PV(benefits + salvage) / PV(CAPEX + OPEX + REPL)
     PI       = NPV / CAPEX
     LCOW     = PV(CAPEX + OPEX + REPL - SALVAGE) / PV(saved volume)     cost of one saved m3 (levelised)
+    LCC      = PV(CAPEX + OPEX + REPL - SALVAGE)                        life-cycle cost of the measure (cost side only)
+    EAC      = LCC * r / (1 - (1+r)^-N)                                 equivalent annual cost (LCC / N when r = 0)
 """
 
 from __future__ import annotations
@@ -83,6 +85,10 @@ class EconResult:
     pv_cost: float
     pv_volume: float
     verdict: str                      # good | marginal | poor | invalid
+    lcc: float = 0.0                  # life-cycle cost, present value
+    eac: float = 0.0                  # equivalent annual cost
+    lcc_parts: Dict[str, float] = field(default_factory=dict)   # PV of capex, opex, repl and -salvage (sum = lcc)
+    lcc_years: List[Tuple[float, float, float]] = field(default_factory=list)   # per year t: PV of (capex, opex, repl)
 
     @property
     def total_volume(self) -> float:
@@ -142,13 +148,14 @@ def evaluate(inp: EconInputs) -> EconResult:
     ben = [0.0] * (n + 1)
     cost = [0.0] * (n + 1)
     cost[0] = inp.capex
-    salvage_pv_part = 0.0
+    repl = [0.0] * (n + 1)
     for t in range(1, n + 1):
         vol[t] = inp.saving_m3 * (1.0 - d) ** (t - 1)
         ben[t] = (vol[t] * inp.price + inp.other_benefit) * (1.0 + g) ** (t - 1)
         cost[t] = inp.opex * (1.0 + e) ** (t - 1)
         if inp.repl_year == t:
             cost[t] += inp.repl_cost
+            repl[t] = inp.repl_cost
     ben[n] += inp.salvage
     net = [ben[t] - cost[t] for t in years]
     cum, s = [], 0.0
@@ -168,7 +175,15 @@ def evaluate(inp: EconInputs) -> EconResult:
     irr = irr_of(net)
     bcr = pv_b / pv_c if pv_c > 0 else None
     pi = npv / inp.capex if inp.capex > 0 else None
-    lcow = (pv_c - inp.salvage * disc[n]) / pv_v if pv_v > 0 else None
+    pv_salvage = inp.salvage * disc[n]
+    lcc = pv_c - pv_salvage
+    lcow = lcc / pv_v if pv_v > 0 else None
+    annuity = n if abs(r) < 1e-12 else (1.0 - (1.0 + r) ** -n) / r
+    eac = lcc / annuity if annuity > 0 else 0.0
+    pv_opex = sum((cost[t] - repl[t]) * disc[t] for t in range(1, n + 1))
+    pv_repl = sum(repl[t] * disc[t] for t in range(1, n + 1))
+    parts = {"capex": inp.capex, "opex": pv_opex, "repl": pv_repl, "salvage": -pv_salvage}
+    lyears = [(inp.capex if t == 0 else 0.0, (cost[t] - repl[t]) * disc[t] if t else 0.0, repl[t] * disc[t]) for t in years]
     if inp.saving_m3 <= 0:
         verdict = "invalid"
     elif npv > 0 and bcr is not None and bcr >= 1.2 and (irr is None or irr * 100 > inp.rate_pct):
@@ -179,7 +194,7 @@ def evaluate(inp: EconInputs) -> EconResult:
         verdict = "poor"
     return EconResult(inp, years, vol, ben, cost, net, cum, dnet, dcum, npv,
                       None if irr is None else irr * 100.0, _payback(net), _payback(dnet), bcr, pi, lcow,
-                      pv_b, pv_c, pv_v, verdict)
+                      pv_b, pv_c, pv_v, verdict, lcc, eac, parts, lyears)
 
 
 # ------------------------------------------------------------------ sensitivity

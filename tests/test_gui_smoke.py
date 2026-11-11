@@ -684,3 +684,41 @@ def test_ranking_page_inside_economics(app):
     assert w.plant.plan[0].ease == 5.0
     rt.budget.setValue(1.0)                                # nothing fits
     assert rt.pf_label.text() == w.t("rk_pf_none")
+
+
+def test_lcc_sensitivity_and_risk_pages(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.tabs.setCurrentWidget(w.econ_page)
+    page = w.econ_page
+    n = len(w.plant.plan)
+    assert page.count() == 5
+    page.setCurrentWidget(page.lcc_tab)
+    app.processEvents()
+    assert page.lcc_tab.cmp.rowCount() == n and page.lcc_tab.parts.rowCount() == 5
+    assert page.lcc_tab.c_lcc.value.text().strip("‎") != "—"
+    page.lcc_tab.grab()
+    page.setCurrentWidget(page.sens_tab)
+    app.processEvents()
+    st = page.sens_tab
+    assert st.table.rowCount() == 8 and st.be.rowCount() == 5 and st.grid.rowCount() == 7
+    st.delta.setCurrentIndex(2)
+    st.grab()
+    page.setCurrentWidget(page.risk_tab)
+    app.processEvents()
+    rt = page.risk_tab
+    assert rt.combo.itemData(0) == "plan" and rt.combo.count() == n + 1
+    assert rt.stats.rowCount() >= 1 and rt.dtable.rowCount() == n
+    rt.runs.setValue(1000)
+    rt.combo.setCurrentIndex(1)
+    app.processEvents()
+    assert w.plant.risk["runs"] == 1000 and w.plant.risk["scope"] == "item:0"
+    assert rt.stats.rowCount() >= 3 and rt.dtable.rowCount() == len(ER_MC_VARS)
+    rt._range_spins["capex"][1].setValue(80.0)
+    assert w.plant.risk["ranges"]["capex"][1] == 80.0
+    rt.grab()
+
+
+from waterprofiler.econrisk import MC_VARS as ER_MC_VARS

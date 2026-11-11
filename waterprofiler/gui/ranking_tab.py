@@ -10,6 +10,7 @@ from .. import measures as M
 from .. import ranking as RK
 from ..i18n import Translator
 from ..model import Plant
+from .econ_pages import LccTab, RiskTab, SensitivityTab
 from .econ_tab import EconTab
 from .tabs import _Scroll, _fmt, _message_label, make_table, put, stat_row
 from .theme import COL
@@ -207,16 +208,23 @@ class EconPage(QTabWidget):
     def __init__(self, t: Translator):
         super().__init__()
         self.eval_tab = EconTab(t)
+        self.lcc_tab = LccTab(t)
+        self.sens_tab = SensitivityTab(t)
+        self.risk_tab = RiskTab(t)
         self.rank_tab = RankingTab(t)
-        self.addTab(self.eval_tab, t("ec_sub_eval"))
-        self.addTab(self.rank_tab, t("ec_sub_rank"))
+        self.subtabs = (self.eval_tab, self.lcc_tab, self.sens_tab, self.risk_tab, self.rank_tab)
+        for tab, key in zip(self.subtabs, ("ec_sub_eval", "ec_sub_lcc", "ec_sub_sens", "ec_sub_risk", "ec_sub_rank")):
+            self.addTab(tab, t(key))
         self.currentChanged.connect(lambda _i: self._refresh_current())
         self._plant: Optional[Plant] = None
 
     def refresh(self, plant: Plant) -> None:
         self._plant = plant
         self.eval_tab.refresh(plant)
-        self.rank_tab.refresh(plant)
+        w = self.currentWidget()                       # the other pages are rebuilt when opened (the risk run is the costly one)
+        for tab in self.subtabs[1:]:
+            if tab is w:
+                tab.refresh(plant)
 
     def _refresh_current(self) -> None:
         if self._plant is not None:
