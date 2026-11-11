@@ -161,6 +161,11 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawLine(P(19, 7), P(19, 16))
         p.drawArc(QRectF(5, 7.5, 14, 6), 180 * 16, 180 * 16)
         p.drawArc(QRectF(5, 13, 14, 6), 180 * 16, 180 * 16)
+    elif name == "baseline":
+        p.drawLine(P(4, 19), P(20, 19))
+        p.drawLine(P(4, 17), P(20, 7))
+        p.drawEllipse(QRectF(6, 11, 3, 3))
+        p.drawEllipse(QRectF(13, 9, 3, 3))
     elif name == "product":
         p.drawRect(QRectF(4, 12, 7, 8))
         p.drawRect(QRectF(13, 12, 7, 8))

@@ -100,6 +100,7 @@ def catalog(plant: Plant) -> List[VarSpec]:
     v += [VarSpec("energy:el", "energy", "برق مصرفی", "Electricity", "kwh", "sum")]
     v += [VarSpec("env:temp", "env", "دمای هوا (میانگین)", "Air temperature (mean)", "c", "mean"),
           VarSpec("site:employees", "site", "تعداد پرسنل", "Employees", "count", "mean"),
+          VarSpec("site:operating_hours", "site", "ساعات کار", "Operating hours", "h", "sum"),
           VarSpec("site:steam_t", "site", "بخار تولیدی", "Steam produced", "t", "sum"),
           VarSpec("site:revenue", "site", "درآمد", "Revenue", "cur", "sum"),
           VarSpec("site:value_added", "site", "ارزش افزوده", "Value added", "cur", "sum"),
