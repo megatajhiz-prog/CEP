@@ -124,6 +124,9 @@ class PlanItem:
     salvage: float = 0.0            # residual value at the end of the life
     repl_year: float = 0.0          # year of a one-off replacement (0 = none)
     repl_cost: float = 0.0
+    # --- scores for the ranking of measures (ranking.py), 1 (worst) .. 5 (best)
+    ease: float = 3.0               # ease of implementation
+    reliability: float = 3.0        # technical reliability / low risk
 
 
 @dataclass
@@ -247,6 +250,7 @@ class Plant:
     window: Dict[str, str] = field(default_factory=dict)            # analysis window: {"start": iso, "end": iso}
     # share of a node's water that serves a product: node -> {product -> fraction 0..1}; the rest is general (utilities)
     allocation: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    ranking: Dict[str, object] = field(default_factory=dict)         # settings of the ranking page (see ranking.py)
 
     # ------------------------------------------------------------------ three levels: site -> unit -> equipment
     def node(self, name: str) -> Optional[Subsystem]:
@@ -409,6 +413,7 @@ class Plant:
             site=_site_from(d.get("site", {})),
             series={str(k): [Point(**p) for p in v] for k, v in d.get("series", {}).items()},
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
+            ranking=dict(d.get("ranking", {})),
             allocation={str(n): {str(p): float(f) for p, f in (m or {}).items()} for n, m in d.get("allocation", {}).items()},
         )
         for k in RETIRED_SERIES:
