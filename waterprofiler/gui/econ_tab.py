@@ -193,7 +193,10 @@ class EconTab(_Scroll):
         self.c_dpb = StatCard(t("ec_dpb"), COL["orange"])
         self.c_lcow = StatCard(t("ec_lcow"), COL["navy"])
         self.lay.addLayout(stat_row(self.c_npv, self.c_irr, self.c_bcr))
+        self.c_lcc = StatCard(t("lcc_lcc"), COL["navy"])
+        self.c_eac = StatCard(t("lcc_eac"), COL["blue"])
         self.lay.addLayout(stat_row(self.c_spb, self.c_dpb, self.c_lcow))
+        self.lay.addLayout(stat_row(self.c_lcc, self.c_eac))
         self.verdict = QLabel("")
         self.verdict.setWordWrap(True)
         self.verdict.setVisible(False)
@@ -204,11 +207,8 @@ class EconTab(_Scroll):
         self.flows = _two_line_table([t("ec_year"), t("ec_vol"), t("ec_benefit"), t("ec_cost"), t("ec_net"), t("ec_cum"), t("ec_dcum")])
         self.flows.setMinimumHeight(300)
         self.lay.addWidget(card(t("ec_flows"), self.flows))
-        self.sens = _two_line_table([t("ec_var"), t("ec_npv_low"), t("ec_npv_high"), t("ec_swing")])
-        self.sens.setMinimumHeight(250)
-        self.lay.addWidget(card(t("ec_sens"), self.sens, note=t("ec_sens_note")))
         self.cmp = _two_line_table([t("ms_measure"), t("ec_saving_col"), t("ec_capex"), t("ec_npv"), t("ec_irr"), t("ec_spb"),
-                               t("ec_bcr"), t("ec_lcow"), t("ec_verdict")])
+                               t("ec_bcr"), t("ec_lcow"), t("lcc_lcc"), t("ec_verdict")])
         self.cmp.setMinimumHeight(240)
         self.cmp.cellClicked.connect(lambda r, _c: self.combo.setCurrentIndex(r) if r < self.combo.count() else None)
         self.lay.addWidget(card(t("ec_compare"), self.cmp, note=t("ec_compare_note")))
@@ -277,12 +277,11 @@ class EconTab(_Scroll):
         self._recalc()
 
     def _clear(self) -> None:
-        for c in (self.c_npv, self.c_irr, self.c_bcr, self.c_spb, self.c_dpb, self.c_lcow):
+        for c in (self.c_npv, self.c_irr, self.c_bcr, self.c_spb, self.c_dpb, self.c_lcow, self.c_lcc, self.c_eac):
             c.set("—", "")
         self.verdict.setVisible(False)
         self.chart.set_result(None)
         self.flows.setRowCount(0)
-        self.sens.setRowCount(0)
         self.saving_info.setText("")
         self.auto_price.setText("")
 
@@ -321,9 +320,10 @@ class EconTab(_Scroll):
         self.verdict.setStyleSheet(f"background:{bg}; color:{fg}; border:1px solid {bd}; border-radius:10px; padding:10px 14px;")
         self.verdict.setText(t("ec_v_" + res.verdict))
         self.verdict.setVisible(True)
+        self.c_lcc.set(f"{res.lcc:,.0f}", f"{cur} · " + t("lcc_hint"))
+        self.c_eac.set(f"{res.eac:,.0f}", f"{cur} / {t('ec_year_unit')}")
         self.chart.set_result(res)
         self._fill_flows(res)
-        self._fill_sens(inp)
         self._compare()
 
     def _fill_flows(self, r: EC.EconResult) -> None:
@@ -338,17 +338,6 @@ class EconTab(_Scroll):
             put(tb, i, 5, _fmt(r.cum[i]), True)
             put(tb, i, 6, _fmt(r.dcum[i]), True)
 
-    def _fill_sens(self, inp: EC.EconInputs) -> None:
-        names = {"saving_m3": self.t("ec_s_saving"), "price": self.t("ec_s_price"), "capex": self.t("ec_s_capex"),
-                 "opex": self.t("ec_s_opex"), "rate_pct": self.t("ec_s_rate"), "life": self.t("ec_s_life")}
-        rows = EC.sensitivity(inp)
-        self.sens.setRowCount(len(rows))
-        for i, (n, lo, hi, sw) in enumerate(rows):
-            put(self.sens, i, 0, names[n])
-            put(self.sens, i, 1, _fmt(lo), True)
-            put(self.sens, i, 2, _fmt(hi), True)
-            put(self.sens, i, 3, _fmt(sw), True, bold=True)
-
     def _compare(self) -> None:
         t = self.t
         tb = self.cmp
@@ -359,7 +348,7 @@ class EconTab(_Scroll):
             put(tb, i, 0, f"{m.id}. {m.name(t.lang)}")
             r = ie.result
             if r is None:
-                for c in range(1, 9):
+                for c in range(1, 10):
                     put(tb, i, c, "—")
                 continue
             put(tb, i, 1, _fmt(r.inputs.saving_m3), True)
@@ -369,7 +358,8 @@ class EconTab(_Scroll):
             put(tb, i, 5, "—" if r.payback is None else f"{r.payback:.2f}", True)
             put(tb, i, 6, "—" if r.bcr is None else f"{r.bcr:.2f}", True)
             put(tb, i, 7, "—" if r.lcow is None else f"{r.lcow:,.3f}", True)
-            put(tb, i, 8, t("ec_v_short_" + r.verdict))
+            put(tb, i, 8, _fmt(r.lcc), True)
+            put(tb, i, 9, t("ec_v_short_" + r.verdict))
 
 
 def _keys():
