@@ -17,7 +17,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from .i18n import Translator
-from .model import Outlet, Plant, Pump, Source, Subsystem, Treatment, UnitCosts
+from .model import Outlet, Plant, Pump, Source, Subsystem, Treatment, UnitCosts, _migrate_params
 from .numparse import parse_float
 
 KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "other"]
@@ -316,6 +316,8 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
         if sname in subs and key and v is not None:
             subs[sname].params[key] = v
 
+    for sb in subs.values():
+        sb.params = _migrate_params(sb.params)
     for note in plant.normalize_tree():
         warnings.append(note)
     plant.rollup()

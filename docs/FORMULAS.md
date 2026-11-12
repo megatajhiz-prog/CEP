@@ -16,9 +16,9 @@ subsystem, **G** gross use, **M** makeup, **B** blowdown, **C** cycles of concen
 | Subsystem | Equations |
 |---|---|
 | Process | G = N·g, R = G·r, M = G − R, P = N·p |
-| Cooling tower | G = 3 gpm/ton · tons · L · H · 60;  E = G · (e/100) · ΔT[°F]/10 (e = 0.85 %/10 °F);  C = B꜀/M꜀;  M = E / (1 − 1/C);  B = M − E;  R = G − M |
+| Cooling tower | G = 0.1937 m³/h per kW · Q[kW] · L · H (rule of thumb 3 gpm/ton);  E = G · 0.153 % · ΔT[K] (0.85 % per 10 °F);  C = B꜀/M꜀;  M = E / (1 − 1/C);  B = M − E;  R = G − M |
 | Once-through cooling | I = G = W = F·H |
-| Boiler | C = B꜀/F꜀;  S = BHP · 34.5 lb/h;  G = S / (1 − 1/C) · L · H;  M = (F꜀/M꜀) · G;  B = G / C;  E = M − B;  R = G − M |
+| Boiler | C = B꜀/F꜀;  S = rated steam [kg/h];  G = S / (1 − 1/C) · L · H · 10⁻³ [m³];  M = (F꜀/M꜀) · G;  B = G / C;  E = M − B;  R = G − M |
 | Sanitary | G = employees · days · litres per person-day |
 | Landscaping | G = E = area · depth |
 

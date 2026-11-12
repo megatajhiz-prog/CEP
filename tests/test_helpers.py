@@ -23,8 +23,8 @@ def test_fmt_roundtrip():
 
 CASES = {
     "process": dict(units=1000, g=2.0, r=0.2, p=0.1),
-    "cooling_tower": dict(hours=6000, load=0.7, tons=400, dt=5.5, mc=300, bc=1200),
-    "boiler": dict(hours=7000, load=0.6, bhp=300, fc=200, mc=400, bc=2800),
+    "cooling_tower": dict(hours=6000, load=0.7, kw=1407, dt=5.5, mc=300, bc=1200),
+    "boiler": dict(hours=7000, load=0.6, steam=4695, fc=200, mc=400, bc=2800),
     "sanitary": dict(employees=100, days=250, lpd=80),
     "irrigation": dict(area=4000, depth=600),
 }

@@ -11,12 +11,12 @@ import re
 from typing import List, Tuple
 
 _NAMES = {
-    "hours_per_year": "ساعت کار در سال", "load_fraction": "ضریب بار", "tonnage": "ظرفیت برج (تن تبرید)",
+    "hours_per_year": "ساعت کار در سال", "load_fraction": "ضریب بار", "tonnage": "ظرفیت برج (kW تبرید)",
     "delta_t_c": "اختلاف دمای ورودی و خروجی", "recycled_fraction": "کسر بازچرخانی",
     "units_per_year": "تعداد واحد تولید", "water_use_per_unit_m3": "مصرف آب به ازای هر واحد",
     "consumed_in_product_per_unit_m3": "آب در هر واحد محصول", "employees": "تعداد کارکنان",
     "days_per_year": "روز کاری در سال", "litres_per_employee_day": "لیتر به ازای هر نفر در روز",
-    "area_m2": "مساحت", "depth_mm_per_year": "عمق آبیاری", "bhp": "ظرفیت بویلر (BHP)",
+    "area_m2": "مساحت", "depth_mm_per_year": "عمق آبیاری", "bhp": "ظرفیت بخار بویلر (kg/h)",
 }
 _LABELS = {"Boiler": "بویلر", "Cooling tower": "برج خنک‌کن"}
 
@@ -40,9 +40,9 @@ _RULES: List[Tuple["re.Pattern[str]", object]] = [
      lambda m: (f"{_l(m[1])}: چرخهٔ تغلیظ باید بزرگ‌تر از ۱ باشد (محاسبه‌شده: {m[2]}). "
                 "بررسی کنید هدایت بلودان از هدایت مرجع (آب جبرانی یا آب تغذیه) بیشتر باشد.")),
     (re.compile(r"^Boiler: give bhp or rated_steam_kg_per_h$"),
-     lambda m: "بویلر: ظرفیت بویلر (BHP) یا بخار نامی (kg/h) را وارد کنید."),
+     lambda m: "بویلر: بخار نامی بویلر (kg/h) را وارد کنید."),
     (re.compile(r"^give bhp or rated_steam_kg_per_h$"),
-     lambda m: "ظرفیت بویلر (BHP) یا بخار نامی (kg/h) را وارد کنید."),
+     lambda m: "بخار نامی بویلر (kg/h) را وارد کنید."),
     (re.compile(r"^Boiler: feedwater conductivity cannot exceed makeup conductivity.*$"),
      lambda m: "بویلر: هدایت آب تغذیه نمی‌تواند از هدایت آب جبرانی بیشتر باشد (سهم آب جبرانی بیش از ۱۰۰٪ می‌شود)."),
     (re.compile(r"^new cycles of concentration must be > 1$"),

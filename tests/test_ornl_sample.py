@@ -5,7 +5,7 @@ from pytest import approx
 from waterprofiler.analysis import analyse
 from waterprofiler.sample import ornl_pilot3
 
-PCT = 100 * 100_000 * 3.78541 / 100   # m3 of 100 % of plant-level intake
+PCT = 400_000.0   # m3 of 100 % of plant-level intake (metric scale)
 
 
 def _a(lang="en"):
@@ -44,4 +44,4 @@ def test_both_languages_and_plan():
     from waterprofiler.measures import evaluate_plan
     r = evaluate_plan(en)
     assert 5 < r.saving_pct < 15 and r.payback is not None
-    assert en.production_per_year == approx(308272.7, rel=1e-4)            # 0.33 kGal per 1000 lb
+    assert en.production_per_year == approx(147756.9, rel=1e-4)            # t/yr, from 2.754 m3 per tonne
