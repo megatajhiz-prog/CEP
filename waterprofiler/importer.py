@@ -108,7 +108,7 @@ def _fill_sheets(wb: Workbook, plant: Plant, t: Translator, first_sheet_active: 
         for k, v in s.wastewater_treatments.items():
             fl.append([s.name, "wastewater_treatment", k, v])
         for p in s.pumps:
-            kw = p.power_kw if p.power_kw is not None else (p.power_hp * 0.746 if p.power_hp is not None else None)
+            kw = p.power_kw
             sheets["pumps"].append([s.name, p.name, p.hours_per_year, kw, p.efficiency, p.load_fraction,
                                     p.volts, p.amps, p.power_factor, p.phases])
         for k, v in s.params.items():
@@ -307,7 +307,7 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
         ph = num(g(9), where, 3.0)
         subs[sname].pumps.append(Pump(
             name=_text(g(1)) or "pump", hours_per_year=num(g(2), where, 0.0) or 0.0, power_kw=num(g(3), where),
-            power_hp=None, efficiency=num(g(4), where, 0.9) or 0.9, load_fraction=num(g(5), where, 1.0) if num(g(5), where, 1.0) is not None else 1.0,
+            efficiency=num(g(4), where, 0.9) or 0.9, load_fraction=num(g(5), where, 1.0) if num(g(5), where, 1.0) is not None else 1.0,
             volts=num(g(6), where), amps=num(g(7), where), power_factor=num(g(8), where, 0.85) or 0.85,
             phases=1 if ph == 1 else 3))
     for r, row in _rows(ws["params"]):

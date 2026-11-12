@@ -140,6 +140,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "site_city": {"fa": "شهر", "en": "City"},
     "site_address": {"fa": "نشانی", "en": "Address"},
     "site_note": {"fa": "یادداشت", "en": "Note"},
+    "optional": {"fa": "اختیاری", "en": "optional"},
     "site_lat": {"fa": "عرض جغرافیایی", "en": "Latitude"},
     "site_lon": {"fa": "طول جغرافیایی", "en": "Longitude"},
     "site_land": {"fa": "مساحت زمین (m²)", "en": "Land area (m²)"},

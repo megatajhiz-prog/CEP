@@ -73,7 +73,7 @@ class SiteTab(_Scroll):
         for key, w in (("site_lat", self.f_lat), ("site_lon", self.f_lon), ("site_land", self.f_land),
                        ("site_year", self.f_year), ("site_shifts", self.f_shifts),
                        ("site_calendar", self.f_cal)):
-            right.addRow(t(key), w)
+            right.addRow(t(key) + (f" ({t('optional')})" if key != "site_calendar" else ""), w)
         info = QWidget()
         il = QHBoxLayout(info)
         il.setContentsMargins(0, 0, 0, 0)
