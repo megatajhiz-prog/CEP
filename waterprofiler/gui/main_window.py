@@ -36,6 +36,8 @@ from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .pfd_tab import PfdTab
+from .guide_dialog import GuideDialog
+from .guide_dialog import GuideDialog
 from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
@@ -299,6 +301,8 @@ class MainWindow(QMainWindow):
         act(lm, "lang_fa", lambda: self.set_language("fa"))
         act(lm, "lang_en", lambda: self.set_language("en"))
         hm = mb.addMenu(t("help"))
+        act(hm, "user_guide", self.action_guide, "F1")
+        act(hm, "user_guide", self.action_guide, "F1")
         act(hm, "about", self.action_about)
 
     # ===================================================== model <-> UI sync
@@ -607,6 +611,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, self.t("error"), str(e))
             return
         self.statusBar().showMessage(self.t("export_done"), 4000)
+
+    def action_guide(self) -> None:
+        GuideDialog(self.t, self).exec()
+
+    def action_guide(self) -> None:
+        GuideDialog(self.t, self).exec()
 
     def action_about(self) -> None:
         AboutDialog(self.t, self).exec()
