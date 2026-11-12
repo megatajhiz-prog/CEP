@@ -252,6 +252,7 @@ class Plant:
     allocation: Dict[str, Dict[str, float]] = field(default_factory=dict)
     ranking: Dict[str, object] = field(default_factory=dict)         # settings of the ranking page (see ranking.py)
     risk: Dict[str, object] = field(default_factory=dict)            # settings of the Monte-Carlo page (see econrisk.py)
+    pfd: Dict[str, object] = field(default_factory=dict)             # process-flow diagram: {"pos": {id: [x, y]}, "symbol": {id: name}}
 
     # ------------------------------------------------------------------ three levels: site -> unit -> equipment
     def node(self, name: str) -> Optional[Subsystem]:
@@ -416,6 +417,7 @@ class Plant:
             window={str(k): str(v) for k, v in d.get("window", {}).items()},
             ranking=dict(d.get("ranking", {})),
             risk=dict(d.get("risk", {})),
+            pfd=dict(d.get("pfd", {})),
             allocation={str(n): {str(p): float(f) for p, f in (m or {}).items()} for n, m in d.get("allocation", {}).items()},
         )
         for k in RETIRED_SERIES:

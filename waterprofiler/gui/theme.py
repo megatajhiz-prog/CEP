@@ -147,6 +147,13 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
             path.moveTo(7.5, y)
             path.cubicTo(12, y, 12, 11.8, 16.5, 11.8)
             p.drawPath(path)
+    elif name == "pfd":
+        p.drawRoundedRect(QRectF(3, 4, 7, 6), 1.2, 1.2)
+        p.drawEllipse(QRectF(14, 13, 7, 7))
+        p.drawLine(P(10, 7), P(17.5, 7))
+        p.drawLine(P(17.5, 7), P(17.5, 13))
+        p.drawLine(P(6.5, 10), P(6.5, 16.5))
+        p.drawLine(P(6.5, 16.5), P(14, 16.5))
     elif name == "balance":
         p.drawLine(P(12, 4), P(12, 20))
         p.drawLine(P(7, 20), P(17, 20))

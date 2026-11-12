@@ -35,6 +35,7 @@ from .indicators_tab import IndicatorsTab
 from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
+from .pfd_tab import PfdTab
 from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
@@ -93,6 +94,9 @@ class MainWindow(QMainWindow):
         self.flow_tab.links_changed.connect(self._links_changed)
         self.flow_tab.plant_edited.connect(self._flow_edited)
         self.flow_tab.series_requested.connect(lambda: self.tabs.setCurrentWidget(self.ts_tab))
+        self.pfd_tab = PfdTab(t)
+        self.pfd_tab.subsystem_requested.connect(self._open_subsystem)
+        self.pfd_tab.plant_edited.connect(self._flow_edited)
         self.balance_tab = self.flow_tab.balance      # the balance lives on the flow page
         self.cost_tab = CostTab(t)
         self.savings_tab = SavingsTab(t)
@@ -140,6 +144,7 @@ class MainWindow(QMainWindow):
             ("subsystems", "tab_subsystems", "desc_subsystems", subs),
             ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
+            ("pfd", "tab_pfd", "desc_pfd", self.pfd_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("product", "tab_product", "desc_product", self.product_tab),
             ("baseline", "tab_baseline", "desc_baseline", self.baseline_tab),
@@ -374,6 +379,9 @@ class MainWindow(QMainWindow):
         elif w is self.flow_tab:
             a = self._run_analysis()
             self.flow_tab.refresh(self.plant, a)
+        elif w is self.pfd_tab:
+            a = self._run_analysis()
+            self.pfd_tab.refresh(self.plant, a)
         elif w is self.product_tab:
             self.product_tab.refresh(self.plant)
         elif w is self.baseline_tab:
@@ -427,6 +435,7 @@ class MainWindow(QMainWindow):
             self._load_editor(self.plant.subsystems[self._cur])
         a = self._run_analysis()
         self.flow_tab.refresh(self.plant, a)
+        self.pfd_tab.refresh(self.plant, a)
 
     def _links_changed(self) -> None:
         try:

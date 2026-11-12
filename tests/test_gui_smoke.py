@@ -722,3 +722,44 @@ def test_lcc_sensitivity_and_risk_pages(app):
 
 
 from waterprofiler.econrisk import MC_VARS as ER_MC_VARS
+
+
+def test_pfd_editor_page(app, tmp_path, monkeypatch):
+    from waterprofiler.sample import demo_with_history
+    from waterprofiler import pfd as P
+    from waterprofiler.gui.pfd_tab import NodeItem, EdgeItem
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    w.tabs.setCurrentWidget(w.pfd_tab)
+    app.processEvents()
+    tab = w.pfd_tab
+    nodes = [i for i in tab.scene.items() if isinstance(i, NodeItem)]
+    assert len(nodes) == len(tab.graph.nodes) and any(isinstance(i, EdgeItem) for i in tab.scene.items())
+    leaf = next(i for i in nodes if i.n.kind == "subsystem" and not i.n.container)
+    leaf.setSelected(True)
+    app.processEvents()
+    assert "<h3>" in tab.panel.text()
+    leaf.setPos(leaf.pos().x() + 40, leaf.pos().y() + 20)
+    tab.scene.node_moved.emit(leaf.n.id, leaf.pos().x(), leaf.pos().y())
+    assert w.plant.pfd["pos"][leaf.n.id] == [leaf.pos().x(), leaf.pos().y()]
+    tab._set_symbol(leaf.n.id, "pump")
+    assert w.plant.pfd["symbol"][leaf.n.id] == "pump"
+    tab.undo()
+    tab._reset_layout()
+    w.close()
+
+
+def test_cost_table_lists_equipment_under_units(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    a = w._run_analysis()
+    w.cost_tab.refresh(a)
+    names = [w.cost_tab.table.item(r, 0).text() for r in range(w.cost_tab.table.rowCount())]
+    eq = [s.name for s in w.plant.leaves() if w.plant.root_of(s.name) != s.name] if hasattr(w.plant, "root_of") else []
+    for n in eq:
+        assert any(x.strip().endswith(n) for x in names)
+    assert names[-1] == w.t("total")
+    w.close()
