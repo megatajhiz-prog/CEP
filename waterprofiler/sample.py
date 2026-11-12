@@ -155,3 +155,73 @@ def demo_with_history(lang: str = "en") -> Plant:
         for k, v in rows.items():
             TS.put(p, k, m.start, m.end, round(v, 2))
     return p
+
+
+# ------------------------------------------------------------------------------------------------- ORNL pilot 3
+_ORNL = {
+    "en": dict(plant="ORNL pilot 3: vinyl siding plant", unit="1000 lb", product="Vinyl siding",
+               w1="Municipal water 1", w2="Municipal water 2", s1="Municipal sewer 1", s2="Municipal sewer 2 (third-party)",
+               t_ct="Chemical treatment 1", t_ot="Chemical treatment 2", t_cl="Chlorine",
+               vac="Process: vacuum pumps", quench="Process: quench tanks", wash="Process: wash bay",
+               ct="Cooling tower for process", kitchen="Kitchen and restrooms", other="Other: process water loop",
+               pump="Pump and motor", site="Vinyl siding plant (pilot training 3)", sector="Plastics",
+               note=("Rebuilt from Malhotra et al. (2021), ORNL/TM-2021/1918, section 3.3, Figs. 11-13. Flows are the report's "
+                     "percentages of plant intake, scaled to an assumed 100 000 kGal/yr. Unit prices were solved from Fig. 13 "
+                     "($/kGal contributions), and the pump energy from the same figure; the report does not print them. "
+                     "Capital costs and savings in the plan are assumptions for illustration, not data from the report.")),
+    "fa": dict(plant="نمونهٔ ORNL: کارخانهٔ سایدینگ وینیل", unit="۱۰۰۰ پوند", product="سایدینگ وینیل",
+               w1="آب شهری ۱", w2="آب شهری ۲", s1="فاضلاب شهری ۱", s2="فاضلاب شهری ۲ (شخص ثالث)",
+               t_ct="تصفیهٔ شیمیایی ۱", t_ot="تصفیهٔ شیمیایی ۲", t_cl="کلر",
+               vac="فرایند: پمپ‌های خلأ", quench="فرایند: تانک‌های کوئنچ", wash="فرایند: محل شست‌وشو",
+               ct="برج خنک‌کن فرایند", kitchen="آشپزخانه و سرویس‌ها", other="سایر: حلقهٔ آب فرایند",
+               pump="پمپ و موتور", site="کارخانهٔ سایدینگ وینیل (آموزش پایلوت ۳)", sector="پلاستیک",
+               note=("بازسازی از Malhotra و همکاران (۲۰۲۱)، ORNL/TM-2021/1918، بخش ۳٫۳ و شکل‌های ۱۱ تا ۱۳. جریان‌ها درصدهای گزارش "
+                     "از آب ورودی کارخانه‌اند و در مقیاس فرضی ۱۰۰٬۰۰۰ کیلوگالن در سال آمده‌اند. قیمت‌های واحد و انرژی پمپ‌ها از "
+                     "شکل ۱۳ (سهم‌های دلار بر کیلوگالن) برعکس حساب شده‌اند، چون گزارش آن‌ها را چاپ نکرده است. هزینهٔ سرمایه‌گذاری "
+                     "و صرفه‌جویی‌های طرح فرضی و فقط برای آموزش‌اند، نه داده‌ای از گزارش.")),
+}
+
+
+def ornl_pilot3(lang: str = "en") -> Plant:
+    """The worked example of the ORNL Plant Water Profiler report (pilot training 3, a vinyl siding plant).
+
+    Water volumes are the report's percentages of plant-level intake (Fig. 11); unit prices follow from the true-cost
+    contributions of Fig. 13. With them the program reproduces the report: subsystem intake 101.7 %, evaporation 12.4 %,
+    discharge 89.3 %, boundary imbalance 7.2 %, true cost 8.01 $/kGal = 1.45 x the direct cost."""
+    from .model import Area, Product, Site
+
+    n = _ORNL.get(lang, _ORNL["en"])
+    kgal = 3.78541                                   # m3 per thousand gallons
+    u = 100_000 * kgal / 100.0                       # m3 for 1 % of plant-level intake (assumed scale)
+    v = lambda pct: pct * u                          # noqa: E731
+    pm = lambda price: price / kgal                  # noqa: E731  $/kGal -> $/m3
+    el = 0.10
+    sys_kgal = 101.73 * 1000.0                       # sum of subsystem intake, kGal
+
+    def kw(contribution: float) -> float:            # pump power whose energy cost is the report's $/kGal contribution
+        return contribution * sys_kgal / el / 8000.0
+
+    subs = [
+        Subsystem(n["vac"], "process", intake={n["w1"]: v(55.4)}, recirculated=v(2.8), discharge={n["s1"]: v(55.4)}),
+        Subsystem(n["quench"], "process", intake={n["w1"]: v(23.8)}, evaporation=v(1.2), discharge={n["s1"]: v(22.6)},
+                  water_treatments={n["t_cl"]: 1.0}, pumps=[Pump(n["pump"], 8000, power_kw=kw(0.33), efficiency=1.0)]),
+        Subsystem(n["wash"], "process", intake={n["w2"]: v(9.5)}, evaporation=v(0.93), discharge={n["s2"]: v(8.5)}),
+        Subsystem(n["ct"], "cooling_tower", intake={n["w1"]: v(11.6)}, evaporation=v(9.6), discharge={n["s1"]: v(2.0)},
+                  water_treatments={n["t_ct"]: 1.0}, pumps=[Pump(n["pump"], 8000, power_kw=kw(1.81), efficiency=1.0)]),
+        Subsystem(n["kitchen"], "sanitary", intake={n["w2"]: v(1.16)}, evaporation=v(0.36), discharge={n["s2"]: v(0.8)}),
+        Subsystem(n["other"], "process", intake={n["w1"]: v(0.27)}, evaporation=v(0.27), water_treatments={n["t_ot"]: 1.0}),
+    ]
+    production = sys_kgal * kgal / (0.33 * kgal)     # 1000 lb per year, from 0.33 kGal per 1000 lb
+    plant = Plant(
+        name=n["plant"], currency="USD", production_per_year=production, production_unit=n["unit"],
+        sources=[Source(n["w1"], pm(2.70), v(89.4)), Source(n["w2"], pm(8.00), v(10.6))],
+        outlets=[Outlet(n["s1"], pm(2.46), v(79.7)), Outlet(n["s2"], pm(3.83), v(0.73))],
+        treatments=[Treatment(n["t_ct"], pm(2.63)), Treatment(n["t_ot"], pm(3.77)), Treatment(n["t_cl"], pm(0.128))],
+        subsystems=subs, costs=UnitCosts(electricity_per_kwh=el, fuel_per_kwh_thermal=0.04, heating_efficiency=0.8),
+        plan=[PlanItem(34, n["wash"], 17.5, capex=6000, opex=0, life_years=10, rate_pct=10),      # low-flow nozzles
+              PlanItem(6, n["quench"], 3.0, capex=8000, opex=200, life_years=10, rate_pct=10),    # level control of the tanks
+              PlanItem(5, "", 8.0, capex=15000, opex=0, life_years=10, rate_pct=10)])            # leak repair (sizer area drips)
+    plant.site = Site(name=n["site"], sector=n["sector"], note=n["note"], calendar="jalali" if lang == "fa" else "gregorian",
+                      areas=[Area(n["site"], "production")], products=[Product(n["product"], n["unit"], per_year=production)])
+    plant.sync_production()
+    return plant

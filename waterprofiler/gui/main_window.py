@@ -25,7 +25,7 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant, demo_with_history
+from ..sample import demo_plant, demo_with_history, ornl_pilot3
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import SubsystemEditor
@@ -286,7 +286,9 @@ class MainWindow(QMainWindow):
         act(m, "save", self.action_save, QKeySequence.StandardKey.Save)
         act(m, "save_as", self.action_save_as, QKeySequence.StandardKey.SaveAs)
         m.addSeparator()
-        act(m, "load_demo", self.action_demo)
+        sm = m.addMenu(t("samples"))
+        act(sm, "load_demo", self.action_demo)
+        act(sm, "load_ornl", self.action_ornl)
         m.addSeparator()
         act(m, "import_xlsx", self.action_import_xlsx)
         act(m, "save_template", self.action_save_template)
@@ -502,6 +504,11 @@ class MainWindow(QMainWindow):
     def action_demo(self) -> None:
         if self._confirm_discard():
             self._set_plant(demo_with_history(self.t.lang), None)
+            self.statusBar().showMessage(self.t("demo_loaded"), 4000)
+
+    def action_ornl(self) -> None:
+        if self._confirm_discard():
+            self._set_plant(ornl_pilot3(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_open(self) -> None:
