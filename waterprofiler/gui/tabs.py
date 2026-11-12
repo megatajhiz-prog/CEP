@@ -304,20 +304,28 @@ class CostTab(_Scroll):
                          t("true_direct_hint"))
         self.c_m3.set(_fmt(c.true_cost_per_m3_intake, 2), f"{cur} / m³")
         rank = {r.name: r for r in a.ranking}
-        n = len(c.subsystems)
+        rows_: list = []                                   # (cost, is_equipment); equipment follows its unit, indented
+        for sc in c.subsystems:
+            rows_.append((sc, False))
+            for ch in a.plant.children(sc.name):
+                if ch.name in c.nodes:
+                    rows_.append((c.nodes[ch.name], True))
+        n = len(rows_)
         self.table.setRowCount(n + 1)
-        for r, sc in enumerate(c.subsystems):
-            rk = rank[sc.name]
-            put(self.table, r, 0, sc.name)
+        m = len(COMPONENTS)
+        for r, (sc, eq) in enumerate(rows_):
+            rk = rank.get(sc.name)
+            put(self.table, r, 0, ("    ↳ " if eq else "") + sc.name, bold=not eq)
             for j, comp in enumerate(COMPONENTS, 1):
                 put(self.table, r, j, _fmt(sc.components[comp]), True)
-            m = len(COMPONENTS)
-            put(self.table, r, m + 1, _fmt(sc.total), True, bold=True)
+            put(self.table, r, m + 1, _fmt(sc.total), True, bold=not eq)
             put(self.table, r, m + 2, _fmt(sc.per_m3_intake, 2), True)
-            put(self.table, r, m + 3, _pct(rk.intake_share), True)
-            put(self.table, r, m + 4, _pct(rk.cost_share), True)
-            bg = None if rk.priority == "low" else WARN_BG
-            put(self.table, r, m + 5, t("pr_" + rk.priority), False, bg)
+            put(self.table, r, m + 3, _pct(rk.intake_share if rk else c.water_share.get(sc.name, 0.0)), True)
+            put(self.table, r, m + 4, _pct(rk.cost_share if rk else c.cost_share.get(sc.name, 0.0)), True)
+            if eq or rk is None:
+                put(self.table, r, m + 5, "", False, QColor("#F4F7FB"))
+            else:
+                put(self.table, r, m + 5, t("pr_" + rk.priority), False, None if rk.priority == "low" else WARN_BG)
         put(self.table, n, 0, t("total"), bold=True)
         for j, comp in enumerate(COMPONENTS, 1):
             put(self.table, n, j, _fmt(c.by_component[comp]), True, bold=True)

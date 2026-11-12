@@ -748,3 +748,18 @@ def test_pfd_editor_page(app, tmp_path, monkeypatch):
     tab.undo()
     tab._reset_layout()
     w.close()
+
+
+def test_cost_table_lists_equipment_under_units(app):
+    from waterprofiler.sample import demo_with_history
+    w = _win("en")
+    w.plant = demo_with_history("en")
+    w._load_all(0)
+    a = w._run_analysis()
+    w.cost_tab.refresh(a)
+    names = [w.cost_tab.table.item(r, 0).text() for r in range(w.cost_tab.table.rowCount())]
+    eq = [s.name for s in w.plant.leaves() if w.plant.root_of(s.name) != s.name] if hasattr(w.plant, "root_of") else []
+    for n in eq:
+        assert any(x.strip().endswith(n) for x in names)
+    assert names[-1] == w.t("total")
+    w.close()
