@@ -287,8 +287,7 @@ class SubsystemEditor(QScrollArea):
         self.storage.setValue(s.storage_change)
         self.wtreat.set_rows([[k, v] for k, v in s.water_treatments.items()])
         self.wwtreat.set_rows([[k, v] for k, v in s.wastewater_treatments.items()])
-        self.pumps.set_rows([[p.name, p.hours_per_year, p.power_kw if p.power_kw is not None else (
-            p.power_hp * 0.746 if p.power_hp is not None else None), p.efficiency, p.load_fraction,
+        self.pumps.set_rows([[p.name, p.hours_per_year, p.power_kw, p.efficiency, p.load_fraction,
             p.volts, p.amps, p.power_factor, float(p.phases)] for p in s.pumps])
         self.t_in.set(s.t_intake_c)
         self.t_ww.set(s.t_wastewater_c)
@@ -349,7 +348,7 @@ class SubsystemEditor(QScrollArea):
             if not (name or hours or kw or volts):
                 continue
             pumps.append(Pump(
-                name=name or "pump", hours_per_year=hours or 0.0, power_kw=kw, power_hp=None,
+                name=name or "pump", hours_per_year=hours or 0.0, power_kw=kw,
                 efficiency=eff if eff else 0.9, load_fraction=load if load is not None else 1.0,
                 volts=volts, amps=amps, power_factor=pf if pf else 0.85,
                 phases=1 if phases == 1 else 3))

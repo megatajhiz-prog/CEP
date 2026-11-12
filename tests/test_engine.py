@@ -90,7 +90,6 @@ def test_once_through():
 # --------------------------------------------------------------- pumps
 def test_pump_energy():
     assert Pump(power_kw=10, efficiency=0.8, hours_per_year=1000, load_fraction=0.5).kwh_per_year() == approx(6250)
-    assert Pump(power_hp=10, efficiency=0.9, hours_per_year=1000).kwh_per_year() == approx(10 * 0.746 / 0.9 * 1000)
     three = Pump(volts=400, amps=20, power_factor=0.85, phases=3, hours_per_year=1000).kwh_per_year()
     assert three == approx(400 * 20 * math.sqrt(3) * 0.85 / 1000 * 1000)
     one = Pump(volts=230, amps=10, power_factor=0.9, phases=1, hours_per_year=100).kwh_per_year()
@@ -311,3 +310,9 @@ def test_reconcile_keeps_zero_flows_at_zero():
     assert b.source_side_imbalance == pytest.approx(0.0, abs=1e-3)
     ct = r.plant.subsystems[1]
     assert sum(ct.intake.values()) < sum(p.subsystems[1].intake.values())   # the extra water is taken back out of the cooling tower
+
+
+def test_old_pump_file_with_horsepower_is_converted():
+    from waterprofiler.model import _pump_from_dict
+    p = _pump_from_dict({"name": "x", "power_hp": 10, "hours_per_year": 1000, "efficiency": 0.9})
+    assert p.power_kw == approx(7.46) and p.kwh_per_year() == approx(10 * 0.746 / 0.9 * 1000)

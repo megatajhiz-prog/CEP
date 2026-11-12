@@ -13,13 +13,12 @@ SQRT3 = math.sqrt(3.0)
 class Pump:
     """A pump or motor serving a subsystem.
 
-    Either give ``power_kw`` (or ``power_hp``) with ``efficiency``, or give
+    Either give ``power_kw`` with ``efficiency``, or give
     electrical readings (volts, amps, power_factor, phases).
     """
     name: str = "pump"
     hours_per_year: float = 0.0
     power_kw: Optional[float] = None
-    power_hp: Optional[float] = None
     efficiency: float = 0.9
     load_fraction: float = 1.0
     volts: Optional[float] = None
@@ -35,9 +34,16 @@ class Pump:
         eta = self.efficiency if self.efficiency > 0 else 1.0
         if self.power_kw is not None:
             return self.power_kw * self.load_fraction * h / eta
-        if self.power_hp is not None:
-            return self.power_hp * 0.746 * self.load_fraction * h / eta
         return 0.0
+
+
+def _pump_from_dict(p: dict) -> "Pump":
+    """Read a pump; files from older versions may carry ``power_hp`` (converted to kW)."""
+    p = dict(p)
+    hp = p.pop("power_hp", None)
+    if hp is not None and p.get("power_kw") is None:
+        p["power_kw"] = hp * 0.746
+    return Pump(**p)
 
 
 @dataclass
@@ -395,7 +401,7 @@ class Plant:
         subs = []
         for sd in d.get("subsystems", []):
             sd = dict(sd)
-            sd["pumps"] = [Pump(**p) for p in sd.get("pumps", [])]
+            sd["pumps"] = [_pump_from_dict(p) for p in sd.get("pumps", [])]
             subs.append(Subsystem(**sd))
         plant = Plant(
             name=d.get("name", "Plant"),
