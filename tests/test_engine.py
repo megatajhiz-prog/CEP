@@ -316,3 +316,11 @@ def test_old_pump_file_with_horsepower_is_converted():
     from waterprofiler.model import _pump_from_dict
     p = _pump_from_dict({"name": "x", "power_hp": 10, "hours_per_year": 1000, "efficiency": 0.9})
     assert p.power_kw == approx(7.46) and p.kwh_per_year() == approx(10 * 0.746 / 0.9 * 1000)
+
+
+def test_old_project_with_tons_and_bhp_is_converted_to_metric():
+    from waterprofiler.model import Plant
+    d = {"subsystems": [{"name": "CT", "params": {"tons": 100, "bhp": 100, "hours": 10}}]}
+    p = Plant.from_dict(d).subsystems[0].params
+    assert "tons" not in p and "bhp" not in p
+    assert p["kw"] == pytest.approx(351.685, rel=1e-4) and p["steam"] == pytest.approx(1564.9, rel=1e-3)

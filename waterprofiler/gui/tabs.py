@@ -492,14 +492,14 @@ class SavingsTab(_Scroll):
             self.bo_out.setText(t("sv_none"))
             return
         p = s.params
-        if not all(k in p for k in ("hours", "load", "bhp")):
+        if not all(k in p for k in ("hours", "load", "steam")):
             self.bo_out.setText(t("sv_need_estimate"))
             return
         w, d, tr = _weighted_costs(self.plant, s)
         try:
             r = sv.boiler_coc_and_condensate(
                 s.total_intake, p["hours"], p["load"], self.bo_coc.value(), self.bo_cond.value(),
-                bhp=p["bhp"], baseline_blowdown_m3=s.total_discharge,
+                rated_steam_kg_per_h=p["steam"], baseline_blowdown_m3=s.total_discharge,
                 water_unit_cost=w, discharge_unit_cost=d, treatment_unit_cost=tr)
         except InputError as e:
             self.bo_out.setText(localize(str(e), t.lang))

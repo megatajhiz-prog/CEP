@@ -37,6 +37,18 @@ class Pump:
         return 0.0
 
 
+def _migrate_params(p: dict) -> dict:
+    """Old files kept refrigeration tons ("tons") and boiler horsepower ("bhp"); store kW and kg/h steam instead."""
+    p = dict(p)
+    if "tons" in p:
+        t = p.pop("tons")
+        p.setdefault("kw", t * 3.516852842)
+    if "bhp" in p:
+        b = p.pop("bhp")
+        p.setdefault("steam", b * 34.5 * 0.45359237)
+    return p
+
+
 def _pump_from_dict(p: dict) -> "Pump":
     """Read a pump; files from older versions may carry ``power_hp`` (converted to kW)."""
     p = dict(p)
@@ -402,6 +414,7 @@ class Plant:
         for sd in d.get("subsystems", []):
             sd = dict(sd)
             sd["pumps"] = [_pump_from_dict(p) for p in sd.get("pumps", [])]
+            sd["params"] = _migrate_params(sd.get("params", {}))
             subs.append(Subsystem(**sd))
         plant = Plant(
             name=d.get("name", "Plant"),

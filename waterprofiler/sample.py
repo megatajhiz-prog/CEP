@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .estimators import boiler_water, cooling_tower_water, irrigation_water, process_water, sanitary_water
+from .units import REFRIG_TON_TO_KW
 from .model import Outlet, PlanItem, Plant, Pump, Source, Subsystem, Treatment, UnitCosts
 
 _NAMES = {
@@ -26,8 +27,8 @@ _NAMES = {
 
 # Estimator inputs, kept on the subsystems so 'Estimate from specifications' and the
 # savings tab work on the demo exactly as on a user's own data.
-CT_PARAMS = {"hours": 6000, "load": 0.7, "tons": 400, "dt": 5.5, "mc": 300, "bc": 1200}
-BOILER_PARAMS = {"hours": 7000, "load": 0.6, "bhp": 300, "fc": 200, "mc": 400, "bc": 2800}
+CT_PARAMS = {"hours": 6000, "load": 0.7, "kw": 1407, "dt": 5.5, "mc": 300, "bc": 1200}
+BOILER_PARAMS = {"hours": 7000, "load": 0.6, "steam": 4695, "fc": 200, "mc": 400, "bc": 2800}
 PROCESS_PARAMS = {"units": 50_000, "g": 0.8, "r": 0.25, "p": 0.1}
 SANITARY_PARAMS = {"employees": 250, "days": 300, "lpd": 80}
 IRRIGATION_PARAMS = {"area": 4000, "depth": 600}
@@ -35,11 +36,11 @@ IRRIGATION_PARAMS = {"area": 4000, "depth": 600}
 
 def demo_plant(lang: str = "en") -> Plant:
     n = _NAMES.get(lang, _NAMES["en"])
-    ct = cooling_tower_water(hours_per_year=CT_PARAMS["hours"], tonnage=CT_PARAMS["tons"],
+    ct = cooling_tower_water(hours_per_year=CT_PARAMS["hours"], tonnage=CT_PARAMS["kw"] / REFRIG_TON_TO_KW,
                              load_fraction=CT_PARAMS["load"], delta_t_c=CT_PARAMS["dt"],
                              makeup_conductivity=CT_PARAMS["mc"], blowdown_conductivity=CT_PARAMS["bc"])
     bo = boiler_water(hours_per_year=BOILER_PARAMS["hours"], load_fraction=BOILER_PARAMS["load"],
-                      bhp=BOILER_PARAMS["bhp"], feedwater_conductivity=BOILER_PARAMS["fc"],
+                      rated_steam_kg_per_h=BOILER_PARAMS["steam"], feedwater_conductivity=BOILER_PARAMS["fc"],
                       makeup_conductivity=BOILER_PARAMS["mc"], blowdown_conductivity=BOILER_PARAMS["bc"])
     pr = process_water(units_per_year=PROCESS_PARAMS["units"], water_use_per_unit_m3=PROCESS_PARAMS["g"],
                        recycled_fraction=PROCESS_PARAMS["r"], consumed_in_product_per_unit_m3=PROCESS_PARAMS["p"])
@@ -159,25 +160,25 @@ def demo_with_history(lang: str = "en") -> Plant:
 
 # ------------------------------------------------------------------------------------------------- ORNL pilot 3
 _ORNL = {
-    "en": dict(plant="ORNL pilot 3: vinyl siding plant", unit="1000 lb", product="Vinyl siding",
+    "en": dict(plant="ORNL pilot 3: vinyl siding plant", unit="t", product="Vinyl siding",
                w1="Municipal water 1", w2="Municipal water 2", s1="Municipal sewer 1", s2="Municipal sewer 2 (third-party)",
                t_ct="Chemical treatment 1", t_ot="Chemical treatment 2", t_cl="Chlorine",
                vac="Process: vacuum pumps", quench="Process: quench tanks", wash="Process: wash bay",
                ct="Cooling tower for process", kitchen="Kitchen and restrooms", other="Other: process water loop",
                pump="Pump and motor", site="Vinyl siding plant (pilot training 3)", sector="Plastics",
                note=("Rebuilt from Malhotra et al. (2021), ORNL/TM-2021/1918, section 3.3, Figs. 11-13. Flows are the report's "
-                     "percentages of plant intake, scaled to an assumed 100 000 kGal/yr. Unit prices were solved from Fig. 13 "
-                     "($/kGal contributions), and the pump energy from the same figure; the report does not print them. "
+                     "percentages of plant intake, scaled to an assumed 400 000 m3/yr. Unit prices were solved from Fig. 13 "
+                     "(cost contributions per m3; the report quotes them per thousand US gallons), and the pump energy from the same figure; the report does not print them. "
                      "Capital costs and savings in the plan are assumptions for illustration, not data from the report.")),
-    "fa": dict(plant="نمونهٔ ORNL: کارخانهٔ سایدینگ وینیل", unit="۱۰۰۰ پوند", product="سایدینگ وینیل",
+    "fa": dict(plant="نمونهٔ ORNL: کارخانهٔ سایدینگ وینیل", unit="تن", product="سایدینگ وینیل",
                w1="آب شهری ۱", w2="آب شهری ۲", s1="فاضلاب شهری ۱", s2="فاضلاب شهری ۲ (شخص ثالث)",
                t_ct="تصفیهٔ شیمیایی ۱", t_ot="تصفیهٔ شیمیایی ۲", t_cl="کلر",
                vac="فرایند: پمپ‌های خلأ", quench="فرایند: تانک‌های کوئنچ", wash="فرایند: محل شست‌وشو",
                ct="برج خنک‌کن فرایند", kitchen="آشپزخانه و سرویس‌ها", other="سایر: حلقهٔ آب فرایند",
                pump="پمپ و موتور", site="کارخانهٔ سایدینگ وینیل (آموزش پایلوت ۳)", sector="پلاستیک",
                note=("بازسازی از Malhotra و همکاران (۲۰۲۱)، ORNL/TM-2021/1918، بخش ۳٫۳ و شکل‌های ۱۱ تا ۱۳. جریان‌ها درصدهای گزارش "
-                     "از آب ورودی کارخانه‌اند و در مقیاس فرضی ۱۰۰٬۰۰۰ کیلوگالن در سال آمده‌اند. قیمت‌های واحد و انرژی پمپ‌ها از "
-                     "شکل ۱۳ (سهم‌های دلار بر کیلوگالن) برعکس حساب شده‌اند، چون گزارش آن‌ها را چاپ نکرده است. هزینهٔ سرمایه‌گذاری "
+                     "از آب ورودی کارخانه‌اند و در مقیاس فرضی ۴۰۰٬۰۰۰ مترمکعب در سال آمده‌اند. قیمت‌های واحد و انرژی پمپ‌ها از "
+                     "شکل ۱۳ (سهم‌های هزینه بر مترمکعب؛ گزارش آن‌ها را بر هزار گالن آمریکا چاپ کرده) برعکس حساب شده‌اند، چون گزارش آن‌ها را چاپ نکرده است. هزینهٔ سرمایه‌گذاری "
                      "و صرفه‌جویی‌های طرح فرضی و فقط برای آموزش‌اند، نه داده‌ای از گزارش.")),
 }
 
@@ -187,19 +188,19 @@ def ornl_pilot3(lang: str = "en") -> Plant:
 
     Water volumes are the report's percentages of plant-level intake (Fig. 11); unit prices follow from the true-cost
     contributions of Fig. 13. With them the program reproduces the report: subsystem intake 101.7 %, evaporation 12.4 %,
-    discharge 89.3 %, boundary imbalance 7.2 %, true cost 8.01 $/kGal = 1.45 x the direct cost."""
+    discharge 89.3 %, boundary imbalance 7.2 %, true cost 2.12 $/m3 (8.01 $/kGal in the report) = 1.45 x the direct cost."""
     from .model import Area, Product, Site
 
     n = _ORNL.get(lang, _ORNL["en"])
-    kgal = 3.78541                                   # m3 per thousand gallons
-    u = 100_000 * kgal / 100.0                       # m3 for 1 % of plant-level intake (assumed scale)
+    kgal = 3.78541                                   # m3 per thousand US gallons (report prices are per kGal)
+    u = 400_000 / 100.0                              # m3 for 1 % of plant-level intake (assumed scale)
     v = lambda pct: pct * u                          # noqa: E731
     pm = lambda price: price / kgal                  # noqa: E731  $/kGal -> $/m3
     el = 0.10
-    sys_kgal = 101.73 * 1000.0                       # sum of subsystem intake, kGal
+    sys_m3 = 101.73 * u                              # sum of subsystem intake, m3
 
     def kw(contribution: float) -> float:            # pump power whose energy cost is the report's $/kGal contribution
-        return contribution * sys_kgal / el / 8000.0
+        return contribution / kgal * sys_m3 / el / 8000.0
 
     subs = [
         Subsystem(n["vac"], "process", intake={n["w1"]: v(55.4)}, recirculated=v(2.8), discharge={n["s1"]: v(55.4)}),
@@ -211,7 +212,7 @@ def ornl_pilot3(lang: str = "en") -> Plant:
         Subsystem(n["kitchen"], "sanitary", intake={n["w2"]: v(1.16)}, evaporation=v(0.36), discharge={n["s2"]: v(0.8)}),
         Subsystem(n["other"], "process", intake={n["w1"]: v(0.27)}, evaporation=v(0.27), water_treatments={n["t_ot"]: 1.0}),
     ]
-    production = sys_kgal * kgal / (0.33 * kgal)     # 1000 lb per year, from 0.33 kGal per 1000 lb
+    production = sys_m3 / (0.33 * kgal / 0.45359237)  # tonnes per year, from 0.33 kGal per 1000 lb (= 2.75 m3/t)
     plant = Plant(
         name=n["plant"], currency="USD", production_per_year=production, production_unit=n["unit"],
         sources=[Source(n["w1"], pm(2.70), v(89.4)), Source(n["w2"], pm(8.00), v(10.6))],

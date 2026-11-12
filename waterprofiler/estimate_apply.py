@@ -6,25 +6,32 @@ from typing import Dict, Optional
 
 from . import estimators as est
 from .estimators import FlowEstimate
-from .model import Subsystem
+from .model import Subsystem, _migrate_params
+from .units import REFRIG_TON_TO_KW
 
 # parameter names accepted per subsystem kind
 PARAMS: Dict[str, tuple] = {
     "process": ("units", "g", "r", "p"),
-    "cooling_tower": ("hours", "load", "tons", "dt", "mc", "bc"),
-    "boiler": ("hours", "load", "bhp", "fc", "mc", "bc"),
+    "cooling_tower": ("hours", "load", "kw", "dt", "mc", "bc"),
+    "boiler": ("hours", "load", "steam", "fc", "mc", "bc"),
     "sanitary": ("employees", "days", "lpd"),
     "irrigation": ("area", "depth"),
 }
 
 
+def normalize_params(p: Dict[str, float]) -> Dict[str, float]:
+    """Old project files stored refrigeration tons ("tons") and boiler horsepower ("bhp"); convert to metric."""
+    return _migrate_params(p)
+
+
 def estimate(kind: str, p: Dict[str, float]) -> FlowEstimate:
+    p = normalize_params(p)
     if kind == "process":
         return est.process_water(p["units"], p["g"], p.get("r", 0.0), p.get("p", 0.0))
     if kind == "cooling_tower":
-        return est.cooling_tower_water(p["hours"], p["tons"], p["load"], p["dt"], p["mc"], p["bc"])
+        return est.cooling_tower_water(p["hours"], p["kw"] / REFRIG_TON_TO_KW, p["load"], p["dt"], p["mc"], p["bc"])
     if kind == "boiler":
-        return est.boiler_water(p["hours"], p["load"], p["fc"], p["mc"], p["bc"], bhp=p["bhp"])
+        return est.boiler_water(p["hours"], p["load"], p["fc"], p["mc"], p["bc"], rated_steam_kg_per_h=p["steam"])
     if kind == "sanitary":
         return est.sanitary_water(p["employees"], p["days"], p["lpd"])
     if kind == "irrigation":

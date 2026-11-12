@@ -19,16 +19,16 @@ from .widgets import button, dspin
 
 PARAM_LABEL = {
     "units": "est_units", "g": "est_g", "r": "est_r", "p": "est_p",
-    "hours": "est_hours", "load": "est_load", "tons": "est_tons", "dt": "est_dt",
-    "mc": "est_mc", "bc": "est_bc", "fc": "est_fc", "bhp": "est_bhp",
+    "hours": "est_hours", "load": "est_load", "kw": "est_kw", "dt": "est_dt",
+    "mc": "est_mc", "bc": "est_bc", "fc": "est_fc", "steam": "est_steam",
     "employees": "est_emp", "days": "est_days", "lpd": "est_lpd",
     "area": "est_area", "depth": "est_depth",
 }
 
 DEFAULTS: Dict[str, Dict[str, float]] = {
     "process": {"units": 1000.0, "g": 1.0, "r": 0.0, "p": 0.0},
-    "cooling_tower": {"hours": 6000.0, "load": 0.7, "tons": 100.0, "dt": 5.5, "mc": 300.0, "bc": 1200.0},
-    "boiler": {"hours": 7000.0, "load": 0.6, "bhp": 100.0, "fc": 200.0, "mc": 400.0, "bc": 2800.0},
+    "cooling_tower": {"hours": 6000.0, "load": 0.7, "kw": 350.0, "dt": 5.5, "mc": 300.0, "bc": 1200.0},
+    "boiler": {"hours": 7000.0, "load": 0.6, "steam": 1560.0, "fc": 200.0, "mc": 400.0, "bc": 2800.0},
     "sanitary": {"employees": 100.0, "days": 300.0, "lpd": 80.0},
     "irrigation": {"area": 1000.0, "depth": 600.0},
 }
