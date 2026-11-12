@@ -763,3 +763,31 @@ def test_cost_table_lists_equipment_under_units(app):
         assert any(x.strip().endswith(n) for x in names)
     assert names[-1] == w.t("total")
     w.close()
+
+
+def test_user_guide_dialog(app):
+    from waterprofiler.gui.guide_dialog import GuideDialog
+    w = _win("fa")
+    d = GuideDialog(w.t, w)
+    heads = d.headings()
+    assert any("نصب و شروع" in h for h in heads) and len(heads) >= 20
+    d.search.setText("PFD")
+    d.find_next()
+    assert d.view.textCursor().hasSelection()
+    d.close()
+    w.close()
+
+
+def test_user_guide_from_help_menu(app):
+    from waterprofiler.gui.guide_dialog import GuideDialog, headings
+    from waterprofiler.guide_text import GUIDE_FA
+    w = _win("en")
+    d = GuideDialog(w.t, w)
+    assert len(headings(GUIDE_FA)) == 8 and d.toc.count() == 9
+    assert "CEPWater" in d.view.toPlainText()
+    d.toc.setCurrentIndex(3)
+    d.search.setText("PFD")
+    d._find()
+    assert d.view.textCursor().hasSelection()
+    assert any(a.text() == w.t("user_guide") for a in w.menuBar().actions()[-1].menu().actions())
+    w.close()
