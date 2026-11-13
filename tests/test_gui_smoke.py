@@ -804,3 +804,19 @@ def test_ornl_sample_from_samples_menu(app):
         w.tabs.setCurrentWidget(page)
         app.processEvents()
     w.close()
+
+
+def test_wastewater_page(app):
+    w = _win("fa")
+    w.action_ww_demo()
+    app.processEvents()
+    w.tabs.setCurrentWidget(w.ww_tab)
+    app.processEvents()
+    assert w.ww_tab.units.rowCount() == 2 and w.ww_tab.users.rowCount() >= 4
+    assert w.ww_tab.pick.count() == 2
+    w.ww_tab.spins["opex_m3"].setValue(0.9)          # edit a unit parameter: stored on the subsystem and recomputed
+    assert w.plant.node(w.ww_tab.pick.currentText()).params["opex_m3"] == 0.9
+    for page in (w.flow_tab, w.pfd_tab, w.cost_tab):
+        w.tabs.setCurrentWidget(page)
+        app.processEvents()
+    w.close()

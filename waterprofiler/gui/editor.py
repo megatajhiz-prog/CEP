@@ -17,7 +17,7 @@ from ..numparse import fmt_float, parse_float
 from .trend import TrendPeek, with_data
 from .widgets import DataTable, button, card, dspin, table_box
 
-KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "other"]
+KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "wwtp", "other"]
 
 
 class OptNum(QLineEdit):

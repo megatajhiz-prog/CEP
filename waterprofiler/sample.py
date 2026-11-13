@@ -226,3 +226,63 @@ def ornl_pilot3(lang: str = "en") -> Plant:
                       areas=[Area(n["site"], "production")], products=[Product(n["product"], n["unit"], per_year=production)])
     plant.sync_production()
     return plant
+
+
+# ------------------------------------------------------------------------------------------------ wastewater and reuse
+_WW = {
+    "en": dict(plant="Tutorial: wastewater collection, treatment and reuse", well="Well", city="City water",
+               sewer="Sewer", env="Surface water", proc="Process washing", ct="Cooling tower", boiler="Boiler",
+               san="Offices and canteen", irr="Landscape", etp="Effluent treatment plant", ro="Reverse osmosis unit",
+               pump="Reclaimed water pump", product="Product", site="Food plant (wastewater tutorial)", sector="Food and beverage",
+               note=("Teaching example, invented numbers. Process, cooling tower, canteen and boiler wastewater is collected "
+                     "(transfers to the effluent plant). The plant removes COD but almost no salt; part of its effluent feeds a "
+                     "reverse osmosis unit whose permeate replaces fresh water in the process, the cooling tower and the boiler, "
+                     "and part irrigates the landscape. The rest is discharged. The effluent plant is needed anyway for the "
+                     "discharge permit, so only the reverse osmosis unit is charged to reuse.")),
+    "fa": dict(plant="آموزش: جمع‌آوری، تصفیه و بازچرخانی پساب", well="چاه", city="آب شهری",
+               sewer="فاضلاب شهری", env="آب سطحی", proc="شست‌وشوی فرایند", ct="برج خنک‌کن", boiler="بویلر",
+               san="اداری و غذاخوری", irr="فضای سبز", etp="تصفیه‌خانهٔ پساب", ro="واحد اسمز معکوس",
+               pump="پمپ آب بازیافتی", product="محصول", site="کارخانهٔ غذایی (آموزش پساب)", sector="صنایع غذایی",
+               note=("مثال آموزشی با عددهای فرضی. پساب فرایند، برج خنک‌کن، غذاخوری و بویلر جمع‌آوری می‌شود (انتقال به "
+                     "تصفیه‌خانه). تصفیه‌خانه COD را می‌گیرد ولی تقریباً نمک را نه؛ بخشی از پساب خروجی به واحد اسمز معکوس می‌رود "
+                     "و آب تراوه جای آب تازه را در فرایند، برج خنک‌کن و بویلر می‌گیرد، بخشی هم فضای سبز را آبیاری می‌کند و بقیه "
+                     "تخلیه می‌شود. تصفیه‌خانه برای پروانهٔ تخلیه به هر حال لازم است؛ پس فقط واحد اسمز معکوس به حساب بازچرخانی "
+                     "گذاشته می‌شود.")),
+}
+
+
+def wastewater_demo(lang: str = "en") -> Plant:
+    """Small food plant with a closed wastewater chain: generators -> effluent plant -> RO -> reuse (balanced, 114 000 m3/yr)."""
+    from .model import Area, Product, Site, Transfer
+
+    n = _WW.get(lang, _WW["en"])
+    subs = [
+        Subsystem(n["proc"], "process", intake={n["well"]: 70_000}, from_other=10_000, product=12_000, evaporation=3_000,
+                  to_other=58_000, discharge={n["sewer"]: 7_000}),
+        Subsystem(n["ct"], "cooling_tower", intake={n["city"]: 24_000}, from_other=6_000, evaporation=20_000,
+                  to_other=7_000, discharge={n["sewer"]: 3_000}),
+        Subsystem(n["boiler"], "boiler", intake={n["city"]: 7_000}, from_other=2_000, evaporation=6_500,
+                  discharge={n["sewer"]: 2_500}),
+        Subsystem(n["san"], "sanitary", intake={n["city"]: 8_000}, evaporation=500, to_other=7_500),
+        Subsystem(n["irr"], "irrigation", intake={n["well"]: 5_000}, from_other=6_000, evaporation=11_000),
+        Subsystem(n["etp"], "wwtp", from_other=72_500, product=1_500, evaporation=500, to_other=30_000,
+                  discharge={n["env"]: 40_500},
+                  params={"cod_in": 1800, "cod_out": 60, "tds_in": 1500, "tds_out": 1400, "cod_limit": 100, "tds_limit": 2000,
+                          "capacity": 90_000, "opex_m3": 0.30, "capex": 250_000, "life": 15, "required": 1},
+                  pumps=[Pump(n["pump"], 6000, power_kw=22.0)]),
+        Subsystem(n["ro"], "wwtp", from_other=24_000, evaporation=500, to_other=18_000, discharge={n["sewer"]: 5_500},
+                  params={"cod_in": 60, "cod_out": 5, "tds_in": 1400, "tds_out": 40, "capacity": 30_000,
+                          "opex_m3": 0.45, "capex": 120_000, "life": 15}),
+    ]
+    links = [Transfer(n["proc"], n["etp"], 58_000), Transfer(n["ct"], n["etp"], 7_000), Transfer(n["san"], n["etp"], 7_500),
+             Transfer(n["etp"], n["ro"], 24_000), Transfer(n["etp"], n["irr"], 6_000),
+             Transfer(n["ro"], n["proc"], 10_000), Transfer(n["ro"], n["ct"], 6_000), Transfer(n["ro"], n["boiler"], 2_000)]
+    plant = Plant(
+        name=n["plant"], currency="USD", production_per_year=40_000, production_unit="t",
+        sources=[Source(n["well"], 0.50, 75_000), Source(n["city"], 1.80, 39_000)],
+        outlets=[Outlet(n["sewer"], 1.20, 18_000), Outlet(n["env"], 0.10, 40_500)],
+        subsystems=subs, links=links, costs=UnitCosts(electricity_per_kwh=0.08, fuel_per_kwh_thermal=0.04, heating_efficiency=0.8))
+    plant.site = Site(name=n["site"], sector=n["sector"], note=n["note"], calendar="jalali" if lang == "fa" else "gregorian",
+                      areas=[Area(n["site"], "production")], products=[Product(n["product"], "t", per_year=40_000)])
+    plant.sync_production()
+    return plant

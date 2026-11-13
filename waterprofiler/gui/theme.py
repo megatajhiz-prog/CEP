@@ -224,6 +224,15 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawLine(P(4, 9.5), P(20, 9.5))
         p.drawLine(P(4, 14.5), P(20, 14.5))
         p.drawLine(P(10, 9.5), P(10, 20))
+    elif name == "wastewater":
+        drop = QPainterPath()
+        drop.moveTo(12, 3.5)
+        drop.cubicTo(18, 10, 19, 12.5, 19, 14.5)
+        drop.cubicTo(19, 18, 15.8, 20.5, 12, 20.5)
+        drop.cubicTo(8.2, 20.5, 5, 18, 5, 14.5)
+        drop.cubicTo(5, 12.5, 6, 10, 12, 3.5)
+        p.drawPath(drop)
+        p.drawArc(QRectF(8.5, 12, 7, 5), 200 * 16, 140 * 16)
     elif name == "reconcile":
         for y, kx in ((6, 9), (12, 15), (18, 8)):
             p.drawLine(P(4, y), P(20, y))
