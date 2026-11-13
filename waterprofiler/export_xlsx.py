@@ -174,7 +174,7 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
                     t("product"), t("evaporation"), t("discharge")])
     for i, s in enumerate(p.subsystems, 2):
         vals = [s.name, t("kind_" + s.kind) if s.kind in
-                ("process", "cooling_tower", "boiler", "sanitary", "irrigation", "wwtp", "other") else s.kind,
+                ("process", "cooling_tower", "boiler", "sanitary", "irrigation", "wwtp", "wtp", "other") else s.kind,
                 s.total_intake, s.recirculated, s.from_other, s.to_other, s.product, s.evaporation,
                 s.total_discharge]
         for j, v in enumerate(vals, 1):

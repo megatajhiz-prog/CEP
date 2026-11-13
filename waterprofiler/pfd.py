@@ -26,7 +26,7 @@ LOSS_MIN_PCT = 0.5
 
 SUBSYSTEM_SYMBOLS = ("process", "cooling_tower", "boiler", "sanitary", "irrigation", "vessel", "tank", "pump", "treatment")
 _KIND_SYMBOL = {"process": "process", "cooling_tower": "cooling_tower", "boiler": "boiler", "sanitary": "sanitary",
-                "irrigation": "irrigation", "wwtp": "treatment"}
+                "irrigation": "irrigation", "wwtp": "treatment", "wtp": "treatment"}
 
 
 @dataclass

@@ -20,7 +20,7 @@ from .i18n import Translator
 from .model import Outlet, Plant, Pump, Source, Subsystem, Treatment, UnitCosts, _migrate_params
 from .numparse import parse_float
 
-KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "wwtp", "other"]
+KINDS = ["process", "cooling_tower", "boiler", "sanitary", "irrigation", "wwtp", "wtp", "other"]
 FLOWS = ["intake", "discharge", "evaporation", "product", "recirculated", "from_other", "to_other",
          "water_treatment", "wastewater_treatment"]
 SINGLE = {"evaporation": "evaporation", "product": "product", "recirculated": "recirculated",

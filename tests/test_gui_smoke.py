@@ -820,3 +820,18 @@ def test_wastewater_page(app):
         w.tabs.setCurrentWidget(page)
         app.processEvents()
     w.close()
+
+
+def test_water_treatment_page(app):
+    w = _win("fa")
+    w.action_wt_demo()
+    app.processEvents()
+    w.tabs.setCurrentWidget(w.wt_tab)
+    app.processEvents()
+    assert w.wt_tab.units.rowCount() == 2 and w.wt_tab.cons.rowCount() >= 2 and w.wt_tab.pick.count() == 2
+    w.wt_tab.spins["opex_m3"].setValue(0.5)
+    assert w.plant.node(w.wt_tab.pick.currentText()).params["opex_m3"] == 0.5
+    for page in (w.flow_tab, w.pfd_tab, w.ww_tab):
+        w.tabs.setCurrentWidget(page)
+        app.processEvents()
+    w.close()

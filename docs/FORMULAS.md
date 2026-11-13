@@ -199,3 +199,14 @@ balance of section 2 is unchanged (transfers cancel over the plant).
 - **Reconciliation sanity** (`reconcile.py`): chi-square `sum(((x - x0)/sigma)^2)` is compared with the 95 % point for `rank(A)` constraints (Wilson-Hilferty). Above it the data contradict each other more than the stated uncertainties allow. Flows that move by more than 3 sigma or by half of their value are listed (and coloured on the page). The page limits every flow to 0..2 x its entered value (`max_rel_change = 1`), so a wrong meter shows up as "cannot be closed within the limits" instead of an unphysical adjustment.
 - **Partial metering** (`balance.py`): when some sources (outlets) have a meter and others do not, an unmetered one enters the plant balance at its allocated volume (it used to be dropped, which understated the boundary balance) and a warning names it.
 - **Significance of the boundary imbalance**: `M_in - M_out - E - P - dS` against `2 sigma`, `sigma = sqrt(sum (a_i V_i)^2)` over the sources, outlets, evaporation, product and storage; `a_i` is the stated meter accuracy or the assumed uncertainty of an unmetered flow. Below 2 sigma the meters alone explain the gap; above it a leak, an unmetered flow or a meter error is likely.
+
+
+## Water treatment: pre-treatment and demineralised water (`waterprofiler/watertreatment.py`)
+
+A treatment unit is a subsystem of type `wtp`, joined to the others by intake from sources and by transfers.
+
+- Closure `= inflow - to consumers - to next unit - waste - sludge - losses - dS` (flagged above 5 % of the inflow).
+- Yield `= (to consumers + to next unit) / inflow`; waste share `= (waste + sludge + losses) / inflow`; overall yield `= delivered / raw water entering the chain`; the treatment's own water use is shown as a share of the plant intake.
+- Salt removal `1 - TDS_out / TDS_in`; capacity use `= inflow / capacity` (warns above 100 % and below 40 %); a warning when the yield is below the stated minimum.
+- Cost of the treated water per m3 `= (raw water at the source prices + treated water received from earlier units at their cost + running cost + kWh * electricity price + capex / life + discharge fee of the waste) / water leaving as product`, iterated along the chain.
+- Consumer check: the volume-weighted TDS of the water a consumer receives against an indicative limit (boiler make-up 20 mg/L).

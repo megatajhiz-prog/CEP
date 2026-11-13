@@ -224,6 +224,11 @@ def nav_pixmap(name: str, color: str, size: int = 22) -> QPixmap:
         p.drawLine(P(4, 9.5), P(20, 9.5))
         p.drawLine(P(4, 14.5), P(20, 14.5))
         p.drawLine(P(10, 9.5), P(10, 20))
+    elif name == "watertreat":
+        p.drawRoundedRect(QRectF(4, 4, 16, 6), 1.5, 1.5)
+        p.drawLine(P(12, 10), P(12, 14))
+        p.drawRoundedRect(QRectF(7, 14, 10, 6), 1.5, 1.5)
+        p.drawLine(P(9.5, 17), P(14.5, 17))
     elif name == "wastewater":
         drop = QPainterPath()
         drop.moveTo(12, 3.5)
