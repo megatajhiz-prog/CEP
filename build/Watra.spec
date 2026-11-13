@@ -1,4 +1,4 @@
-# PyInstaller spec. Build with:  pyinstaller build/CEPWater.spec --noconfirm
+# PyInstaller spec. Build with:  pyinstaller build/Watra.spec --noconfirm
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
@@ -32,10 +32,10 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="CEPWater",
+    name="Watra",
     icon=os.path.join(ROOT, "assets", "brand", "app.ico"),
     console=False,
     disable_windowed_traceback=False,
     upx=False,
 )
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="CEPWater")
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Watra")

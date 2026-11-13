@@ -139,7 +139,7 @@ def test_about_dialog_and_branding(app):
         d.show()
         d.close()
     w = _win("en")
-    assert "CEPWater" in w.windowTitle()
+    assert "Watra" in w.windowTitle()
     assert not w.windowIcon().isNull()
     w.close()
 
@@ -784,7 +784,7 @@ def test_user_guide_from_help_menu(app):
     w = _win("en")
     d = GuideDialog(w.t, w)
     assert len(headings(GUIDE_FA)) == 8 and d.toc.count() == 9
-    assert "CEPWater" in d.view.toPlainText()
+    assert "Watra" in d.view.toPlainText()
     d.toc.setCurrentIndex(3)
     d.search.setText("PFD")
     d._find()

@@ -5,15 +5,15 @@ from __future__ import annotations
 import os
 import sys
 
-APP_NAME = "CEPWater"
-APP_SUBTITLE = {"fa": "مدیریت هوشمند مصرف آب کارخانه", "en": "Industrial plant water management"}
+APP_NAME = "Watra"
+APP_SUBTITLE = {"fa": "نرم‌افزار ممیزی و مدیریت آب", "en": "Water audit & management software"}
 COMPANY = {"fa": "کنترل انرژی پاسارگاد", "en": "Control Energy Pasargad"}
 TAGLINE = {"fa": "تجهیزات اندازه‌گیری، پایش و کالیبراسیون", "en": "Measuring, monitoring and calibration equipment"}
 
 # Contact details shown in the About box and report footer when filled in.
 CONTACT = {"phone": "", "email": "", "website": "", "address_fa": "", "address_en": ""}
 
-# Colours sampled from the company logo.
+# Colours of the Watra logo.
 NAVY = "#0B3D78"
 BLUE = "#0A74C8"
 BLUE_DARK = "#0858A6"

@@ -41,7 +41,7 @@ def test_all_strings_have_both_languages():
 def test_brand_assets_and_name():
     import os
     from waterprofiler import branding
-    assert branding.APP_NAME == "CEPWater"
+    assert branding.APP_NAME == "Watra"
     for k in ("full", "mark"):
         assert os.path.getsize(branding.logo_path(k)) > 5000
     for f in ("app.ico", "chevron.png"):

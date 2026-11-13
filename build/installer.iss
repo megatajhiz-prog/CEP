@@ -5,16 +5,16 @@
 
 [Setup]
 AppId={{6D1F3A52-7B64-4C2E-9A0E-5C3B8F4A21D7}
-AppName=CEPWater
+AppName=Watra
 AppVersion={#AppVersion}
 AppPublisher=Control Energy Pasargad
 SetupIconFile=..\assets\brand\app.ico
-UninstallDisplayIcon={app}\CEPWater.exe
-DefaultDirName={autopf}\CEPWater
-DefaultGroupName=CEPWater
-UninstallDisplayName=CEPWater
+UninstallDisplayIcon={app}\Watra.exe
+DefaultDirName={autopf}\Watra
+DefaultGroupName=Watra
+UninstallDisplayName=Watra
 OutputDir=..\Output
-OutputBaseFilename=CEPWater-Setup-{#AppVersion}
+OutputBaseFilename=Watra-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -31,11 +31,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist\CEPWater\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Watra\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\CEPWater"; Filename: "{app}\CEPWater.exe"
-Name: "{autodesktop}\CEPWater"; Filename: "{app}\CEPWater.exe"; Tasks: desktopicon
+Name: "{group}\Watra"; Filename: "{app}\Watra.exe"
+Name: "{autodesktop}\Watra"; Filename: "{app}\Watra.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\CEPWater.exe"; Description: "{cm:LaunchProgram,CEPWater}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Watra.exe"; Description: "{cm:LaunchProgram,Watra}"; Flags: nowait postinstall skipifsilent

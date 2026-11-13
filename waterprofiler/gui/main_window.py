@@ -46,8 +46,8 @@ from .tabs import CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
 from .widgets import NavButton, button, card
 
-ORG = "CEPWater"
-APP = "CEPWater"
+ORG = "Watra"
+APP = "Watra"
 
 
 class PageStack(QTabWidget):
@@ -688,7 +688,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.t("export_done"), 4000)
 
     def action_save_template(self) -> None:
-        self._save_workbook("save_template", "CEPWater-template.xlsx", lambda p: write_template(p, self.t.lang))
+        self._save_workbook("save_template", "Watra-template.xlsx", lambda p: write_template(p, self.t.lang))
 
     def action_export_inputs(self) -> None:
         self.collect()

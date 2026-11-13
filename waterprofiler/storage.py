@@ -40,7 +40,7 @@ def load_project(path: str) -> Plant:
     except (OSError, ValueError) as e:
         raise ProjectFileError(str(e)) from e
     if not isinstance(doc, dict) or doc.get("format") != FORMAT:
-        raise ProjectFileError("not a CEPWater project file")
+        raise ProjectFileError("not a Watra project file")
     if doc.get("schema", 0) > SCHEMA_VERSION:
         raise ProjectFileError("project was saved by a newer version of the program")
     try:

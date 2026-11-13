@@ -51,12 +51,12 @@ jobs:
         run: python -m pytest -q
 
       - name: Build application
-        run: pyinstaller build/CEPWater.spec --noconfirm --distpath dist --workpath build/work
+        run: pyinstaller build/Watra.spec --noconfirm --distpath dist --workpath build/work
 
       - name: Self-test the frozen executable
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath "dist/CEPWater/CEPWater.exe" -ArgumentList "--selftest" -Wait -PassThru
+          $p = Start-Process -FilePath "dist/Watra/Watra.exe" -ArgumentList "--selftest" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "selftest exit code $($p.ExitCode)" }
 
       - name: Read version
@@ -76,18 +76,18 @@ jobs:
       - name: Silent install test
         shell: pwsh
         run: |
-          $setup = Get-ChildItem Output/CEPWater-Setup-*.exe | Select-Object -First 1
+          $setup = Get-ChildItem Output/Watra-Setup-*.exe | Select-Object -First 1
           $dir = Join-Path $env:RUNNER_TEMP "wp-install"
           $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$dir" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
           $env:QT_QPA_PLATFORM = "offscreen"
-          $t = Start-Process -FilePath (Join-Path $dir "CEPWater.exe") -ArgumentList "--selftest" -Wait -PassThru
+          $t = Start-Process -FilePath (Join-Path $dir "Watra.exe") -ArgumentList "--selftest" -Wait -PassThru
           if ($t.ExitCode -ne 0) { throw "installed app selftest exit code $($t.ExitCode)" }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CEPWater-Setup
-          path: Output/CEPWater-Setup-*.exe
+          name: Watra-Setup
+          path: Output/Watra-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -95,4 +95,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: Output/CEPWater-Setup-*.exe
+          files: Output/Watra-Setup-*.exe
