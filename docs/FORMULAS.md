@@ -176,3 +176,19 @@ A variable needs data on at least half of the window's days. The values are writ
 (`timeseries.sync`, idempotent) whenever the model is collected; the field is then shown grey and read-only on the other
 pages. A field without series data stays editable there. Fixed values (areas, capacities, emission factors, working days,
 ...) are entered once on the Industrial complex page; the estimator takes staff, working days and green area from there.
+
+
+## Wastewater collection, treatment and reuse (`waterprofiler/wastewater.py`)
+
+A treatment / recovery plant is a subsystem of type `wwtp`; it is joined to the others by the ordinary transfers, so the
+balance of section 2 is unchanged (transfers cancel over the plant).
+
+- Generated wastewater of a subsystem: `G = W + sum(transfers out)` (discharge plus transfers; evaporation and product excluded).
+- Collection rate `= sum(transfers to treatment units) / sum(G)`.
+- Unit closure: `inflow - to consumers - to next stage - effluent - sludge - evaporation - dS` (should be ~ 0; flagged above 5 % of the inflow).
+- Recovery `= (to consumers + to next stage) / inflow`; capacity use `= inflow / capacity` (warns above 100 % and below 40 %).
+- Removal `1 - C_out / C_in` for COD and TDS; load `kg/year = C[mg/L] * V[m3] / 1000`.
+- Reuse ratio `= (treated water delivered + direct reuse between subsystems) / generated`; fresh-water replacement `= treated water delivered / (fresh intake + treated water delivered)`.
+- Price of fresh water and of discharge: weighted means over the conventional sources and the outlets.
+- Benefit `= delivered * (fresh price + discharge price)`; net benefit `= benefit - running cost` (a unit marked *required*, i.e. needed for the discharge permit anyway, carries no cost and no payback); reclaimed-water cost `= (opex + capex / life) / delivered`; payback `= capex / net benefit`.
+- Reuse suitability: the quality of the water delivered to a consumer (volume-weighted over its feeders) is compared with indicative maxima (cooling tower TDS 1000 / COD 75, boiler 50 / 10, irrigation 2000 / 100, sanitary flushing 2000 / 60 mg/L; process: not assumed). Extra potential: treated effluent still discharged (the discharge of a desalting unit, with >= 50 % salt removal, is concentrate and is excluded) allocated to suitable consumers, largest demand first; only 30 % of sanitary use counts (flushing). It is an upper bound before piping and pumping costs.

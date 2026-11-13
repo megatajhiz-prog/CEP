@@ -25,7 +25,7 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant, demo_with_history, ornl_pilot3
+from ..sample import demo_plant, demo_with_history, ornl_pilot3, wastewater_demo
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import SubsystemEditor
@@ -36,6 +36,7 @@ from .industrial_tab import IndustrialTab
 from .timeseries_tab import TimeTab
 from .flow_tab import FlowTab, labels_for, render_image
 from .pfd_tab import PfdTab
+from .wastewater_tab import WastewaterTab
 from .guide_dialog import GuideDialog
 from .guide_dialog import GuideDialog
 from .baseline_tab import BaselineTab
@@ -97,6 +98,7 @@ class MainWindow(QMainWindow):
         self.flow_tab.plant_edited.connect(self._flow_edited)
         self.flow_tab.series_requested.connect(lambda: self.tabs.setCurrentWidget(self.ts_tab))
         self.pfd_tab = PfdTab(t)
+        self.ww_tab = WastewaterTab(t)
         self.pfd_tab.subsystem_requested.connect(self._open_subsystem)
         self.pfd_tab.plant_edited.connect(self._flow_edited)
         self.balance_tab = self.flow_tab.balance      # the balance lives on the flow page
@@ -147,6 +149,7 @@ class MainWindow(QMainWindow):
             ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("pfd", "tab_pfd", "desc_pfd", self.pfd_tab),
+            ("wastewater", "tab_ww", "desc_ww", self.ww_tab),
             ("cost", "tab_cost", "desc_cost", self.cost_tab),
             ("product", "tab_product", "desc_product", self.product_tab),
             ("baseline", "tab_baseline", "desc_baseline", self.baseline_tab),
@@ -289,6 +292,7 @@ class MainWindow(QMainWindow):
         sm = m.addMenu(t("samples"))
         act(sm, "load_demo", self.action_demo)
         act(sm, "load_ornl", self.action_ornl)
+        act(sm, "load_ww", self.action_ww_demo)
         m.addSeparator()
         act(m, "import_xlsx", self.action_import_xlsx)
         act(m, "save_template", self.action_save_template)
@@ -388,6 +392,8 @@ class MainWindow(QMainWindow):
         elif w is self.pfd_tab:
             a = self._run_analysis()
             self.pfd_tab.refresh(self.plant, a)
+        elif w is self.ww_tab:
+            self.ww_tab.refresh(self.plant)
         elif w is self.product_tab:
             self.product_tab.refresh(self.plant)
         elif w is self.baseline_tab:
@@ -509,6 +515,11 @@ class MainWindow(QMainWindow):
     def action_ornl(self) -> None:
         if self._confirm_discard():
             self._set_plant(ornl_pilot3(self.t.lang), None)
+            self.statusBar().showMessage(self.t("demo_loaded"), 4000)
+
+    def action_ww_demo(self) -> None:
+        if self._confirm_discard():
+            self._set_plant(wastewater_demo(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_open(self) -> None:
