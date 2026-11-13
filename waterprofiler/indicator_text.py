@@ -23,9 +23,9 @@ TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
     "sup_meter_cover": ("پوشش کنتور منابع", "Source metering coverage", "sum I(metered sources) / sum I",
                         "سهم برداشتی که کنتور یا قبض دارد؛ برای اعتماد به تراز لازم است.",
                         "Share of intake backed by a meter or bill; needed to trust the balance."),
-    "sup_permit_use": ("درصد استفاده از پروانهٔ برداشت", "Abstraction permit utilisation", "sum I / permit",
-                       "نزدیک ۱۰۰٪ یعنی ظرفیت مجاز تمام شده و رشد تولید به منبع جدید نیاز دارد.",
-                       "Near 100 % means the licensed capacity is used up and growth needs a new source."),
+    "sup_permit_use": ("درصد استفاده از پروانهٔ برداشت", "Abstraction permit utilisation", "sum I / sum of permits",
+                       "فقط منابعی که حد مجازشان فعال است؛ پروانهٔ کل مجموع حدهای آن‌هاست. نزدیک ۱۰۰٪ یعنی ظرفیت مجاز تمام شده و رشد تولید به منبع جدید نیاز دارد.",
+                       "Only the sources whose limit is on; the plant permit is the sum of their limits. Near 100 % means the licensed capacity is used up and growth needs a new source."),
     "sup_storage_days": ("روزهای خودکفایی مخازن", "Storage autonomy", "storage / (sum I / 365)",
                          "چند روز می‌توان با ذخیره، بدون ورودی آب ادامه داد.", "Days the plant can run on storage alone."),
     "sup_availability": ("دسترس‌پذیری تأمین", "Supply availability", "1 - outage hours / 8760",
@@ -209,7 +209,6 @@ PROFILE_LABEL = {
     "value_added": ("ارزش افزودهٔ سالانه", "Annual value added", "واحد پول", "currency", 1e15, 0),
     "production_cost": ("هزینهٔ کل تولید در سال", "Annual production cost", "واحد پول", "currency", 1e15, 0),
     "steam_t": ("بخار تولیدی", "Steam produced", "t/سال", "t/yr", 1e9, 0),
-    "permit_m3": ("پروانهٔ برداشت", "Abstraction permit", "m³/سال", "m³/yr", 1e12, 0),
     "storage_m3": ("حجم مخازن ذخیره", "Storage volume", "m³", "m³", 1e9, 0),
     "outage_hours": ("ساعات قطعی تأمین", "Supply outage hours", "ساعت/سال", "h/yr", 8760, 0),
     "network_km": ("طول شبکهٔ توزیع", "Mains length", "km", "km", 1e5, 2),
@@ -231,7 +230,7 @@ PROFILE_LABEL = {
 # inputs entered on the "industrial complex" page (structure and capacity: they do not change from month to month)
 STRUCT_GROUPS = (
     ("ساعات کار، ساختمان و فضای سبز", "Working time, buildings and green area", ("working_days", "building_area_m2", "green_area_m2")),
-    ("تأمین و شبکه", "Supply and network", ("permit_m3", "storage_m3", "network_km", "connections", "pressure_m")),
+    ("تأمین و شبکه", "Supply and network", ("storage_m3", "network_km", "connections", "pressure_m")),
     ("ضرایب انتشار کربن", "Carbon emission factors", ("ef_el", "ef_th")),
 )
 # inputs that vary with time (they also exist as time series) and the targets: entered on the indicators page

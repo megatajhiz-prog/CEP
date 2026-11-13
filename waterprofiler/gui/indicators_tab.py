@@ -198,6 +198,8 @@ class IndicatorsTab(_Scroll):
                     note = t("in_needs", x=("، " if fa else ", ").join(names))
                 elif ind.reason == "data":
                     note = t("in_nodata")
+                elif ind.reason == "permit":
+                    note = t("in_nopermit")
                 else:
                     note = tx[3] if fa else tx[4]
                 put(tb, r, 4, note)

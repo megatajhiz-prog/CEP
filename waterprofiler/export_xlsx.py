@@ -272,6 +272,8 @@ def export_xlsx(a: Analysis, path: str, lang: str = "fa") -> None:
                 note = t("in_needs", x=", ".join(PROFILE_LABEL[n][0 if lang == "fa" else 1] for n in ind.needs))
             elif ind.reason == "data":
                 note = t("in_nodata")
+            elif ind.reason == "permit":
+                note = t("in_nopermit")
             else:
                 note = tx[3] if lang == "fa" else tx[4]
             ws.cell(row=row, column=5, value=note)
