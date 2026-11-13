@@ -76,3 +76,16 @@ def test_messages_both_languages_and_persistence():
     p2 = Plant.from_dict(wastewater_demo("fa").to_dict())
     assert p2.node("واحد اسمز معکوس").kind == "wwtp"
     assert analyse_wastewater(p2).reuse_treated == 24_000
+
+
+def test_combined_treatment_demo_is_balanced_and_feeds_both_pages():
+    from waterprofiler.balance import plant_balance
+    from waterprofiler.sample import combined_treatment_demo
+    from waterprofiler.watertreatment import analyse_water_treatment
+
+    for lang in ("fa", "en"):
+        p = combined_treatment_demo(lang)
+        b = plant_balance(p)
+        assert abs(b.plant_imbalance) < 1e-6 and abs(b.unknown_loss) < 1e-6 and b.sum_intake == 126_000
+        assert len(analyse_wastewater(p).treatments) == 2
+        assert len(analyse_water_treatment(p).units) == 2

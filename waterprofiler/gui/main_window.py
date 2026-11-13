@@ -25,7 +25,7 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant, demo_with_history, wastewater_demo, water_treatment_demo
+from ..sample import demo_plant, demo_with_history, combined_treatment_demo, wastewater_demo, water_treatment_demo
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import SubsystemEditor
@@ -296,6 +296,7 @@ class MainWindow(QMainWindow):
         act(sm, "load_demo", self.action_demo)
         act(sm, "load_wt", self.action_wt_demo)
         act(sm, "load_ww", self.action_ww_demo)
+        act(sm, "load_wwt", self.action_wwt_demo)
         m.addSeparator()
         act(m, "import_xlsx", self.action_import_xlsx)
         act(m, "save_template", self.action_save_template)
@@ -520,6 +521,11 @@ class MainWindow(QMainWindow):
     def action_ww_demo(self) -> None:
         if self._confirm_discard():
             self._set_plant(wastewater_demo(self.t.lang), None)
+            self.statusBar().showMessage(self.t("demo_loaded"), 4000)
+
+    def action_wwt_demo(self) -> None:
+        if self._confirm_discard():
+            self._set_plant(combined_treatment_demo(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_wt_demo(self) -> None:

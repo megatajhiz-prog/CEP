@@ -816,11 +816,22 @@ def test_long_pages_are_split_into_parallel_sections(app):
     w = _win("fa")
     assert w.flow_tab.sections.count() == 3 and w.ind_tab.sections.count() == 7
     assert w.ww_tab.sections.count() == 3 and w.wt_tab.sections.count() == 3
-    for page in (w.flow_tab, w.ind_tab, w.ww_tab, w.wt_tab):
+    assert w.ts_tab.sections.count() == 4
+    for page in (w.flow_tab, w.ind_tab, w.ww_tab, w.wt_tab, w.ts_tab):
         w.tabs.setCurrentWidget(page)
         for i in range(page.sections.count()):
             page.sections.setCurrentIndex(i)
             app.processEvents()
             assert page.sections.sizeHint().height() > 0
         page.sections.setCurrentIndex(0)
+    w.close()
+
+
+def test_combined_demo_loads_in_gui(app):
+    w = _win("fa")
+    w.action_wwt_demo()
+    app.processEvents()
+    for page in (w.wt_tab, w.ww_tab):
+        w.tabs.setCurrentWidget(page)
+        app.processEvents()
     w.close()

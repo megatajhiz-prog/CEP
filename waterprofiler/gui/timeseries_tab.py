@@ -22,7 +22,7 @@ from ..numparse import parse_float
 from .tabs import WARN_BG, _Scroll, make_table, put
 from .theme import COL
 from .trend import ModeBox, TsChart, key_label, key_unit
-from .widgets import button, card
+from .widgets import Sections, button, card
 
 MAX_SLICES = 600
 DEFAULT_ON = ("production", "source:", "outlet:")
@@ -178,6 +178,12 @@ class TimeTab(_Scroll):
         self.slices: List[cal.Slice] = []
         self.cols: List[TS.VarSpec] = []
         lang = t.lang
+        self.sections = Sections()
+        p_setup = self.sections.page(t("ts_sec_setup"))
+        p_data = self.sections.page(t("ts_sec_data"))
+        p_chart = self.sections.page(t("ts_sec_chart"))
+        p_window = self.sections.page(t("ts_sec_window"))
+        self.lay.addWidget(self.sections)
 
         # ---- period
         self.cal_combo = QComboBox()
@@ -208,7 +214,7 @@ class TimeTab(_Scroll):
         hl.setContentsMargins(0, 0, 0, 0)
         hl.addLayout(row)
         hl.addLayout(presets)
-        self.lay.addWidget(card(t("ts_period"), holder, note=t("ts_period_note")))
+        p_setup.addWidget(card(t("ts_period"), holder, note=t("ts_period_note")))
 
         # ---- variables
         pre = QHBoxLayout()
@@ -232,7 +238,7 @@ class TimeTab(_Scroll):
         self.var_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.var_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.var_list.itemChanged.connect(self._vars_changed)
-        self.lay.addWidget(card(t("ts_vars"), pre_w, self.var_list, note=t("ts_vars_note")))
+        p_setup.addWidget(card(t("ts_vars"), pre_w, self.var_list, note=t("ts_vars_note")))
 
         # ---- table
         self.msg = QLabel("")
@@ -259,7 +265,7 @@ class TimeTab(_Scroll):
         il.addWidget(self.msg)
         il.addWidget(self.tb)
         il.addLayout(io)
-        self.lay.addWidget(card(t("ts_data"), iw, note=t("ts_data_note")))
+        p_data.addWidget(card(t("ts_data"), iw, note=t("ts_data_note")))
 
         # ---- chart
         self.chart_var = QComboBox()
@@ -267,7 +273,7 @@ class TimeTab(_Scroll):
         self.chart = TsChart()
         self.chart_mode = ModeBox(t)
         self.chart_mode.currentIndexChanged.connect(self._draw_chart)
-        self.lay.addWidget(card(t("ts_chart"), self.chart_var, self.chart_mode, self.chart))
+        p_chart.addWidget(card(t("ts_chart"), self.chart_var, self.chart_mode, self.chart))
 
         # ---- window / apply
         self.w_start = CalDate("jalali", lang)
@@ -292,7 +298,8 @@ class TimeTab(_Scroll):
         wl.setContentsMargins(0, 0, 0, 0)
         wl.addLayout(wrow)
         wl.addWidget(self.w_info)
-        self.lay.addWidget(card(t("ts_window"), ww, note=t("ts_window_note")))
+        p_window.addWidget(card(t("ts_window"), ww, note=t("ts_window_note")))
+        self.sections.finish()
         self.lay.addStretch(1)
 
         self.cal_combo.currentIndexChanged.connect(self._calendar_changed)
