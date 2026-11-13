@@ -8,7 +8,6 @@ Bilingual (Persian default, English), right-to-left, offline, Windows installer.
 
 نرم‌افزار دسکتاپ مدیریت مصرف آب کارخانه: بیلان آب زیرسیستم‌ها، هزینهٔ واقعی آب،
 تحلیل صرفه‌جویی، تطبیق داده، و خروجی Excel و PDF. دوزبانه، آفلاین، با نصب‌کنندهٔ ویندوز.
-روش‌شناسی بر پایهٔ گزارش ORNL/TM-2021/1918.
 
 ## نصب (کاربر نهایی) / Install
 
@@ -48,8 +47,7 @@ it, builds the installer, silently installs it and self-tests the installed copy
 
 ## Limits
 
-Results are only as good as the inputs: the estimators are rules of thumb from the
-ORNL report and should be replaced by metered values where available. Treat the
+Results are only as good as the inputs: the estimators are rules of thumb and should be replaced by metered values where available. Treat the
 output as an engineering screening, not a certified audit.
 
 ## Water-saving measures (v0.3)

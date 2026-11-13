@@ -196,5 +196,5 @@ td.n {{ text-align:right; direction:ltr; }}
         parts.append(f"<h2 class='warn'>{escape(t('warnings'))}</h2><ul>"
                      + "".join(f"<li class='warn'>{escape(w)}</li>" for w in localize_all(a.warnings, lang)) + "</ul>")
 
-    parts.append(f"<p class='small'>{escape(branding.APP_NAME)} {__version__} · {escape(branding.COMPANY[lang])} · ORNL/TM-2021/1918</p></body></html>")
+    parts.append(f"<p class='small'>{escape(branding.APP_NAME)} {__version__} · {escape(branding.COMPANY[lang])}</p></body></html>")
     return "".join(parts)

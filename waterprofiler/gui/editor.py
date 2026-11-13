@@ -79,13 +79,13 @@ class PlantPanel(QScrollArea):
         self.peek_energy = TrendPeek(t, lambda p: with_data(p, ["price:electricity", "price:fuel", "energy:el"]))
         outer.addWidget(card(t("plant_info"), info, self.peek_prod, self.peek_energy, note=t("plant_info_note")))
 
-        self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative")],
-                                 ["text", "num", "num", "bool"])
+        self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative"), t("col_permit_on"),
+                                  t("col_permit")], ["text", "num", "num", "bool", "bool", "num"])
         self.outlets = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered")], ["text", "num", "num"])
         self.treatments = DataTable([t("col_name"), t("col_unit_cost"), t("col_wastewater")], ["text", "num", "bool"])
         row = QHBoxLayout()
         row.setSpacing(16)
-        row.addWidget(table_box(t("sources"), self.sources, t("add"), t("remove"), lambda: ["", 0.0, None, False]))
+        row.addWidget(table_box(t("sources"), self.sources, t("add"), t("remove"), lambda: ["", 0.0, None, False, False, None]))
         row.addWidget(table_box(t("outlets"), self.outlets, t("add"), t("remove"), lambda: ["", 0.0, None]))
         outer.addLayout(row, 1)
         self.peek_src = TrendPeek(t, lambda p: with_data(p, [k for s in p.sources for k in (f"source:{s.name}", f"price:source:{s.name}")]))
@@ -112,7 +112,7 @@ class PlantPanel(QScrollArea):
         self.elec.setValue(p.costs.electricity_per_kwh)
         self.fuel.setValue(p.costs.fuel_per_kwh_thermal)
         self.heat_eff.setValue(p.costs.heating_efficiency)
-        self.sources.set_rows([[s.name, s.unit_cost, s.metered_m3, s.alternative] for s in p.sources])
+        self.sources.set_rows([[s.name, s.unit_cost, s.metered_m3, s.alternative, s.permit_on, s.permit_m3 or None] for s in p.sources])
         self.outlets.set_rows([[o.name, o.unit_cost, o.metered_m3] for o in p.outlets])
         self.treatments.set_rows([[x.name, x.unit_cost, x.wastewater] for x in p.treatments])
         self.blockSignals(False)
@@ -146,10 +146,10 @@ class PlantPanel(QScrollArea):
         p.costs.heating_efficiency = self.heat_eff.value() or p.costs.heating_efficiency
         seen = set()
         p.sources, p.outlets, p.treatments = [], [], []
-        for n, c, m, alt in self.sources.rows():
+        for n, c, m, alt, pon, pm in self.sources.rows():
             if n and n not in seen:
                 seen.add(n)
-                p.sources.append(Source(n, c or 0.0, m, bool(alt)))
+                p.sources.append(Source(n, c or 0.0, m, bool(alt), bool(pon), pm or 0.0))
         seen = set()
         for n, c, m in self.outlets.rows():
             if n and n not in seen:

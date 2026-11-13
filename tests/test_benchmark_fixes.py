@@ -1,10 +1,10 @@
-"""Fixes from the ORNL benchmark: reconcile sanity checks, partial metering, significance of the boundary imbalance."""
+"""Fixes from the benchmark: reconcile sanity checks, partial metering, significance of the boundary imbalance."""
 import pytest
 
 from waterprofiler import balance, reconcile
 from waterprofiler.messages import localize
 from waterprofiler.model import Meter, Outlet, Plant, Site, Source, Subsystem
-from waterprofiler.sample import demo_plant, ornl_pilot3
+from waterprofiler.sample import demo_plant
 
 approx = pytest.approx
 
@@ -91,7 +91,32 @@ def test_large_imbalance_with_accurate_meters_is_significant():
     assert "ناترازی مرز کارخانه" in localize(w, "fa")
 
 
-def test_ornl_boundary_imbalance_is_judged():
-    from waterprofiler.analysis import analyse
-    b = analyse(ornl_pilot3("en")).balance
-    assert b.imbalance_sigma and b.imbalance_significant in (True, False)
+# ---------------------------------------------------------------- per-source abstraction limit (optional)
+def _permit_plant(on, permit, used=100.0):
+    a = Subsystem("A", intake={"S": used}, evaporation=used, discharge={})
+    return Plant(sources=[Source("S", 1.0, None, False, on, permit)], outlets=[Outlet("O")], subsystems=[a])
+
+
+def test_permit_off_is_ignored_even_with_a_value():
+    b = balance.plant_balance(_permit_plant(False, 50.0))
+    assert not b.permit_use and not any("permit" in w for w in b.warnings)
+
+
+def test_permit_exceeded_and_near():
+    b = balance.plant_balance(_permit_plant(True, 80.0))
+    assert b.permit_use["S"] == approx((100.0, 80.0, 1.25))
+    w = next(w for w in b.warnings if "permit" in w)
+    assert "exceeds" in w and "حداکثر مجاز" in localize(w, "fa")
+    b = balance.plant_balance(_permit_plant(True, 105.0))
+    assert any("% of its permit" in w for w in b.warnings) and "رسیده" in localize(next(w for w in b.warnings if "permit" in w), "fa")
+    b = balance.plant_balance(_permit_plant(True, 200.0))
+    assert not any("permit" in w for w in b.warnings) and b.permit_use["S"][2] == approx(0.5)
+
+
+def test_permit_roundtrip_json_and_old_files():
+    p = _permit_plant(True, 80.0)
+    assert Plant.from_dict(p.to_dict()).sources[0].permit_on and Plant.from_dict(p.to_dict()).sources[0].permit_m3 == 80.0
+    old = p.to_dict()
+    for s in old["sources"]:
+        s.pop("permit_on"), s.pop("permit_m3")
+    assert Plant.from_dict(old).sources[0].permit_on is False        # files from before the limit existed

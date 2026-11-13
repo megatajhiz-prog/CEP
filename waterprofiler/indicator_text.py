@@ -144,7 +144,7 @@ TEXT: Dict[str, Tuple[str, str, str, str, str]] = {
     "pl_value": ("ارزش سالانهٔ صرفه‌جویی", "Annual value of saving", "sum saving · $/m³", "", ""),
     "pl_capex": ("سرمایه‌گذاری کل طرح", "Plan capital cost", "sum capex", "", ""),
     "pl_capex_per_daily": ("سرمایه‌گذاری به‌ازای هر m³/روز", "Capital per m³/day saved", "capex / (saving / 365)",
-                           "شاخص I1 گزارش ORNL.", "Indicator I1 of the ORNL report."),
+                           "", ""),
     "pl_payback": ("بازگشت ساده سرمایهٔ طرح", "Simple payback of the plan", "capex / (value - opex)", "", ""),
     # -------------------------------------------------------------- time series
     "ts_months": ("تعداد ماه‌های دارای داده", "Months with data", "n(months with intake data)",

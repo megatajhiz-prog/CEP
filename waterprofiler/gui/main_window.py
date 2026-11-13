@@ -25,7 +25,7 @@ from ..importer import ImportProblem, export_input_workbook, import_workbook, wr
 from ..messages import localize
 from ..model import Plant, Subsystem
 from ..report_html import build_report_html
-from ..sample import demo_plant, demo_with_history, ornl_pilot3, wastewater_demo, water_treatment_demo
+from ..sample import demo_plant, demo_with_history, wastewater_demo, water_treatment_demo
 from ..storage import EXTENSION, ProjectFileError, load_project, save_project
 from .dialogs import AboutDialog, EstimateDialog
 from .editor import SubsystemEditor
@@ -294,7 +294,6 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         sm = m.addMenu(t("samples"))
         act(sm, "load_demo", self.action_demo)
-        act(sm, "load_ornl", self.action_ornl)
         act(sm, "load_wt", self.action_wt_demo)
         act(sm, "load_ww", self.action_ww_demo)
         m.addSeparator()
@@ -516,11 +515,6 @@ class MainWindow(QMainWindow):
     def action_demo(self) -> None:
         if self._confirm_discard():
             self._set_plant(demo_with_history(self.t.lang), None)
-            self.statusBar().showMessage(self.t("demo_loaded"), 4000)
-
-    def action_ornl(self) -> None:
-        if self._confirm_discard():
-            self._set_plant(ornl_pilot3(self.t.lang), None)
             self.statusBar().showMessage(self.t("demo_loaded"), 4000)
 
     def action_ww_demo(self) -> None:

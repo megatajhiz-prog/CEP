@@ -37,7 +37,7 @@ class ImportProblem(ValueError):
 def _heads(t: Translator) -> Dict[str, List[str]]:
     return {
         "plant": [t("imp_field"), t("imp_value")],
-        "sources": [t("col_name"), t("col_unit_cost"), t("col_metered")],
+        "sources": [t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_permit")],
         "outlets": [t("col_name"), t("col_unit_cost"), t("col_metered")],
         "treatments": [t("col_name"), t("col_unit_cost"), t("col_wastewater")],
         "subsystems": [t("col_name"), t("kind"), t("t_in"), t("t_ww"), t("eq_unit")],
@@ -85,7 +85,7 @@ def _fill_sheets(wb: Workbook, plant: Plant, t: Translator, first_sheet_active: 
     for key, label in _plant_fields(t):
         sheets["plant"].append([label, vals[key]])
     for s in plant.sources:
-        sheets["sources"].append([s.name, s.unit_cost, s.metered_m3])
+        sheets["sources"].append([s.name, s.unit_cost, s.metered_m3, s.permit_m3 if s.permit_on and s.permit_m3 > 0 else None])
     for o in plant.outlets:
         sheets["outlets"].append([o.name, o.unit_cost, o.metered_m3])
     for x in plant.treatments:
@@ -236,6 +236,9 @@ def import_workbook(path: str, lang: str = "fa") -> Tuple[Plant, List[str]]:
         if _text(row[0]):
             plant.sources.append(Source(_text(row[0]), num(row[1] if len(row) > 1 else None, f"{ws['sources'].title}!{r}", 0.0) or 0.0,
                                         num(row[2] if len(row) > 2 else None, f"{ws['sources'].title}!{r}")))
+            pm = num(row[3] if len(row) > 3 else None, f"{ws['sources'].title}!{r}")
+            if pm and pm > 0:                                  # a number in the permit column switches the limit on
+                plant.sources[-1].permit_on, plant.sources[-1].permit_m3 = True, pm
     for r, row in _rows(ws["outlets"]):
         if _text(row[0]):
             plant.outlets.append(Outlet(_text(row[0]), num(row[1] if len(row) > 1 else None, f"{ws['outlets'].title}!{r}", 0.0) or 0.0,

@@ -65,6 +65,7 @@ class PlantBalance:
     unmetered_share: float = 0.0              # share of the flow volume without a stated meter accuracy
     imbalance_sigma: Optional[float] = None   # standard uncertainty of plant_imbalance
     imbalance_significant: Optional[bool] = None   # |plant_imbalance| > 2 sigma: more than the meters alone explain
+    permit_use: Dict[str, tuple] = field(default_factory=dict)   # source -> (used m3, permit m3, used / permit)
     unmetered_sources: List[str] = field(default_factory=list)   # sources without a meter while others have one
     unmetered_outlets: List[str] = field(default_factory=list)
 
@@ -147,6 +148,18 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
         warnings.append("Outlets without a meter while others have one: " + ", ".join(miss_out)
                         + "; their allocated volume is used in the plant balance")
 
+    permit_use: Dict[str, tuple] = {}
+    for x in plant.sources:
+        if x.permit_on and x.permit_m3 > 0:
+            used = used_in.get(x.name, 0.0)
+            permit_use[x.name] = (used, x.permit_m3, used / x.permit_m3)
+            if used > x.permit_m3:
+                warnings.append(f"Source '{x.name}': abstraction {used:,.0f} m3/year exceeds its permit {x.permit_m3:,.0f} m3/year "
+                                f"({100 * used / x.permit_m3:.0f} %)")
+            elif used >= 0.9 * x.permit_m3:
+                warnings.append(f"Source '{x.name}': abstraction {used:,.0f} m3/year is {100 * used / x.permit_m3:.0f} % of its permit "
+                                f"{x.permit_m3:,.0f} m3/year")
+
     src_imb = (m_in - sum_i) if m_in is not None else None
     out_imb = (m_out - sum_w) if m_out is not None else None
     plant_imb = (m_in - m_out - sum_e - sum_p - sum_s) if (m_in is not None and m_out is not None) else None
@@ -165,5 +178,5 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
         plant_imbalance=plant_imb, intake_by_source=by_src, discharge_by_outlet=by_out,
         warnings=warnings, nodes=nodes, sum_storage=sum_s, sigma=sig, significant=abs(l) > U.K * sig > 0,
         unmetered_share=unmet, imbalance_sigma=imb_sigma, imbalance_significant=imb_sig,
-        unmetered_sources=miss_in, unmetered_outlets=miss_out,
+        permit_use=permit_use, unmetered_sources=miss_in, unmetered_outlets=miss_out,
     )
