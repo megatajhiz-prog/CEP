@@ -265,3 +265,65 @@ def water_treatment_demo(lang: str = "en") -> Plant:
                       areas=[Area(n["site"], "production")], products=[Product(n["product"], "t", per_year=40_000)])
     plant.sync_production()
     return plant
+
+
+# ------------------------------------------------------------------------------------------------ both chains together
+_WWT = {
+    "en": dict(plant="Tutorial: water treatment and wastewater reuse together",
+               site="Plant with both treatment chains", sector="Chemicals",
+               note=("Teaching example, invented numbers. Raw water is pre-treated; part of it is demineralised (RO) for the boiler and "
+                     "some process uses. Process, cooling tower and canteen wastewater goes to the effluent plant; part of its effluent "
+                     "feeds a second reverse-osmosis unit whose permeate returns to the process and the cooling tower, and part "
+                     "irrigates the landscape. The pages 'Water treatment' and 'Wastewater' each follow their own chain on the same plant.")),
+    "fa": dict(plant="آموزش: تصفیهٔ آب و بازچرخانی پساب با هم",
+               site="کارخانه با هر دو زنجیرهٔ تصفیه", sector="شیمیایی",
+               note=("مثال آموزشی با عددهای فرضی. آب خام پیش‌تصفیه می‌شود؛ بخشی از آن دمین (اسمز معکوس) می‌شود و به بویلر و برخی "
+                     "مصارف فرایند می‌رود. پساب فرایند، برج خنک‌کن و غذاخوری به تصفیه‌خانهٔ پساب می‌رود؛ بخشی از پساب تصفیه‌شده به "
+                     "اسمز معکوس دوم می‌رود که تراوهٔ آن به فرایند و برج خنک‌کن برمی‌گردد و بخشی فضای سبز را آبیاری می‌کند. "
+                     "صفحه‌های «تصفیهٔ آب» و «پساب» هر کدام زنجیرهٔ خود را روی همین کارخانه دنبال می‌کنند.")),
+}
+
+
+def combined_treatment_demo(lang: str = "en") -> Plant:
+    """Raw water -> pre-treatment -> demineralised water, and wastewater -> effluent plant -> RO reuse (balanced, 126 000 m3/yr)."""
+    from .model import Area, Product, Site, Transfer
+
+    w = _WT.get(lang, _WT["en"])
+    s = _WW.get(lang, _WW["en"])
+    c = _WWT.get(lang, _WWT["en"])
+    pre, dm, ro, etp = w["pre"], w["dm"], s["ro"], s["etp"]
+    proc, ct, boiler, san, irr = w["proc"], w["ct"], w["boiler"], s["san"], s["irr"]
+    well, city, sewer, env = w["well"], w["city"], w["sewer"], s["env"]
+    subs = [
+        Subsystem(pre, "wtp", intake={well: 100_000, city: 26_000}, to_other=120_000, discharge={sewer: 6_000},
+                  params={"tds_in": 600, "tds_out": 580, "capacity": 150_000, "opex_m3": 0.06, "kwh_m3": 0.15,
+                          "capex": 60_000, "life": 15, "min_yield": 90}),
+        Subsystem(dm, "wtp", from_other=40_000, to_other=30_000, discharge={sewer: 10_000},
+                  params={"tds_in": 580, "tds_out": 8, "capacity": 50_000, "opex_m3": 0.35, "kwh_m3": 1.2,
+                          "capex": 180_000, "life": 15, "min_yield": 70}),
+        Subsystem(boiler, "boiler", from_other=22_000, evaporation=18_000, discharge={sewer: 4_000}),
+        Subsystem(proc, "process", from_other=64_000, product=20_000, evaporation=4_000, to_other=38_000, discharge={sewer: 2_000}),
+        Subsystem(ct, "cooling_tower", from_other=28_000, evaporation=20_000, to_other=5_000, discharge={sewer: 3_000}),
+        Subsystem(san, "sanitary", from_other=10_000, evaporation=500, to_other=9_500),
+        Subsystem(irr, "irrigation", from_other=5_000, evaporation=5_000),
+        Subsystem(etp, "wwtp", from_other=52_500, product=1_000, evaporation=500, to_other=21_000, discharge={env: 30_000},
+                  params={"cod_in": 1800, "cod_out": 60, "tds_in": 1300, "tds_out": 1200, "cod_limit": 100, "tds_limit": 2000,
+                          "capacity": 70_000, "opex_m3": 0.30, "capex": 250_000, "life": 15, "required": 1}),
+        Subsystem(ro, "wwtp", from_other=16_000, evaporation=500, to_other=14_000, discharge={sewer: 1_500},
+                  params={"cod_in": 60, "cod_out": 5, "tds_in": 1200, "tds_out": 40, "capacity": 20_000,
+                          "opex_m3": 0.45, "capex": 120_000, "life": 15}),
+    ]
+    links = [Transfer(pre, dm, 40_000), Transfer(pre, proc, 50_000), Transfer(pre, ct, 20_000), Transfer(pre, san, 10_000),
+             Transfer(dm, boiler, 22_000), Transfer(dm, proc, 8_000),
+             Transfer(proc, etp, 38_000), Transfer(ct, etp, 5_000), Transfer(san, etp, 9_500),
+             Transfer(etp, ro, 16_000), Transfer(etp, irr, 5_000),
+             Transfer(ro, proc, 6_000), Transfer(ro, ct, 8_000)]
+    plant = Plant(
+        name=c["plant"], currency="USD", production_per_year=40_000, production_unit="t",
+        sources=[Source(well, 0.60, 100_000), Source(city, 1.50, 26_000)],
+        outlets=[Outlet(sewer, 1.00, 26_500), Outlet(env, 0.10, 30_000)],
+        subsystems=subs, links=links, costs=UnitCosts(electricity_per_kwh=0.08, fuel_per_kwh_thermal=0.04, heating_efficiency=0.8))
+    plant.site = Site(name=c["site"], sector=c["sector"], note=c["note"], calendar="jalali" if lang == "fa" else "gregorian",
+                      areas=[Area(c["site"], "production")], products=[Product(w["product"], "t", per_year=40_000)])
+    plant.sync_production()
+    return plant
