@@ -21,7 +21,7 @@ from .tabs import _Scroll, _message_label, make_table, put, stat_row
 from .theme import COL
 from .profile_inputs import ProfileInputs
 from .trend import IndicatorTrend, TrendPeek, with_data
-from .widgets import StatCard, card, dspin
+from .widgets import Sections, StatCard, card, dspin
 
 MUTED = QColor("#8A94A6")
 HEADLINE = ("use_per_unit", "use_reuse_factor", "use_recirc_ratio", "use_consumption", "cost_per_m3", "use_loss_fraction")
@@ -60,11 +60,24 @@ class IndicatorsTab(_Scroll):
         self.c_inputs = StatCard(t("in_complete"), COL["orange"])
         self.lay.addLayout(stat_row(self.c_comp, self.c_inputs))
 
+        # parallel sections: the page is long (inputs, trend, eight indicator tables, per-subsystem table)
+        fa0 = t.lang == "fa"
+        self.sections = Sections()
+        p_inputs = self.sections.page(t("in_sec_inputs"))
+        p_trend = self.sections.page(t("in_sec_trend"))
+        pair_page = {}
+        for pair in (("supply", "use"), ("waste", "cost"), ("quality", "target"), ("plan", "time")):
+            lay_ = self.sections.page(" · ".join(GROUP_TITLE[g][0 if fa0 else 1] for g in pair))
+            for g in pair:
+                pair_page[g] = lay_
+        p_sub = self.sections.page(t("in_sec_subs"))
+        self.lay.addWidget(self.sections)
+
         # supplementary inputs (those that vary with time, and the targets); structural ones are on the complex page
         self.inputs = ProfileInputs(t, PROFILE_GROUPS)
         self.spins = self.inputs.spins
         self.inputs.changed.connect(self._recalc)
-        self.lay.addWidget(card(t("in_inputs"), self.inputs, note=t("in_inputs_note")))
+        p_inputs.addWidget(card(t("in_inputs"), self.inputs, note=t("in_inputs_note")))
 
         self.prod_tb = QTableWidget(0, 2)
         self.prod_tb.setHorizontalHeaderLabels([t("subsystem"), t("in_sub_prod")])
@@ -77,9 +90,9 @@ class IndicatorsTab(_Scroll):
                                      | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.prod_tb.itemChanged.connect(self._prod_changed)
         self.peek_sub = TrendPeek(t, lambda p: with_data(p, [f"sub:{x.name}:production" for x in p.subsystems]))
-        self.lay.addWidget(card(t("in_sub_prod"), self.prod_tb, self.peek_sub, note=t("in_sub_prod_note")))
+        p_inputs.addWidget(card(t("in_sub_prod"), self.prod_tb, self.peek_sub, note=t("in_sub_prod_note")))
         self.trend = IndicatorTrend(t)
-        self.lay.addWidget(card(t("in_trend"), self.trend, note=t("in_trend_note")))
+        p_trend.addWidget(card(t("in_trend"), self.trend, note=t("in_trend_note")))
 
         fa = t.lang == "fa"
         # one table per group
@@ -98,18 +111,19 @@ class IndicatorsTab(_Scroll):
             tb.verticalHeader().setDefaultSectionSize(34)
             self.tables[g] = tb
             title = GROUP_TITLE[g][0 if fa else 1]
-            self.lay.addWidget(card(title, tb))
+            pair_page[g].addWidget(card(title, tb))
 
         self.sub_tb = make_table([t("subsystem")])
         self.sub_tb.setWordWrap(True)
         self.sub_tb.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.lay.addWidget(card(t("in_sub_title"), self.sub_tb, note=t("in_sub_note")))
+        p_sub.addWidget(card(t("in_sub_title"), self.sub_tb, note=t("in_sub_note")))
 
         meth = QLabel(f"<b>{t('in_method')}</b><br>{t('in_method_text')}")
         meth.setWordWrap(True)
         meth.setTextFormat(Qt.TextFormat.RichText)
         meth.setObjectName("cardnote")
-        self.lay.addWidget(card("", meth))
+        p_sub.addWidget(card("", meth))
+        self.sections.finish()
         self.lay.addStretch(1)
 
     # ------------------------------------------------------------------ data

@@ -101,6 +101,7 @@ def main(out: str) -> int:
 
     def balance_ok():
         go(win.flow_tab)
+        win.flow_tab.sections.setCurrentIndex(1)          # the balance section
         shot(win, "05_balance")
         shot(win.flow_tab.widget(), "05_balance_full")
 
@@ -130,6 +131,7 @@ def main(out: str) -> int:
     def leak_balance():
         win._set_plant(leaky_plant("fa"), None)
         go(win.flow_tab)
+        win.flow_tab.sections.setCurrentIndex(1)
         shot(win, "08_balance_leak")
         shot(win.flow_tab.widget(), "08_balance_leak_full")
 
@@ -137,6 +139,7 @@ def main(out: str) -> int:
         from waterprofiler.sample import demo_with_history
         win._set_plant(demo_with_history("fa"), None)
         go(win.flow_tab)
+        win.flow_tab.sections.setCurrentIndex(0)
         tb = win.flow_tab.timebar
         tb.mode.setCurrentIndex(1)
         tb.slider.setValue(min(5, tb.slider.maximum()))
@@ -153,6 +156,7 @@ def main(out: str) -> int:
         from scenarios import flow_plant
         win._set_plant(flow_plant("fa"), None)
         go(win.flow_tab)
+        win.flow_tab.sections.setCurrentIndex(0)          # the diagram section
         shot(win, "14_flow")
         shot(win.flow_tab.widget(), "14_flow_full")
 

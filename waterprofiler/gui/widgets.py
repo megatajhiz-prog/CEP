@@ -8,7 +8,7 @@ from PySide6.QtCore import QLocale, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
-    QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QHeaderView, QLabel, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..numparse import fmt_float, parse_float
@@ -61,6 +61,42 @@ def card(title: str = "", *widgets: QWidget, note: str = "") -> QFrame:
     for w in widgets:
         lay.addWidget(w)
     return f
+
+
+class Sections(QTabWidget):
+    """Parallel sub-pages for a long page: each section is a column of cards, only the open one takes room.
+
+    ``page(title)`` returns the QVBoxLayout of a new section; call ``finish()`` once all cards have been added.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setDocumentMode(True)
+        self.currentChanged.connect(lambda _i: self.updateGeometry())
+
+    def page(self, title: str) -> QVBoxLayout:
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 14, 0, 0)
+        lay.setSpacing(16)
+        self.addTab(w, title)
+        return lay
+
+    def finish(self) -> None:
+        for i in range(self.count()):
+            self.widget(i).layout().addStretch(1)
+
+    def _fit(self, hint):
+        cur = self.currentWidget()
+        if cur is not None:
+            hint.setHeight(cur.sizeHint().height() + self.tabBar().sizeHint().height() + 8)
+        return hint
+
+    def sizeHint(self):
+        return self._fit(super().sizeHint())
+
+    def minimumSizeHint(self):
+        return self._fit(super().minimumSizeHint())
 
 
 class StatCard(QFrame):

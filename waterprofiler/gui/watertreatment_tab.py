@@ -11,7 +11,7 @@ from ..i18n import Translator
 from ..model import Plant
 from .tabs import _Scroll, _fmt, _message_label, _pct, make_table, put, stat_row
 from .theme import COL
-from .widgets import StatCard, card, dspin
+from .widgets import Sections, StatCard, card, dspin
 
 FIELDS = [
     ("capacity", "wt_p_capacity", 0, 1e9), ("tds_in", "wt_p_tds_in", 0, 1e6), ("tds_out", "wt_p_tds_out", 0, 1e6),
@@ -53,10 +53,16 @@ class WaterTreatmentTab(_Scroll):
         self.empty.setWordWrap(True)
         self.lay.addWidget(card(t("wt_howto"), self.empty))
 
+        self.sections = Sections()
+        p_unit = self.sections.page(t("wt_sec_units"))
+        p_cost = self.sections.page(t("wt_sec_cost"))
+        p_cons = self.sections.page(t("wt_sec_consumers"))
+        self.lay.addWidget(self.sections)
+
         self.units = make_table([t("subsystem"), t("wt_raw_in"), t("wt_inflow"), t("wt_to_users"), t("wt_to_next"),
                                  t("wt_waste_m3"), t("wt_sludge"), t("wt_loss"), t("wt_closure"), t("wt_yield_col"),
                                  t("wt_util")])
-        self.lay.addWidget(card(t("wt_units"), self.units, note=t("wt_units_note")))
+        p_unit.addWidget(card(t("wt_units"), self.units, note=t("wt_units_note")))
 
         self.pick = QComboBox()
         self.pick.currentIndexChanged.connect(self._load_form)
@@ -72,18 +78,19 @@ class WaterTreatmentTab(_Scroll):
             form.addRow(t(lab), sp)
         fw = QWidget()
         fw.setLayout(form)
-        self.lay.addWidget(card(t("wt_data"), fw, note=t("wt_data_note")))
+        p_unit.addWidget(card(t("wt_data"), fw, note=t("wt_data_note")))
 
         self.cost = make_table([t("subsystem"), t("wt_tds_rem"), t("wt_own_cost"), t("wt_waste_fee"), t("wt_energy"),
                                 t("wt_cost_m3")])
         self.cost_note = QLabel()
         self.cost_note.setObjectName("cardnote")
         self.cost_note.setWordWrap(True)
-        self.lay.addWidget(card(t("wt_costs"), self.cost, self.cost_note, note=t("wt_costs_note")))
+        p_cost.addWidget(card(t("wt_costs"), self.cost, self.cost_note, note=t("wt_costs_note")))
 
         self.cons = make_table([t("subsystem"), t("wt_received"), t("wt_tds"), t("wt_need"), t("wt_ok"), t("wt_cost_m3"),
                                 t("wt_vs_fresh")])
-        self.lay.addWidget(card(t("wt_consumers"), self.cons, note=t("wt_consumers_note")))
+        p_cons.addWidget(card(t("wt_consumers"), self.cons, note=t("wt_consumers_note")))
+        self.sections.finish()
         self.lay.addStretch(1)
 
     def refresh(self, plant: Plant) -> None:

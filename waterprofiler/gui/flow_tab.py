@@ -20,7 +20,7 @@ from ..analysis import analyse
 from .flow_time import FlowTimeBar
 from .tabs import BalancePanel, _Scroll, _message_label
 from .theme import COL
-from .widgets import DataTable, button, card
+from .widgets import DataTable, Sections, button, card
 
 LRM = "‎"
 EDGE_COLOR = {"intake": "#0A74C8", "discharge": "#64748B", "transfer": "#14B8A6",
@@ -487,13 +487,18 @@ class FlowTab(_Scroll):
         self.view_label.setStyleSheet("font-weight:700;")
         self.hint = hint
         self.bar = bar
-        self.lay.addWidget(card(t("tab_flow"), self.view_label, self.diagram, legend, hint, bar))
+        self.sections = Sections()
+        p_diag = self.sections.page(t("fl_sec_diagram"))
+        p_bal = self.sections.page(t("fl_sec_balance"))
+        p_links = self.sections.page(t("fl_sec_links"))
+        self.lay.addWidget(self.sections)
+        p_diag.addWidget(card(t("tab_flow"), self.view_label, self.diagram, legend, hint, bar))
         self.timebar = FlowTimeBar(t)
         self.timebar.changed.connect(self._redraw)
         self.timebar.goto_series.connect(self.series_requested)
-        self.lay.addWidget(card(t("ft_title"), self.timebar, note=t("ft_note")))
+        p_diag.addWidget(card(t("ft_title"), self.timebar, note=t("ft_note")))
         self.balance = BalancePanel(t)
-        self.lay.addWidget(self.balance)
+        p_bal.addWidget(self.balance)
         sc = QShortcut(QKeySequence.StandardKey.Undo, self)
         sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         sc.activated.connect(self.undo)
@@ -503,7 +508,8 @@ class FlowTab(_Scroll):
         self.table.changed.connect(self._links_edited)
         add = button("+  " + t("add"), "primary", lambda: self.table.add_row([self._names()[0] if self._names() else "", "", 0]))
         rem = button(t("remove"), "danger", self.table.remove_selected)
-        self.lay.addWidget(card(t("flow_links"), self.table, add, rem, note=t("flow_links_note")))
+        p_links.addWidget(card(t("flow_links"), self.table, add, rem, note=t("flow_links_note")))
+        self.sections.finish()
         self.lay.addStretch(1)
 
     # ------------------------------------------------------------------ data
