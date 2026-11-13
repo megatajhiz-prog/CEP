@@ -12,19 +12,19 @@ set QT_QPA_PLATFORM=offscreen
 python -m pytest -q || goto :fail
 set QT_QPA_PLATFORM=
 
-pyinstaller build\CEPWater.spec --noconfirm --distpath dist --workpath build\work || goto :fail
+pyinstaller build\Watra.spec --noconfirm --distpath dist --workpath build\work || goto :fail
 
 for /f %%v in ('python -c "import waterprofiler;print(waterprofiler.__version__)"') do set VER=%%v
 
 set ISCC="%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% (
-  echo Inno Setup 6 not found. The portable app is in dist\CEPWater\
+  echo Inno Setup 6 not found. The portable app is in dist\Watra\
   goto :end
 )
 %ISCC% /DAppVersion=%VER% build\installer.iss || goto :fail
 echo.
-echo Installer: Output\CEPWater-Setup-%VER%.exe
+echo Installer: Output\Watra-Setup-%VER%.exe
 goto :end
 
 :fail

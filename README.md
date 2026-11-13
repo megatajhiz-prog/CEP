@@ -1,4 +1,4 @@
-# CEPWater — مدیریت مصرف آب کارخانه
+# Watra — مدیریت مصرف آب کارخانه
 
 محصول **کنترل انرژی پاسارگاد** (Control Energy Pasargad)
 
@@ -13,8 +13,8 @@ Bilingual (Persian default, English), right-to-left, offline, Windows installer.
 ## نصب (کاربر نهایی) / Install
 
 1. در صفحهٔ **Actions** همین مخزن، آخرین اجرای موفق «Build Windows installer» را باز کنید.
-2. از بخش Artifacts فایل **CEPWater-Setup** را دانلود و اجرا کنید.
-   (اگر نسخهٔ Release منتشر شده باشد، `CEPWater-Setup-x.y.z.exe` در بخش Releases هم هست.)
+2. از بخش Artifacts فایل **Watra-Setup** را دانلود و اجرا کنید.
+   (اگر نسخهٔ Release منتشر شده باشد، `Watra-Setup-x.y.z.exe` در بخش Releases هم هست.)
 
 ## کار با برنامه / Workflow
 

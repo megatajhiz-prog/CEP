@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict
 
 _STR: Dict[str, Dict[str, str]] = {
-    "app_title": {"fa": "CEPWater", "en": "CEPWater"},
+    "app_title": {"fa": "Watra", "en": "Watra"},
     "new_plant_name": {"fa": "کارخانهٔ جدید", "en": "New plant"},
     "file": {"fa": "پرونده", "en": "File"},
     "new": {"fa": "پروژهٔ جدید", "en": "New project"},
