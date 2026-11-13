@@ -823,3 +823,17 @@ def test_water_treatment_page(app):
         w.tabs.setCurrentWidget(page)
         app.processEvents()
     w.close()
+
+
+def test_long_pages_are_split_into_parallel_sections(app):
+    w = _win("fa")
+    assert w.flow_tab.sections.count() == 3 and w.ind_tab.sections.count() == 7
+    assert w.ww_tab.sections.count() == 3 and w.wt_tab.sections.count() == 3
+    for page in (w.flow_tab, w.ind_tab, w.ww_tab, w.wt_tab):
+        w.tabs.setCurrentWidget(page)
+        for i in range(page.sections.count()):
+            page.sections.setCurrentIndex(i)
+            app.processEvents()
+            assert page.sections.sizeHint().height() > 0
+        page.sections.setCurrentIndex(0)
+    w.close()

@@ -11,7 +11,7 @@ from ..i18n import Translator
 from ..model import Plant
 from .tabs import _Scroll, _fmt, _message_label, _pct, make_table, put, stat_row
 from .theme import COL
-from .widgets import StatCard, card, dspin
+from .widgets import Sections, StatCard, card, dspin
 
 # parameter -> (label key, decimals, maximum)
 FIELDS = [
@@ -56,13 +56,19 @@ class WastewaterTab(_Scroll):
         self.empty.setWordWrap(True)
         self.lay.addWidget(card(t("ww_howto"), self.empty))
 
+        self.sections = Sections()
+        p_coll = self.sections.page(t("ww_sec_collect"))
+        p_unit = self.sections.page(t("ww_sec_units"))
+        p_reuse = self.sections.page(t("ww_sec_reuse"))
+        self.lay.addWidget(self.sections)
+
         self.streams = make_table([t("subsystem"), t("ww_class"), t("ww_gen"), t("ww_to_tr"), t("ww_cascade"),
                                    t("ww_untreated"), t("ww_coll_rate")])
-        self.lay.addWidget(card(t("ww_streams"), self.streams, note=t("ww_streams_note")))
+        p_coll.addWidget(card(t("ww_streams"), self.streams, note=t("ww_streams_note")))
 
         self.units = make_table([t("subsystem"), t("ww_inflow"), t("ww_to_users"), t("ww_to_next"), t("ww_effluent"),
                                  t("ww_sludge"), t("ww_loss"), t("ww_closure"), t("ww_recovery"), t("ww_util")])
-        self.lay.addWidget(card(t("ww_units"), self.units, note=t("ww_units_note")))
+        p_unit.addWidget(card(t("ww_units"), self.units, note=t("ww_units_note")))
 
         # data of one treatment unit
         self.pick = QComboBox()
@@ -82,24 +88,25 @@ class WastewaterTab(_Scroll):
         form.addRow("", self.required)
         fw = QWidget()
         fw.setLayout(form)
-        self.lay.addWidget(card(t("ww_data"), fw, note=t("ww_data_note")))
+        p_unit.addWidget(card(t("ww_data"), fw, note=t("ww_data_note")))
 
         self.quality = make_table([t("subsystem"), t("ww_cod_rem"), t("ww_tds_rem"), t("ww_cod_kg"), t("ww_cod_out_kg"),
                                    t("ww_comply")])
-        self.lay.addWidget(card(t("ww_quality"), self.quality, note=t("ww_quality_note")))
+        p_unit.addWidget(card(t("ww_quality"), self.quality, note=t("ww_quality_note")))
 
         self.econ = make_table([t("subsystem"), t("ww_benefit"), t("ww_opex"), t("ww_net"), t("ww_rec_cost"), t("ww_payback")])
         self.econ_note = QLabel()
         self.econ_note.setObjectName("cardnote")
         self.econ_note.setWordWrap(True)
-        self.lay.addWidget(card(t("ww_econ"), self.econ, self.econ_note, note=t("ww_econ_note")))
+        p_reuse.addWidget(card(t("ww_econ"), self.econ, self.econ_note, note=t("ww_econ_note")))
 
         self.users = make_table([t("subsystem"), t("ww_received"), t("ww_fresh_demand"), t("ww_suitable"),
                                  t("ww_potential"), t("ww_remark")])
         self.pot = QLabel()
         self.pot.setObjectName("cardnote")
         self.pot.setWordWrap(True)
-        self.lay.addWidget(card(t("ww_users"), self.users, self.pot, note=t("ww_users_note")))
+        p_reuse.addWidget(card(t("ww_users"), self.users, self.pot, note=t("ww_users_note")))
+        self.sections.finish()
         self.lay.addStretch(1)
         self._names: List[str] = []
 
