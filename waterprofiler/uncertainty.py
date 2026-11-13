@@ -65,6 +65,27 @@ def node_sigma(plant: Plant, s: Subsystem, acc: Dict[str, float] = None) -> floa
     return math.sqrt(sum(sg ** 2 for _f, _v, sg, _m in node_components(plant, s, acc)))
 
 
+def boundary_sigma(plant: Plant, src_values: Dict[str, float], out_values: Dict[str, float]) -> float:
+    """sigma of the plant-boundary imbalance  M_in - M_out - E - P - dS.
+
+    ``src_values`` / ``out_values`` are the volumes used for every source and outlet (the meter reading, or the allocated
+    sum where there is no meter). A source or outlet with a stated meter accuracy uses it, the others the assumed
+    uncertainty of an unmetered flow; evaporation, product and storage use the accuracy of their node meters.
+    """
+    acc = meter_accuracy(plant)
+    un = unmetered_rel(plant)
+    var = 0.0
+    for tag, d in (("source", src_values), ("outlet", out_values)):
+        for name, v in d.items():
+            a = acc.get(f"{tag}:{name}")
+            var += ((a if a is not None else un) * v) ** 2
+    for s in plant.leaves():
+        for f, v, sg, _m in node_components(plant, s, acc):
+            if f in ("evaporation", "product", "storage"):
+                var += sg ** 2
+    return math.sqrt(var)
+
+
 def plant_sigma(plant: Plant) -> Tuple[float, float]:
     """(sigma of the plant residual, share of the flow volume that has no stated meter accuracy).
 

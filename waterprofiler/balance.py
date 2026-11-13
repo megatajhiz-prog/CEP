@@ -63,6 +63,10 @@ class PlantBalance:
     sigma: float = 0.0                        # standard uncertainty of the plant residual
     significant: bool = False                 # |L| > 2 sigma
     unmetered_share: float = 0.0              # share of the flow volume without a stated meter accuracy
+    imbalance_sigma: Optional[float] = None   # standard uncertainty of plant_imbalance
+    imbalance_significant: Optional[bool] = None   # |plant_imbalance| > 2 sigma: more than the meters alone explain
+    unmetered_sources: List[str] = field(default_factory=list)   # sources without a meter while others have one
+    unmetered_outlets: List[str] = field(default_factory=list)
 
     @property
     def closure_pct(self) -> Optional[float]:
@@ -126,14 +130,33 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
             "check R'_out and R'_in entries"
         )
 
-    srcs = [x.metered_m3 for x in plant.sources]
-    outs = [x.metered_m3 for x in plant.outlets]
-    m_in = sum(v for v in srcs if v is not None) if any(v is not None for v in srcs) else None
-    m_out = sum(v for v in outs if v is not None) if any(v is not None for v in outs) else None
+    # Plant meters. When only some sources (outlets) have a meter, an unmetered one is taken at the volume allocated to it,
+    # so the boundary balance is not understated; the result is flagged with a warning.
+    def totals(items, allocated):
+        used = {x.name: (x.metered_m3 if x.metered_m3 is not None else allocated.get(x.name, 0.0)) for x in items}
+        some = any(x.metered_m3 is not None for x in items)
+        missing = [x.name for x in items if x.metered_m3 is None and allocated.get(x.name, 0.0) > 0] if some else []
+        return (sum(used.values()) if some else None), used, missing
+
+    m_in, used_in, miss_in = totals(plant.sources, by_src)
+    m_out, used_out, miss_out = totals(plant.outlets, by_out)
+    if miss_in:
+        warnings.append("Sources without a meter while others have one: " + ", ".join(miss_in)
+                        + "; their allocated volume is used in the plant balance")
+    if miss_out:
+        warnings.append("Outlets without a meter while others have one: " + ", ".join(miss_out)
+                        + "; their allocated volume is used in the plant balance")
 
     src_imb = (m_in - sum_i) if m_in is not None else None
     out_imb = (m_out - sum_w) if m_out is not None else None
     plant_imb = (m_in - m_out - sum_e - sum_p - sum_s) if (m_in is not None and m_out is not None) else None
+    imb_sigma = imb_sig = None
+    if plant_imb is not None:
+        imb_sigma = U.boundary_sigma(plant, used_in, used_out)
+        imb_sig = abs(plant_imb) > U.K * imb_sigma > 0
+        if imb_sig:
+            warnings.append(f"Plant boundary imbalance {plant_imb:,.0f} m3 is larger than 2 sigma ({imb_sigma:,.0f} m3): "
+                            "the meters alone do not explain it (leak, unmetered flow or a meter error)")
 
     return PlantBalance(
         subsystems=subs, sum_intake=sum_i, sum_discharge=sum_w, sum_evaporation=sum_e,
@@ -141,5 +164,6 @@ def plant_balance(plant: Plant, tol: float = 0.02) -> PlantBalance:
         source_side_imbalance=src_imb, discharge_side_imbalance=out_imb,
         plant_imbalance=plant_imb, intake_by_source=by_src, discharge_by_outlet=by_out,
         warnings=warnings, nodes=nodes, sum_storage=sum_s, sigma=sig, significant=abs(l) > U.K * sig > 0,
-        unmetered_share=unmet,
+        unmetered_share=unmet, imbalance_sigma=imb_sigma, imbalance_significant=imb_sig,
+        unmetered_sources=miss_in, unmetered_outlets=miss_out,
     )

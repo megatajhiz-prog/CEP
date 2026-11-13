@@ -60,6 +60,20 @@ _RULES: List[Tuple["re.Pattern[str]", object]] = [
     (re.compile(r"^Inter-subsystem transfers do not cancel \(sent minus received = (.+) m3\).*$"),
      lambda m: f"ارسال و دریافت آب بین زیرسیستم‌ها یک‌دیگر را خنثی نمی‌کنند (ارسالی منهای دریافتی = {m[1]} مترمکعب)؛ "
                "مقدارهای «ارسال به زیرسیستم دیگر» و «دریافت از زیرسیستم دیگر» را بررسی کنید."),
+    (re.compile(r"^Sources without a meter while others have one: (.+); their allocated volume is used in the plant balance$"),
+     lambda m: f"منابع بدون کنتور در حالی که منابع دیگر کنتور دارند: {m[1]}؛ در بیلان کارخانه از حجم تخصیص‌یافته به آن‌ها استفاده شد."),
+    (re.compile(r"^Outlets without a meter while others have one: (.+); their allocated volume is used in the plant balance$"),
+     lambda m: f"مقصدهای بدون کنتور در حالی که مقصدهای دیگر کنتور دارند: {m[1]}؛ در بیلان کارخانه از حجم تخصیص‌یافته به آن‌ها استفاده شد."),
+    (re.compile(r"^Plant boundary imbalance (.+) m3 is larger than 2 sigma \((.+) m3\): .*$"),
+     lambda m: f"ناترازی مرز کارخانه ({m[1]} مترمکعب) از ۲σ ({m[2]} مترمکعب) بزرگ‌تر است؛ خطای کنتورها به‌تنهایی آن را توضیح نمی‌دهد "
+               "(نشتی، جریان بی‌کنتور یا خطای کنتور)."),
+    (re.compile(r"^Reconciliation: the balance cannot be closed within the limits.*$"),
+     lambda m: "تطبیق داده: بیلان در محدودهٔ مجاز تغییر بسته نمی‌شود؛ داده‌ها با هم تناقض دارند (احتمالاً یک کنتور یا یک جریان اشتباه است)."),
+    (re.compile(r"^Reconciliation: weighted sum of squares (.+) exceeds the 95 % limit (.+) for (\d+) constraints.*$"),
+     lambda m: f"تطبیق داده: مجموع مربعات وزنی ({m[1]}) از حد ۹۵٪ ({m[2]}) برای {m[3]} قید بیشتر است؛ اصلاح‌ها از عدم‌قطعیت اعلام‌شده بزرگ‌ترند، "
+               "نخست جریان‌های فهرست‌شده را بررسی کنید."),
+    (re.compile(r"^Reconciliation: (\d+) flow\(s\) moved by more than 3 sigma or by more than half of their value$"),
+     lambda m: f"تطبیق داده: {m[1]} جریان بیش از ۳σ یا بیش از نصف مقدارشان تغییر کرد (در جدول با رنگ مشخص شده‌اند)."),
     (re.compile(r"^(.+): unknown treatment '(.+)'$"),
      lambda m: f"{m[1]}: تصفیه‌ای که تعریف نشده است («{m[2]}»)."),
     (re.compile(r"^(.+): treated fraction for '(.+)' is (.+), expected 0\.\.1$"),

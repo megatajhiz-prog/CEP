@@ -222,6 +222,8 @@ class BalancePanel(QWidget):
             (t("metered_intake"), _fmt(b.metered_intake)), (t("metered_discharge"), _fmt(b.metered_discharge)),
             (t("src_gap"), _fmt(b.source_side_imbalance)), (t("out_gap"), _fmt(b.discharge_side_imbalance)),
             (t("closure"), "—" if b.closure_pct is None else f"{b.closure_pct:.1f}%"),
+            (t("bd_sigma"), "—" if b.imbalance_sigma is None else _fmt(b.imbalance_sigma)),
+            (t("bd_signif"), "—" if b.imbalance_significant is None else t("yes") if b.imbalance_significant else t("no")),
         ]
         for lab, val in rows:
             lbl = QLabel(ltr(val))
@@ -578,7 +580,8 @@ class ReconcileTab(_Scroll):
             self._say(t("no_data"))
             return
         try:
-            res = reconcile(self.plant, default_rel_sigma=self.sigma.value() / 100.0, rel_sigma=measured_sigma(self.plant))
+            res = reconcile(self.plant, default_rel_sigma=self.sigma.value() / 100.0, rel_sigma=measured_sigma(self.plant),
+                             max_rel_change=1.0)
         except Exception as e:  # noqa: BLE001 - surfaced to the user
             self._say(f"{t('analysis_error')}: {localize(str(e), t.lang)}")
             return
@@ -587,6 +590,10 @@ class ReconcileTab(_Scroll):
                  f"{t('rc_resid')}: {ltr(f'{res.residual_before:,.1f}')}  /  {ltr(f'{res.residual_after:.3g}')}"]
         if not res.adjustments:
             lines.append(t("rc_none"))
+        lines += ["• " + localize(w, t.lang) for w in res.warnings]
+        if any("held at" in n for n in res.notes):
+            lines.append("• " + t("rc_held"))
+        sus = {(q.subsystem, q.flow) for q in res.suspects}
         self._say("\n".join(lines))
         self.table.setRowCount(len(res.adjustments))
         for r, adj in enumerate(res.adjustments):
@@ -595,7 +602,8 @@ class ReconcileTab(_Scroll):
             put(self.table, r, 1, self._flow_label(adj.flow))
             put(self.table, r, 2, _fmt(adj.original), True)
             put(self.table, r, 3, _fmt(adj.adjusted), True)
-            put(self.table, r, 4, f"{adj.delta:+,.0f}" + ("" if pct is None else f"  ({pct:+.1f}%)"), True)
+            put(self.table, r, 4, f"{adj.delta:+,.0f}" + ("" if pct is None else f"  ({pct:+.1f}%)"), True,
+                bg=QColor("#FDEBEB") if (adj.subsystem, adj.flow) in sus else None)
         self.apply.setEnabled(bool(res.adjustments))
 
     def _apply(self) -> None:
