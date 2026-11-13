@@ -1,8 +1,6 @@
 """Watra: industrial plant water balance and true cost of water (Control Energy Pasargad).
 
-Calculation methodology follows ORNL/TM-2021/1918 (Malhotra et al., 2021),
-re-expressed in SI units (m3, kWh, degC). Typographical sign errors in the
-printed report equations are corrected; see docs/FORMULAS.md.
+All quantities are in SI units (m3, kWh, degC); the formulas are documented in docs/FORMULAS.md.
 """
 
 __version__ = "0.9.1"

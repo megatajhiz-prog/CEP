@@ -64,6 +64,8 @@ class Source:
     unit_cost: float = 0.0              # currency per m3
     metered_m3: Optional[float] = None  # plant-level meter / bill, m3/year
     alternative: bool = False           # non-conventional source: reclaimed, rain, seawater, ...
+    permit_on: bool = False             # the user switched the abstraction limit of this source on
+    permit_m3: float = 0.0              # maximum permitted abstraction, m3/year (used only when permit_on)
 
 
 @dataclass

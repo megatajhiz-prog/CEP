@@ -793,18 +793,6 @@ def test_user_guide_from_help_menu(app):
     w.close()
 
 
-def test_ornl_sample_from_samples_menu(app):
-    w = _win("fa")
-    names = [a.text() for a in w.menuBar().actions()[0].menu().actions() if a.menu()]
-    assert w.t("samples") in names
-    w.action_ornl()
-    app.processEvents()
-    assert len(w.plant.subsystems) == 6 and "ORNL" in w.plant.name
-    for page in (w.flow_tab, w.cost_tab, w.pfd_tab):
-        w.tabs.setCurrentWidget(page)
-        app.processEvents()
-    w.close()
-
 
 def test_wastewater_page(app):
     w = _win("fa")

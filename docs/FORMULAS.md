@@ -1,7 +1,6 @@
 # Mathematical formulation
 
-Methodology: Malhotra et al., *Plant Water Profiler*, ORNL/TM-2021/1918. All
-volumes are stored in **m³/year**; the report's US units are converted at the
+All volumes are stored in **m³/year**; any US units are converted at the
 boundary (1 US gal = 0.003785411784 m³, 1 lb = 0.45359237 kg, 1 refrigeration
 ton = 3.516852842 kW). Every formula below is covered by a hand-calculation test
 in `tests/test_engine.py`.
@@ -194,7 +193,7 @@ balance of section 2 is unchanged (transfers cancel over the plant).
 - Reuse suitability: the quality of the water delivered to a consumer (volume-weighted over its feeders) is compared with indicative maxima (cooling tower TDS 1000 / COD 75, boiler 50 / 10, irrigation 2000 / 100, sanitary flushing 2000 / 60 mg/L; process: not assumed). Extra potential: treated effluent still discharged (the discharge of a desalting unit, with >= 50 % salt removal, is concentrate and is excluded) allocated to suitable consumers, largest demand first; only 30 % of sanitary use counts (flushing). It is an upper bound before piping and pumping costs.
 
 
-## Checks added after the ORNL benchmark (v0.10)
+## Checks added after the benchmark (v0.10)
 
 - **Reconciliation sanity** (`reconcile.py`): chi-square `sum(((x - x0)/sigma)^2)` is compared with the 95 % point for `rank(A)` constraints (Wilson-Hilferty). Above it the data contradict each other more than the stated uncertainties allow. Flows that move by more than 3 sigma or by half of their value are listed (and coloured on the page). The page limits every flow to 0..2 x its entered value (`max_rel_change = 1`), so a wrong meter shows up as "cannot be closed within the limits" instead of an unphysical adjustment.
 - **Partial metering** (`balance.py`): when some sources (outlets) have a meter and others do not, an unmetered one enters the plant balance at its allocated volume (it used to be dropped, which understated the boundary balance) and a warning names it.
@@ -210,3 +209,8 @@ A treatment unit is a subsystem of type `wtp`, joined to the others by intake fr
 - Salt removal `1 - TDS_out / TDS_in`; capacity use `= inflow / capacity` (warns above 100 % and below 40 %); a warning when the yield is below the stated minimum.
 - Cost of the treated water per m3 `= (raw water at the source prices + treated water received from earlier units at their cost + running cost + kWh * electricity price + capex / life + discharge fee of the waste) / water leaving as product`, iterated along the chain.
 - Consumer check: the volume-weighted TDS of the water a consumer receives against an indicative limit (boiler make-up 20 mg/L).
+
+
+## Abstraction limit per source (optional)
+
+A source with the limit switched on (`permit_on`) and `permit_m3 > 0` is compared with its annual abstraction (the meter reading, or the volume allocated to it by the subsystems). From 90 % of the limit a warning is given, above 100 % an exceedance warning; `PlantBalance.permit_use` holds (used, limit, used / limit). The plant-wide permit on the Indicators page is unchanged.
