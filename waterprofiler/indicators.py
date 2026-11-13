@@ -27,7 +27,7 @@ GROUPS = ("supply", "use", "waste", "cost", "quality", "target", "plan", "time")
 # profile fields that count towards "completeness"
 PROFILE_FIELDS = (
     "employees", "working_days", "building_area_m2", "green_area_m2", "revenue", "value_added", "production_cost",
-    "steam_t", "permit_m3", "storage_m3", "outage_hours", "network_km", "connections", "pressure_m", "ef_el",
+    "steam_t", "storage_m3", "outage_hours", "network_km", "connections", "pressure_m", "ef_el",
     "ef_th", "cod_raw", "cod_out", "tds_intake", "tds_discharge", "target_intake_per_unit", "target_recirc_pct",
     "target_loss_pct",
 )
@@ -110,7 +110,12 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
     add("sup_avg_cost", "supply", "cur_m3", c.by_component["intake"] / intake if intake > 0 else None)
     metered = {s.name for s in plant.sources if s.metered_m3 is not None}
     add("sup_meter_cover", "supply", "pct", 100 * sum(by_src.get(n, 0.0) for n in metered) / intake if intake > 0 else None)
-    add("sup_permit_use", "supply", "pct", _pct(intake, pf.permit_m3), ("permit_m3",))
+    # The plant permit is the sum of the limits of the sources whose limit the user switched on; without any, no indicator.
+    lim = {s.name: s.permit_m3 for s in plant.sources if s.permit_on and s.permit_m3 > 0}
+    if lim:
+        add("sup_permit_use", "supply", "pct", 100.0 * sum(by_src.get(n, 0.0) for n in lim) / sum(lim.values()))
+    else:
+        out.append(Indicator("sup_permit_use", "supply", "pct", None, [], "permit"))
     add("sup_storage_days", "supply", "days", _div(pf.storage_m3, intake / 365.0) if intake > 0 else None, ("storage_m3",))
     add("sup_availability", "supply", "pct", 100 * (1 - pf.outage_hours / 8760.0), ("outage_hours",))
     add("sup_pump_kwh", "supply", "kwh", el_kwh if el_kwh > 0 else None)

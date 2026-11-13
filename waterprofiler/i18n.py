@@ -343,6 +343,7 @@ _STR: Dict[str, Dict[str, str]] = {
     "ts_tg_sub_recirc": {"fa": "بازچرخانی", "en": "recirculation"},
     "ts_tg_cost_electricity_per_kwh": {"fa": "قیمت برق", "en": "Electricity price"},
     "ts_tg_cost_fuel_per_kwh_thermal": {"fa": "قیمت انرژی حرارتی", "en": "Thermal energy price"},
+    "in_nopermit": {"fa": "محاسبه نشد: در جدول منابع (صفحهٔ مجتمع صنعتی) «حد مجاز فعال؟» را برای دست‌کم یک منبع تیک بزنید و حداکثر مجاز را وارد کنید.", "en": "Not computed: on the plant page tick 'Limit on?' for at least one source and enter its maximum."},
     "col_permit_on": {"fa": "حد مجاز فعال؟", "en": "Limit on?"},
     "col_permit": {"fa": "حداکثر مجاز برداشت (m³/سال)", "en": "Maximum permitted abstraction (m³/year)"},
     "col_alternative": {"fa": "منبع غیرمتعارف؟", "en": "Alternative source?"},

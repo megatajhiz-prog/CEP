@@ -26,10 +26,10 @@ def test_series_drive_the_model_and_sync_is_idempotent():
 def test_manual_edit_of_a_driven_field_is_undone_by_sync_but_free_fields_stay():
     p = demo_with_history("en")
     TS.sync(p)
-    keep = p.profile.permit_m3 = 123456.0                    # no series for it: stays editable and untouched
+    keep = p.profile.storage_m3 = 123456.0                    # no series for it: stays editable and untouched
     p.production_per_year = 1.0
     TS.sync(p)
-    assert p.production_per_year > 1.0 and p.profile.permit_m3 == keep
+    assert p.production_per_year > 1.0 and p.profile.storage_m3 == keep
 
 
 def test_removing_the_series_frees_the_fields():

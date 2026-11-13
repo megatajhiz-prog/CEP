@@ -120,3 +120,15 @@ def test_permit_roundtrip_json_and_old_files():
     for s in old["sources"]:
         s.pop("permit_on"), s.pop("permit_m3")
     assert Plant.from_dict(old).sources[0].permit_on is False        # files from before the limit existed
+
+
+def test_plant_permit_is_the_sum_of_the_enabled_source_limits():
+    from waterprofiler.indicators import compute
+    a = Subsystem("A", intake={"S1": 60.0, "S2": 30.0, "S3": 10.0}, evaporation=100.0)
+    p = Plant(sources=[Source("S1", 1.0, None, False, True, 100.0), Source("S2", 1.0, None, False, True, 50.0),
+                       Source("S3", 1.0, None, False, False, 5.0)], outlets=[Outlet("O")], subsystems=[a])
+    ind = compute(p).get("sup_permit_use")
+    assert ind.value == approx(100.0 * 90 / 150) and ind.reason == ""      # S3 has its limit off: ignored
+    p.sources[0].permit_on = p.sources[1].permit_on = False
+    ind = compute(p).get("sup_permit_use")
+    assert ind.value is None and ind.reason == "permit"

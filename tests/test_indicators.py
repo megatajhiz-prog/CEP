@@ -64,21 +64,21 @@ def test_shares_sum_to_100():
 def test_missing_inputs_are_reported_not_guessed():
     p = small()
     r = K.compute(p)
-    for i in ("sup_permit_use", "use_per_revenue", "ww_cod_removal", "tg_loss", "sup_ili"):
+    for i in ("sup_storage_days", "use_per_revenue", "ww_cod_removal", "tg_loss", "sup_ili"):
         ind = r.get(i)
         assert ind.value is None and ind.reason == "inputs" and ind.needs
     assert r.get("sup_ili").approx
     assert r.completeness == 0.0
+    assert r.get("sup_permit_use").value is None and r.get("sup_permit_use").reason == "permit"   # no source limit is on
     assert 0 < r.computable < 100
 
 
 def test_profile_indicators():
     p = small()
-    p.profile = Profile(permit_m3=1250, storage_m3=500, outage_hours=87.6, revenue=2e6, value_added=5000,
+    p.profile = Profile(storage_m3=500, outage_hours=87.6, revenue=2e6, value_added=5000,
                         cod_raw=800, cod_out=100, tds_intake=300, tds_discharge=1200,
                         target_intake_per_unit=0.8, target_recirc_pct=60, target_loss_pct=4,
                         network_km=1.0, connections=10, pressure_m=40)
-    assert val(p, "sup_permit_use") == pytest.approx(80.0)
     assert val(p, "sup_storage_days") == pytest.approx(500 / (1000 / 365))
     assert val(p, "sup_availability") == pytest.approx(99.0)
     assert val(p, "use_per_revenue") == pytest.approx(500.0)           # 1000 m3 / 2 million
@@ -152,7 +152,8 @@ def test_excel_and_report_carry_the_indicators(tmp_path):
     from waterprofiler.report_html import build_report_html
 
     p = demo_plant("fa")
-    p.profile.permit_m3 = 100000.0
+    for s in p.sources:
+        s.permit_on, s.permit_m3 = True, 60000.0
     a = analyse(p)
     export_xlsx(a, str(tmp_path / "x.xlsx"), "fa")
     wb = load_workbook(tmp_path / "x.xlsx")
@@ -160,7 +161,7 @@ def test_excel_and_report_carry_the_indicators(tmp_path):
     flat = [c.value for row in ws.iter_rows() for c in row]
     assert TEXT["sup_permit_use"][0] in flat and TEXT["use_reuse_factor"][0] in flat
     permit = [r for r in ws.iter_rows(values_only=True) if r[0] == TEXT["sup_permit_use"][0]][0]
-    assert permit[1] == pytest.approx(100.0 * K.compute(p).get("sup_intake").value / 100000.0)
+    assert permit[1] == pytest.approx(100.0 * K.compute(p).get("sup_intake").value / (60000.0 * len(p.sources)))
     html = build_report_html(a, "fa")
     assert TEXT["use_per_unit"][0] in html and GROUP_TITLE["supply"][0] in html
     assert TEXT["ww_cod_removal"][0] not in html            # not computable -> not printed in the report

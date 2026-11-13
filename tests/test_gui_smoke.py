@@ -326,13 +326,13 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert it.sub_tb.columnCount() == len(w.plant.subsystems) + 1
     assert it.prod_tb.rowCount() == len(w.plant.subsystems)
     # entering a missing input fills the indicators that need it, and writes into the project
-    r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_permit_use")
+    r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_storage_days")
     tb = it.tables["supply"]
     assert txt(tb.item(r_permit, 1)) == "—"
     w.tabs.setCurrentWidget(w.industrial_tab)                 # fixed (structural) inputs live on the complex page
-    w.site_tab.struct.spins["permit_m3"].setValue(100000.0)
-    assert w.plant.profile.permit_m3 == 100000.0
-    assert "permit_m3" not in it.spins and "employees" in it.spins
+    w.site_tab.struct.spins["storage_m3"].setValue(100000.0)
+    assert w.plant.profile.storage_m3 == 100000.0
+    assert "storage_m3" not in it.spins and "employees" in it.spins
     w.tabs.setCurrentWidget(w.ind_tab)
     assert txt(tb.item(r_permit, 1)) != "—"
     # production per subsystem

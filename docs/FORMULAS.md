@@ -213,4 +213,4 @@ A treatment unit is a subsystem of type `wtp`, joined to the others by intake fr
 
 ## Abstraction limit per source (optional)
 
-A source with the limit switched on (`permit_on`) and `permit_m3 > 0` is compared with its annual abstraction (the meter reading, or the volume allocated to it by the subsystems). From 90 % of the limit a warning is given, above 100 % an exceedance warning; `PlantBalance.permit_use` holds (used, limit, used / limit). The plant-wide permit on the Indicators page is unchanged.
+A source with the limit switched on (`permit_on`) and `permit_m3 > 0` is compared with its annual abstraction (the meter reading, or the volume allocated to it by the subsystems). From 90 % of the limit a warning is given, above 100 % an exceedance warning; `PlantBalance.permit_use` holds (used, limit, used / limit). The plant permit is no longer typed in: the indicator *permit utilisation* is `sum of abstraction of the sources with the limit on / sum of their limits`; with no source limit on it is not computed.

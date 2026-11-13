@@ -168,7 +168,6 @@ class Profile:
     value_added: float = 0.0
     production_cost: float = 0.0
     steam_t: float = 0.0               # steam produced, t/year
-    permit_m3: float = 0.0             # licensed abstraction, m3/year
     storage_m3: float = 0.0
     outage_hours: float = 0.0          # hours per year without supply
     network_km: float = 0.0            # water mains length
