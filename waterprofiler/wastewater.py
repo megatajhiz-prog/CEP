@@ -45,7 +45,7 @@ REUSE_LIMITS: Dict[str, Tuple[Optional[float], Optional[float]]] = {
 # share of the use of a subsystem kind that can take reclaimed water (toilet flushing is only part of sanitary use)
 REUSE_SHARE = {"sanitary": 0.3}
 
-CLASS_OF_KIND = {"sanitary": "domestic", "cooling_tower": "blowdown", "boiler": "blowdown",
+CLASS_OF_KIND = {"wtp": "blowdown", "sanitary": "domestic", "cooling_tower": "blowdown", "boiler": "blowdown",
                  "irrigation": "other", "process": "industrial", "other": "industrial"}
 
 
@@ -318,7 +318,7 @@ def analyse_wastewater(plant: Plant) -> WastewaterReport:
                  if x.dst == s.name and x.src in owner and x.volume > 0]
         got = sum(v for v, _, _ in feeds)
         fresh = sum(v for k, v in s.intake.items() if k not in alt)
-        if got <= 0 and fresh <= 0:
+        if (got <= 0 and fresh <= 0) or (s.kind == "wtp" and got <= 0):
             continue
         if got > 0:
             allowed, note = judge(s.kind, wq(feeds, 1), wq(feeds, 2))

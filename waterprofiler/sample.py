@@ -286,3 +286,52 @@ def wastewater_demo(lang: str = "en") -> Plant:
                       areas=[Area(n["site"], "production")], products=[Product(n["product"], "t", per_year=40_000)])
     plant.sync_production()
     return plant
+
+
+# ------------------------------------------------------------------------------------------------ water treatment chain
+_WT = {
+    "en": dict(plant="Tutorial: pre-treatment and demineralised water", well="Well", city="City water", sewer="Sewer",
+               pre="Pre-treatment (clarifier + filters)", dm="Demineralised water unit (RO)", boiler="Boiler",
+               proc="Process", ct="Cooling tower", site="Plant with a water treatment chain", sector="Chemicals", product="Product",
+               note=("Teaching example, invented numbers. Raw water is first pre-treated (the back-wash is waste). Part of the "
+                     "filtered water goes to a reverse-osmosis demineralised-water unit (the reject is waste); its permeate is the "
+                     "boiler make-up and some process uses. The rest of the filtered water goes straight to the process and the "
+                     "cooling tower. The page 'Water treatment' follows the cost of the water along the chain.")),
+    "fa": dict(plant="آموزش: پیش‌تصفیه و تولید آب دمین", well="چاه", city="آب شهری", sewer="فاضلاب شهری",
+               pre="پیش‌تصفیه (زلال‌ساز و فیلتر)", dm="واحد تولید آب دمین (اسمز معکوس)", boiler="بویلر",
+               proc="فرایند", ct="برج خنک‌کن", site="کارخانه با زنجیرهٔ تصفیهٔ آب", sector="شیمیایی", product="محصول",
+               note=("مثال آموزشی با عددهای فرضی. آب ورودی نخست پیش‌تصفیه می‌شود (شست‌وشوی معکوس فیلترها پساب است). بخشی از آب "
+                     "فیلترشده به واحد آب دمین (اسمز معکوس) می‌رود (پساب غلیظ دور ریخته می‌شود) و تراوهٔ آن آب جبرانی بویلر و "
+                     "برخی مصارف فرایند است. بقیهٔ آب فیلترشده مستقیم به فرایند و برج خنک‌کن می‌رود. صفحهٔ «تصفیهٔ آب» هزینهٔ آب را "
+                     "در طول زنجیره دنبال می‌کند.")),
+}
+
+
+def water_treatment_demo(lang: str = "en") -> Plant:
+    """Raw water -> pre-treatment -> RO demineralised water -> boiler make-up and process (balanced, 120 000 m3/yr)."""
+    from .model import Area, Product, Site, Transfer
+
+    n = _WT.get(lang, _WT["en"])
+    subs = [
+        Subsystem(n["pre"], "wtp", intake={n["well"]: 100_000, n["city"]: 20_000}, to_other=114_000,
+                  discharge={n["sewer"]: 6_000},
+                  params={"tds_in": 600, "tds_out": 580, "capacity": 150_000, "opex_m3": 0.06, "kwh_m3": 0.15,
+                          "capex": 60_000, "life": 15, "min_yield": 90}),
+        Subsystem(n["dm"], "wtp", from_other=40_000, to_other=30_000, discharge={n["sewer"]: 10_000},
+                  params={"tds_in": 580, "tds_out": 8, "capacity": 50_000, "opex_m3": 0.35, "kwh_m3": 1.2,
+                          "capex": 180_000, "life": 15, "min_yield": 70}),
+        Subsystem(n["boiler"], "boiler", from_other=22_000, evaporation=18_000, discharge={n["sewer"]: 4_000}),
+        Subsystem(n["proc"], "process", from_other=62_000, product=20_000, evaporation=5_000, discharge={n["sewer"]: 37_000}),
+        Subsystem(n["ct"], "cooling_tower", from_other=20_000, evaporation=16_000, discharge={n["sewer"]: 4_000}),
+    ]
+    links = [Transfer(n["pre"], n["dm"], 40_000), Transfer(n["pre"], n["proc"], 54_000), Transfer(n["pre"], n["ct"], 20_000),
+             Transfer(n["dm"], n["boiler"], 22_000), Transfer(n["dm"], n["proc"], 8_000)]
+    plant = Plant(
+        name=n["plant"], currency="USD", production_per_year=40_000, production_unit="t",
+        sources=[Source(n["well"], 0.60, 100_000), Source(n["city"], 1.50, 20_000)],
+        outlets=[Outlet(n["sewer"], 1.00, 61_000)],
+        subsystems=subs, links=links, costs=UnitCosts(electricity_per_kwh=0.08, fuel_per_kwh_thermal=0.04, heating_efficiency=0.8))
+    plant.site = Site(name=n["site"], sector=n["sector"], note=n["note"], calendar="jalali" if lang == "fa" else "gregorian",
+                      areas=[Area(n["site"], "production")], products=[Product(n["product"], "t", per_year=40_000)])
+    plant.sync_production()
+    return plant
