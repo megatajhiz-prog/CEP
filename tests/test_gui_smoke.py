@@ -765,19 +765,6 @@ def test_cost_table_lists_equipment_under_units(app):
     w.close()
 
 
-def test_user_guide_dialog(app):
-    from waterprofiler.gui.guide_dialog import GuideDialog
-    w = _win("fa")
-    d = GuideDialog(w.t, w)
-    heads = d.headings()
-    assert any("نصب و شروع" in h for h in heads) and len(heads) >= 20
-    d.search.setText("PFD")
-    d.find_next()
-    assert d.view.textCursor().hasSelection()
-    d.close()
-    w.close()
-
-
 def test_user_guide_from_help_menu(app):
     from waterprofiler.gui.guide_dialog import GuideDialog, headings
     from waterprofiler.guide_text import GUIDE_FA
