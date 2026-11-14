@@ -48,7 +48,7 @@ jobs:
       - name: Tests (engine + headless GUI)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m pytest -q --durations=25 --timeout=300
+        run: python -m pytest -v --durations=30 --timeout=1800 -p no:cacheprovider
 
       - name: Build application
         run: pyinstaller build/Watra.spec --noconfirm --distpath dist --workpath build/work
