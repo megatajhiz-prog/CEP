@@ -45,6 +45,13 @@ jobs:
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Regular.ttf" | Select-Object -First 1).FullName assets/fonts/
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Bold.ttf" | Select-Object -First 1).FullName assets/fonts/
 
+      - name: Profile main window (diagnostic)
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/profile_window.py
+
       - name: Tests (engine + headless GUI)
         env:
           QT_QPA_PLATFORM: offscreen
