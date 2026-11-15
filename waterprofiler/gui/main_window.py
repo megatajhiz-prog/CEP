@@ -44,7 +44,7 @@ from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
-from .widgets import NavButton, button, card
+from .widgets import NavButton, button, card, install_wheel_guard
 
 ORG = "Watra"
 APP = "Watra"
@@ -66,6 +66,7 @@ def new_plant(t: Translator) -> Plant:
 class MainWindow(QMainWindow):
     def __init__(self, lang: str = "fa"):
         super().__init__()
+        install_wheel_guard()
         self.t = Translator(lang)
         self.plant = new_plant(self.t)
         self.path: Optional[str] = None

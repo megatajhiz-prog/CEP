@@ -835,3 +835,65 @@ def test_combined_demo_loads_in_gui(app):
         w.tabs.setCurrentWidget(page)
         app.processEvents()
     w.close()
+
+
+def _scroll_areas(page):
+    from PySide6.QtWidgets import QScrollArea
+    areas = [page] if isinstance(page, QScrollArea) else []
+    return areas + [a for a in page.findChildren(QScrollArea) if a.isVisible()]
+
+
+def test_every_page_scrolls_to_its_last_card(app):
+    """The scroll range must cover the whole page body, in every section of every page, in both languages."""
+    from PySide6.QtWidgets import QAbstractScrollArea, QScrollArea
+    for lang in ("fa", "en"):
+        w = _win(lang)
+        w.action_demo()
+        w.resize(1000, 640)                       # a small window: notes wrap more and pages are taller
+        for i in range(w.tabs.count()):
+            w.tabs.setCurrentIndex(i)
+            app.processEvents()
+            page = w.tabs.widget(i)
+            subs = [page.sections] if hasattr(page, "sections") and hasattr(page.sections, "setCurrentIndex") else []
+            for sec in subs:
+                for j in range(sec.count()):
+                    sec.setCurrentIndex(j)
+                    app.processEvents()
+                    _check_reach(page)
+            _check_reach(page)
+        w.close()
+
+
+def _check_reach(page):
+    from PySide6.QtWidgets import QScrollArea
+    for sa in _scroll_areas(page):
+        body = sa.widget()
+        if body is None or not sa.isVisible():
+            continue
+        vb = sa.verticalScrollBar()
+        # the body is as tall as the scroll range plus the viewport: nothing may stick out below it
+        assert body.height() >= sa.viewport().height() - 1
+        assert vb.maximum() >= body.height() - sa.viewport().height() - 1, (type(sa).__name__, vb.maximum(), body.height())
+        lay = body.layout()
+        if lay is not None and lay.count():
+            last = lay.itemAt(lay.count() - 1)
+            if last.widget() is not None and last.widget().isVisible():
+                bottom = last.widget().geometry().bottom()
+                assert bottom <= body.height() + 1, (type(sa).__name__, bottom, body.height())
+
+
+def test_wheel_over_number_box_scrolls_the_page(app):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+    w = _win("en")
+    w.tabs.setCurrentWidget(w.industrial_tab)
+    app.processEvents()
+    spin = w.industrial_tab.plant_panel.elec
+    before = spin.value()
+    ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120), Qt.MouseButton.NoButton,
+                     Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    spin.clearFocus()
+    QApplication.sendEvent(spin, ev)
+    assert spin.value() == before                 # the wheel no longer edits an unfocused box
+    w.close()

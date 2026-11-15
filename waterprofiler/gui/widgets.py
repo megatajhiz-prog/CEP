@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QLocale, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QLocale, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QAbstractScrollArea, QAbstractSpinBox, QApplication, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -67,11 +67,18 @@ class Sections(QTabWidget):
     """Parallel sub-pages for a long page: each section is a column of cards, only the open one takes room.
 
     ``page(title)`` returns the QVBoxLayout of a new section; call ``finish()`` once all cards have been added.
+
+    The widget reports the height of the *open* section for the width it really has (word-wrapped notes and
+    messages get taller when the window is narrow) and re-reports it whenever that section changes, so the
+    scroll area around the page always has a scroll range that reaches the last card.
     """
 
     def __init__(self):
         super().__init__()
         self.setDocumentMode(True)
+        sp = self.sizePolicy()
+        sp.setHeightForWidth(True)                    # lets the surrounding QScrollArea ask for the height at a given width
+        self.setSizePolicy(sp)
         self.currentChanged.connect(lambda _i: self.updateGeometry())
 
     def page(self, title: str) -> QVBoxLayout:
@@ -79,6 +86,7 @@ class Sections(QTabWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 14, 0, 0)
         lay.setSpacing(16)
+        w.installEventFilter(self)                    # a card shown/hidden or a note re-wrapped changes the section height
         self.addTab(w, title)
         return lay
 
@@ -86,10 +94,29 @@ class Sections(QTabWidget):
         for i in range(self.count()):
             self.widget(i).layout().addStretch(1)
 
-    def _fit(self, hint):
+    def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
+        if obj is self.currentWidget() and ev.type() in (QEvent.Type.LayoutRequest, QEvent.Type.Resize):
+            self.updateGeometry()
+        return False
+
+    def _chrome(self) -> int:
+        return self.tabBar().sizeHint().height() + 12
+
+    def _page_height(self, width: int) -> int:
         cur = self.currentWidget()
-        if cur is not None:
-            hint.setHeight(cur.sizeHint().height() + self.tabBar().sizeHint().height() + 8)
+        if cur is None:
+            return 0
+        lay = cur.layout()
+        if lay is None:
+            return cur.sizeHint().height()
+        h = lay.totalHeightForWidth(max(width, 1)) if lay.hasHeightForWidth() else lay.totalSizeHint().height()
+        return max(h, lay.totalMinimumSize().height())
+
+    def heightForWidth(self, w: int) -> int:  # noqa: N802 (Qt API)
+        return self._page_height(w) + self._chrome()
+
+    def _fit(self, hint):
+        hint.setHeight(self.heightForWidth(max(self.width(), hint.width())))
         return hint
 
     def sizeHint(self):
@@ -97,6 +124,38 @@ class Sections(QTabWidget):
 
     def minimumSizeHint(self):
         return self._fit(super().minimumSizeHint())
+
+
+class WheelGuard(QObject):
+    """Mouse wheel over a number box or a drop-down list scrolls the page instead of changing the value.
+
+    Pages are full of number boxes and lists; without this the wheel is swallowed by whichever one is under the
+    pointer (and silently edits its value), so the page seems stuck. A box that has keyboard focus still reacts
+    to the wheel, so deliberate wheel editing keeps working.
+    """
+
+    def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
+        if ev.type() != QEvent.Type.Wheel or not isinstance(obj, (QAbstractSpinBox, QComboBox)) or obj.hasFocus():
+            return False
+        w = obj.parentWidget()
+        while w is not None and not isinstance(w, QAbstractScrollArea):
+            w = w.parentWidget()
+        if w is not None:
+            QApplication.sendEvent(w.verticalScrollBar(), ev)    # the page's own scroll bar takes the wheel step
+        ev.accept()
+        return True
+
+
+_wheel_guard: Optional[WheelGuard] = None
+
+
+def install_wheel_guard() -> None:
+    """Install the guard once for the whole application."""
+    global _wheel_guard
+    app = QApplication.instance()
+    if app is not None and _wheel_guard is None:
+        _wheel_guard = WheelGuard(app)
+        app.installEventFilter(_wheel_guard)
 
 
 class StatCard(QFrame):
