@@ -7,10 +7,10 @@ import os
 from typing import Optional
 
 from PySide6.QtCore import QSettings, Qt, QUrl
-from PySide6.QtGui import QAction, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
+from PySide6.QtGui import QAction, QGuiApplication, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QMainWindow,
-    QMessageBox, QSplitter, QTabWidget, QVBoxLayout, QWidget,
+    QMessageBox, QScrollArea, QSplitter, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from .. import __version__, branding
@@ -73,9 +73,21 @@ class MainWindow(QMainWindow):
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
         self._synced = False
-        self.resize(1180, 760)
+        self._fit_to_screen()
         self._build()
         self._load_all()
+
+    def _fit_to_screen(self) -> None:
+        """Default size 1180x760, but never larger than the screen's usable area (laptops are often 768 px high)."""
+        w, h = 1180, 760
+        scr = self.screen() or QGuiApplication.primaryScreen()
+        if scr is not None:
+            g = scr.availableGeometry()
+            w, h = min(w, int(g.width() * 0.96)), min(h, int(g.height() * 0.92))
+            self.resize(w, h)
+            self.move(g.x() + (g.width() - w) // 2, g.y() + (g.height() - h) // 2)
+        else:
+            self.resize(w, h)
 
     # ============================================================ construction
     def _build(self) -> None:
@@ -228,13 +240,27 @@ class MainWindow(QMainWindow):
         self.nav = []
         group = QButtonGroup(bar)
         group.setExclusive(True)
+        # The 16 entries together are taller than a laptop screen. They scroll inside the sidebar, so the sidebar
+        # does not force the whole window to be taller than the screen (which pushed every page's end off-screen).
+        host = QWidget()
+        host.setAutoFillBackground(False)
+        nl = QVBoxLayout(host)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(4)
         for i, (icon, name_key, _d, _w) in enumerate(self._pages):
             b = NavButton(icon, t(name_key))
             b.clicked.connect(lambda _=False, i=i: self.tabs.setCurrentIndex(i))
             group.addButton(b)
-            lay.addWidget(b)
+            nl.addWidget(b)
             self.nav.append(b)
-        lay.addStretch(1)
+        nl.addStretch(1)
+        self.nav_scroll = QScrollArea()
+        self.nav_scroll.setWidgetResizable(True)
+        self.nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_scroll.setWidget(host)
+        self.nav_scroll.viewport().setAutoFillBackground(False)
+        lay.addWidget(self.nav_scroll, 1)
         foot = QLabel(f"{branding.COMPANY[t.lang]}\n{branding.TAGLINE[t.lang]}")
         foot.setObjectName("sidefoot")
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -246,7 +272,7 @@ class MainWindow(QMainWindow):
         t = self.t
         hd = QFrame()
         hd.setObjectName("header")
-        hd.setFixedHeight(84)
+        hd.setMinimumHeight(84)                   # grows when the page description wraps onto a second line
         lay = QHBoxLayout(hd)
         lay.setContentsMargins(28, 10, 28, 10)
         lay.setSpacing(10)
@@ -256,6 +282,7 @@ class MainWindow(QMainWindow):
         self.page_title.setObjectName("pagetitle")
         self.page_desc = QLabel()
         self.page_desc.setObjectName("pagedesc")
+        self.page_desc.setWordWrap(True)          # a long description must wrap, not widen the whole window
         col.addStretch(1)
         col.addWidget(self.page_title)
         col.addWidget(self.page_desc)

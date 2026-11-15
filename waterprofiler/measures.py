@@ -225,15 +225,24 @@ class Estimate:
         return 0.5 * (self.low + self.high)
 
 
-def estimates(plant: Plant, m: Measure) -> List[Estimate]:
-    """Screening estimate of one measure for each applicable part of the plant (empty if no numeric range)."""
+def estimates(plant: Plant, m: Measure, value_cache: Optional[Dict[str, float]] = None) -> List[Estimate]:
+    """Screening estimate of one measure for each applicable part of the plant (empty if no numeric range).
+
+    ``value_cache`` (target -> currency per m3) lets a caller that estimates many measures of the same plant
+    compute each target's water value once instead of once per measure.
+    """
     if not m.estimable:
         return []
     out = []
     for target, base in _subs_for(plant, m):
         if base <= 0:
             continue
-        v = value_per_m3(plant, target)
+        if value_cache is None:
+            v = value_per_m3(plant, target)
+        else:
+            if target not in value_cache:
+                value_cache[target] = value_per_m3(plant, target)
+            v = value_cache[target]
         lo, hi = base * m.use[0] / 100.0, base * m.use[1] / 100.0
         out.append(Estimate(m, target, base, lo, hi, lo * v, hi * v))
     return out
@@ -242,8 +251,9 @@ def estimates(plant: Plant, m: Measure) -> List[Estimate]:
 def recommend(plant: Plant, include_plant_wide: bool = True, limit: Optional[int] = None) -> List[Estimate]:
     """Estimates for all measures, largest mid-point saving first. Indirect/undefined ones are left out."""
     rows: List[Estimate] = []
+    cache: Dict[str, float] = {}
     for m in _MEASURES:
-        for e in estimates(plant, m):
+        for e in estimates(plant, m, cache):
             if e.target == "" and not include_plant_wide:
                 continue
             rows.append(e)

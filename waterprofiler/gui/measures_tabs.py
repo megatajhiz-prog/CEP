@@ -7,7 +7,8 @@ from typing import List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QAbstractSpinBox, QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit, QTableWidget, QWidget,
+    QAbstractItemView, QAbstractSpinBox, QCheckBox, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QTableWidget,
+    QWidget,
 )
 
 from .. import measures as M
@@ -68,7 +69,6 @@ class MeasuresTab(_Scroll):
         # ---- table
         self.table = make_table([t("ms_id"), t("ms_measure"), t("ms_use"), t("ms_fresh"), t("ms_capex"), t("ms_est")])
         hh = self.table.horizontalHeader()
-        from PySide6.QtWidgets import QHeaderView
         for c in range(6):
             hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 1 else QHeaderView.ResizeMode.ResizeToContents)
         hh.setMinimumSectionSize(60)
@@ -128,19 +128,30 @@ class MeasuresTab(_Scroll):
         self._rows = rows
         self._filling = True
         self.table.blockSignals(True)
+        # Every setItem would make the auto-sized columns re-measure all rows (hundreds of text layouts per fill):
+        # freeze painting and the column modes while the rows go in, then size the columns once.
+        hh = self.table.horizontalHeader()
+        modes = [hh.sectionResizeMode(c) for c in range(self.table.columnCount())]
+        self.table.setUpdatesEnabled(False)
+        for c in range(len(modes)):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
         self.table.clearSelection()
         self.table.setRowCount(len(rows))
         keep = None
+        vcache: dict = {}
         for r, m in enumerate(rows):
             put(self.table, r, 0, str(m.id), number=True)
             put(self.table, r, 1, m.name(t.lang))
             put(self.table, r, 2, M.range_text(m.use, m, t.lang), number=True)
             put(self.table, r, 3, M.range_text(m.fresh, m, t.lang, fresh=True), number=True)
             put(self.table, r, 4, M.capex_text(m, t.lang))
-            est = M.estimates(self.plant, m) if self.plant else []
+            est = M.estimates(self.plant, m, vcache) if self.plant else []
             put(self.table, r, 5, " | ".join(_fmt_range(e.low, e.high) for e in est[:2]) if est else "—", number=bool(est))
             if m.id == self._sel:
                 keep = r
+        for c, mode in enumerate(modes):
+            hh.setSectionResizeMode(c, mode)
+        self.table.setUpdatesEnabled(True)
         if keep is not None:
             self.table.setCurrentCell(keep, 0)
             self.table.selectRow(keep)

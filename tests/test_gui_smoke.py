@@ -897,3 +897,28 @@ def test_wheel_over_number_box_scrolls_the_page(app):
     QApplication.sendEvent(spin, ev)
     assert spin.value() == before                 # the wheel no longer edits an unfocused box
     w.close()
+
+
+def test_window_never_needs_more_than_a_laptop_screen(app):
+    """No page (long page descriptions included) may force the window beyond the default size."""
+    for lang in ("fa", "en"):
+        w = _win(lang)
+        for i in range(w.tabs.count()):
+            w.tabs.setCurrentIndex(i)
+            app.processEvents()
+            m = w.minimumSizeHint()
+            assert m.height() <= 760 and m.width() <= 1180, (lang, i, m)
+        w.close()
+
+
+def test_measures_bank_fills_fast_and_correctly(app):
+    import time
+    w = _win("fa")
+    w.action_demo()
+    w.tabs.setCurrentWidget(w.measures_tab)
+    app.processEvents()
+    t0 = time.perf_counter()
+    w.measures_tab._fill()
+    assert time.perf_counter() - t0 < 2.0
+    assert w.measures_tab.table.rowCount() == len(w.measures_tab._rows) > 50
+    w.close()
