@@ -6,7 +6,7 @@ import copy
 import os
 from typing import Optional
 
-from PySide6.QtCore import QSettings, Qt, QUrl
+from PySide6.QtCore import QSettings, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QGuiApplication, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QMainWindow,
@@ -58,6 +58,15 @@ class PageStack(QTabWidget):
         self.tabBar().hide()
         self.setDocumentMode(True)
 
+    # A QTabWidget asks *all* its pages for their size and takes the largest. One page with wide tables (wastewater,
+    # water treatment ...) therefore made the whole window larger than a laptop screen. Pages scroll, so the stack
+    # itself asks for very little and the window keeps the size the user (or the screen) gave it.
+    def minimumSizeHint(self):  # noqa: N802 (Qt API)
+        return QSize(320, 200)
+
+    def sizeHint(self):  # noqa: N802 (Qt API)
+        return QSize(900, 600)
+
 
 def new_plant(t: Translator) -> Plant:
     return Plant(name=t("new_plant_name"), currency="IRR" if t.lang == "fa" else "USD")
@@ -73,6 +82,7 @@ class MainWindow(QMainWindow):
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
         self._synced = False
+        self.setMinimumSize(720, 440)             # explicit: stops the layout from forcing a bigger minimum
         self._fit_to_screen()
         self._build()
         self._load_all()
@@ -88,6 +98,30 @@ class MainWindow(QMainWindow):
             self.move(g.x() + (g.width() - w) // 2, g.y() + (g.height() - h) // 2)
         else:
             self.resize(w, h)
+
+    def _clamp_to_screen(self) -> None:
+        """Pull the window back inside the usable screen area (title bar and bottom edge included)."""
+        if self.isMaximized() or self.isFullScreen() or not self.isVisible():
+            return
+        scr = self.screen() or QGuiApplication.primaryScreen()
+        if scr is None:
+            return
+        g = scr.availableGeometry()
+        fg, cg = self.frameGeometry(), self.geometry()
+        dw, dh = fg.width() - cg.width(), fg.height() - cg.height()          # frame and title bar
+        w = max(self.minimumWidth(), min(cg.width(), g.width() - dw))
+        h = max(self.minimumHeight(), min(cg.height(), g.height() - dh))
+        if (w, h) != (cg.width(), cg.height()):
+            self.resize(w, h)
+        fg = self.frameGeometry()
+        x = min(max(fg.x(), g.x()), g.x() + g.width() - fg.width())
+        y = min(max(fg.y(), g.y()), g.y() + g.height() - fg.height())
+        if (x, y) != (fg.x(), fg.y()):
+            self.move(x, y)
+
+    def showEvent(self, ev):  # noqa: N802 (Qt API)
+        super().showEvent(ev)
+        QTimer.singleShot(0, self._clamp_to_screen)
 
     # ============================================================ construction
     def _build(self) -> None:
@@ -410,6 +444,7 @@ class MainWindow(QMainWindow):
             self.sub_editor.peek.set_plant(self.plant)
 
     def _tab_changed(self, idx: int) -> None:
+        QTimer.singleShot(0, self._clamp_to_screen)
         self._sync_nav(idx)
         self.collect()
         if self._synced:                          # the time series changed the model: show the new values everywhere

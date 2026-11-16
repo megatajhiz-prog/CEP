@@ -899,15 +899,26 @@ def test_wheel_over_number_box_scrolls_the_page(app):
     w.close()
 
 
-def test_window_never_needs_more_than_a_laptop_screen(app):
-    """No page (long page descriptions included) may force the window beyond the default size."""
+def test_window_stays_inside_the_screen_on_every_page(app):
+    """No page may push the window (frame included) beyond the usable screen area."""
+    from PySide6.QtCore import QTimer
+    from PySide6.QtGui import QGuiApplication
     for lang in ("fa", "en"):
         w = _win(lang)
+        w.action_demo()
+        w.show()
+        app.processEvents()
+        g = QGuiApplication.primaryScreen().availableGeometry()
         for i in range(w.tabs.count()):
             w.tabs.setCurrentIndex(i)
             app.processEvents()
-            m = w.minimumSizeHint()
-            assert m.height() <= 760 and m.width() <= 1180, (lang, i, m)
+            QTimer.singleShot(0, lambda: None)
+            app.processEvents()
+            fg = w.frameGeometry()
+            assert fg.width() <= g.width() and fg.height() <= g.height(), (lang, i, fg, g)
+            assert fg.left() >= g.left() and fg.top() >= g.top(), (lang, i, fg, g)
+            assert fg.right() <= g.right() + 1 and fg.bottom() <= g.bottom() + 1, (lang, i, fg, g)
+        assert w.minimumSize().width() <= 720 and w.minimumSize().height() <= 440
         w.close()
 
 
@@ -917,8 +928,12 @@ def test_measures_bank_fills_fast_and_correctly(app):
     w.action_demo()
     w.tabs.setCurrentWidget(w.measures_tab)
     app.processEvents()
+    w.measures_tab._filled_sig = None             # force a real refill
     t0 = time.perf_counter()
     w.measures_tab._fill()
     assert time.perf_counter() - t0 < 2.0
     assert w.measures_tab.table.rowCount() == len(w.measures_tab._rows) > 50
+    t0 = time.perf_counter()
+    w.measures_tab.refresh(w.plant)               # unchanged plant and filters: no second rebuild
+    assert time.perf_counter() - t0 < 0.5
     w.close()

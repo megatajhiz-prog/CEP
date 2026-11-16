@@ -111,6 +111,14 @@ class MeasuresTab(_Scroll):
         self._fill()
 
     # ------------------------------------------------------------------ data
+    def _signature(self):
+        """What the table shows depends on the filters and the plant; skip the refill when neither changed."""
+        try:
+            plant_key = repr(self.plant.to_dict()) if self.plant else ""
+        except Exception:                      # never let a cache key block the page
+            return None
+        return (self.search.text(), self.group.currentData(), self.relevant.isChecked(), self.t.lang, plant_key)
+
     def refresh(self, plant: Plant) -> None:
         self.plant = plant
         self._fill()
@@ -119,6 +127,10 @@ class MeasuresTab(_Scroll):
         return {s.kind for s in self.plant.leaves()} if self.plant else set()
 
     def _fill(self, *_a) -> None:
+        sig = self._signature()
+        if sig is not None and sig == getattr(self, "_filled_sig", None):
+            return
+        self._filled_sig = sig
         t = self.t
         grp = self.group.currentData() or None
         rows = M.search(self.search.text(), group=grp)
