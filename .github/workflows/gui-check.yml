@@ -27,13 +27,14 @@ jobs:
           Expand-Archive v.zip -DestinationPath vz -Force
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Regular.ttf" | Select-Object -First 1).FullName assets/fonts/
           Copy-Item (Get-ChildItem -Recurse vz -Filter "Vazirmatn-Bold.ttf" | Select-Object -First 1).FullName assets/fonts/
-      - name: Start-up profile
-        continue-on-error: true
-        timeout-minutes: 10
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: python tools/profile_window.py
       - name: Layout and scrolling tests
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest -q -p no:cacheprovider tests/test_layout_fit.py --durations=10
+
+      - name: Start-up profile
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/profile_window.py

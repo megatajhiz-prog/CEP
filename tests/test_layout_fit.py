@@ -34,6 +34,19 @@ def _small_window(monkeypatch, lang="fa", screen=SMALL):
     return w
 
 
+def _widest(area, n=5):
+    """The widgets inside a scroll area that ask for the most width (to name the culprit of a horizontal overflow)."""
+    rows = []
+    for c in area.widget().findChildren(QWidget):
+        if not c.isVisibleTo(area.widget()):
+            continue
+        txt = c.text() if hasattr(c, "text") and callable(c.text) else ""
+        rows.append((max(c.minimumWidth(), c.minimumSizeHint().width()), type(c).__name__, c.objectName(),
+                     str(txt)[:28].replace("\n", " "), type(c.parentWidget()).__name__))
+    rows.sort(reverse=True)
+    return "; ".join(f"{w}px {k}#{o}'{t}' in {p}" for w, k, o, t, p in rows[:n])
+
+
 def _scroll_areas(page):
     out = []
     for a in ([page] if isinstance(page, QScrollArea) else []) + page.findChildren(QScrollArea):
@@ -85,7 +98,7 @@ def test_every_page_fits_the_width_and_scrolls_to_its_end(app, monkeypatch, lang
         for a in _scroll_areas(page):
             hs, vs = a.horizontalScrollBar(), a.verticalScrollBar()
             if hs.maximum() > 0:
-                bad.append(f"{name_key}: wider than the window by {hs.maximum()} px")
+                bad.append(f"{name_key}: wider than the window by {hs.maximum()} px (viewport {a.viewport().width()}) <- {_widest(a)}")
             vs.setValue(vs.maximum())
             app.processEvents()
             body = a.widget()
@@ -107,13 +120,17 @@ def test_mouse_wheel_over_a_number_box_scrolls_the_page(app):
     spin = QDoubleSpinBox()
     spin.setValue(5.0)
     lay.addWidget(spin)
+    other = QDoubleSpinBox()
+    lay.addWidget(other)
     filler = QWidget()
     filler.setMinimumHeight(2000)
     lay.addWidget(filler)
     area.setWidget(body)
     area.resize(300, 200)
     area.show()
+    other.setFocus()                      # the box under the mouse is not the one being edited
     app.processEvents()
+    assert not spin.hasFocus()
     ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120), Qt.MouseButton.NoButton,
                      Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
     QApplication.sendEvent(spin, ev)
