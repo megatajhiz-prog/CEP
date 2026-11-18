@@ -7,10 +7,10 @@ import os
 from typing import Optional
 
 from PySide6.QtCore import QSettings, Qt, QUrl
-from PySide6.QtGui import QAction, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
+from PySide6.QtGui import QAction, QGuiApplication, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QMainWindow,
-    QMessageBox, QSplitter, QTabWidget, QVBoxLayout, QWidget,
+    QMessageBox, QScrollArea, QSizePolicy, QSplitter, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from .. import __version__, branding
@@ -39,12 +39,11 @@ from .pfd_tab import PfdTab
 from .wastewater_tab import WastewaterTab
 from .watertreatment_tab import WaterTreatmentTab
 from .guide_dialog import GuideDialog
-from .guide_dialog import GuideDialog
 from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
 from .theme import apply_theme, brand_icon
-from .widgets import NavButton, button, card
+from .widgets import NavButton, button, card, install_wheel_guard
 
 ORG = "Watra"
 APP = "Watra"
@@ -72,9 +71,27 @@ class MainWindow(QMainWindow):
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
         self._synced = False
-        self.resize(1180, 760)
+        self._fit_to_screen()
         self._build()
         self._load_all()
+
+    # ============================================================ size on the screen
+    @staticmethod
+    def _avail():
+        scr = QGuiApplication.primaryScreen()
+        return scr.availableGeometry() if scr is not None else None
+
+    def _fit_to_screen(self) -> None:
+        """Open at a size that fits the visible screen (scaled laptop screens are only ~1100 x 600 logical pixels)."""
+        av = self._avail()
+        if av is None:
+            self.resize(1180, 760)
+            return
+        w = max(640, min(1180, av.width() - 24))
+        h = max(420, min(760, av.height() - 70))
+        self.setMinimumSize(min(760, w), min(460, h))
+        self.resize(w, h)
+        self.move(av.left() + max(0, (av.width() - w) // 2), av.top() + max(0, (av.height() - h - 40) // 2))
 
     # ============================================================ construction
     def _build(self) -> None:
@@ -82,6 +99,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         app.setLayoutDirection(Qt.LayoutDirection.RightToLeft if t.rtl else Qt.LayoutDirection.LeftToRight)
         apply_theme(app)
+        install_wheel_guard(app)
         self.setWindowIcon(brand_icon())
         self.setWindowTitle(self._title())
         self._build_menu()
@@ -193,26 +211,28 @@ class MainWindow(QMainWindow):
         name = os.path.basename(self.path) if getattr(self, "path", None) else ""
         return f"{branding.APP_NAME}" + (f" — {name}" if name else "")
 
-    def _build_sidebar(self) -> QFrame:
+    def _build_sidebar(self) -> QWidget:
+        """Logo + the page list. It scrolls, so every page stays reachable on a short screen."""
         t = self.t
         bar = QFrame()
         bar.setObjectName("sidebar")
-        bar.setFixedWidth(250)
         lay = QVBoxLayout(bar)
-        lay.setContentsMargins(16, 16, 16, 12)
-        lay.setSpacing(4)
+        lay.setContentsMargins(16, 14, 16, 12)
+        lay.setSpacing(3)
+        av = self._avail()
+        small = av is not None and av.height() < 860
         logo = QLabel()
         pm = QPixmap(branding.logo_path("full"))
         if not pm.isNull():
-            logo.setPixmap(pm.scaledToWidth(176, Qt.TransformationMode.SmoothTransformation))
+            logo.setPixmap(pm.scaledToWidth(120 if small else 176, Qt.TransformationMode.SmoothTransformation))
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(logo)
         accent = QFrame()
         accent.setObjectName("accent")
         accent.setFixedHeight(3)
-        lay.addSpacing(6)
+        lay.addSpacing(4)
         lay.addWidget(accent)
-        lay.addSpacing(10)
+        lay.addSpacing(8)
         name = QLabel(branding.APP_NAME)
         name.setObjectName("appname")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -222,7 +242,7 @@ class MainWindow(QMainWindow):
         sub.setWordWrap(True)
         lay.addWidget(name)
         lay.addWidget(sub)
-        lay.addSpacing(16)
+        lay.addSpacing(10)
 
         self.nav = []
         group = QButtonGroup(bar)
@@ -239,13 +259,22 @@ class MainWindow(QMainWindow):
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
         foot.setWordWrap(True)
         lay.addWidget(foot)
-        return bar
+
+        scroll = QScrollArea()
+        scroll.setObjectName("sidescroll")
+        scroll.setWidget(bar)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFixedWidth(250)
+        self.sidebar_scroll = scroll
+        return scroll
 
     def _build_header(self) -> QFrame:
         t = self.t
         hd = QFrame()
         hd.setObjectName("header")
-        hd.setFixedHeight(84)
+        hd.setMinimumHeight(84)
         lay = QHBoxLayout(hd)
         lay.setContentsMargins(28, 10, 28, 10)
         lay.setSpacing(10)
@@ -255,6 +284,9 @@ class MainWindow(QMainWindow):
         self.page_title.setObjectName("pagetitle")
         self.page_desc = QLabel()
         self.page_desc.setObjectName("pagedesc")
+        self.page_desc.setWordWrap(True)
+        self.page_desc.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.page_title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         col.addStretch(1)
         col.addWidget(self.page_title)
         col.addWidget(self.page_desc)

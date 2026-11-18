@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, Signal
@@ -47,6 +48,24 @@ def make_table(headers: List[str]) -> QTableWidget:
     tb.verticalHeader().setVisible(False)
     tb.verticalHeader().setDefaultSectionSize(36)
     return tb
+
+
+@contextmanager
+def bulk_fill(tb: QTableWidget):
+    """Fill a table without re-measuring every column after each cell (was seconds for 80 wrapped rows)."""
+    hh = tb.horizontalHeader()
+    modes = [hh.sectionResizeMode(c) for c in range(tb.columnCount())]
+    tb.setUpdatesEnabled(False)
+    tb.blockSignals(True)
+    for c in range(tb.columnCount()):
+        hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
+    try:
+        yield
+    finally:
+        for c, m in enumerate(modes):
+            hh.setSectionResizeMode(c, m)
+        tb.blockSignals(False)
+        tb.setUpdatesEnabled(True)
 
 
 def stat_row(*cards: StatCard) -> QHBoxLayout:

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from .. import measures as M
 from ..i18n import Translator
 from ..model import Plant
-from .tabs import _Scroll, _fmt, _message_label, make_table, put, stat_row
+from .tabs import _Scroll, _fmt, _message_label, bulk_fill, make_table, put, stat_row
 from .theme import COL
 from .widgets import StatCard, button, card, dspin
 
@@ -127,26 +127,25 @@ class MeasuresTab(_Scroll):
             rows = [m for m in rows if "plant" in m.targets or kinds.intersection(m.targets)]
         self._rows = rows
         self._filling = True
-        self.table.blockSignals(True)
         self.table.clearSelection()
-        self.table.setRowCount(len(rows))
         keep = None
-        for r, m in enumerate(rows):
-            put(self.table, r, 0, str(m.id), number=True)
-            put(self.table, r, 1, m.name(t.lang))
-            put(self.table, r, 2, M.range_text(m.use, m, t.lang), number=True)
-            put(self.table, r, 3, M.range_text(m.fresh, m, t.lang, fresh=True), number=True)
-            put(self.table, r, 4, M.capex_text(m, t.lang))
-            est = M.estimates(self.plant, m) if self.plant else []
-            put(self.table, r, 5, " | ".join(_fmt_range(e.low, e.high) for e in est[:2]) if est else "—", number=bool(est))
-            if m.id == self._sel:
-                keep = r
+        with bulk_fill(self.table):
+            self.table.setRowCount(len(rows))
+            for r, m in enumerate(rows):
+                put(self.table, r, 0, str(m.id), number=True)
+                put(self.table, r, 1, m.name(t.lang))
+                put(self.table, r, 2, M.range_text(m.use, m, t.lang), number=True)
+                put(self.table, r, 3, M.range_text(m.fresh, m, t.lang, fresh=True), number=True)
+                put(self.table, r, 4, M.capex_text(m, t.lang))
+                est = M.estimates(self.plant, m) if self.plant else []
+                put(self.table, r, 5, " | ".join(_fmt_range(e.low, e.high) for e in est[:2]) if est else "—", number=bool(est))
+                if m.id == self._sel:
+                    keep = r
         if keep is not None:
             self.table.setCurrentCell(keep, 0)
             self.table.selectRow(keep)
         else:
             self._sel = None
-        self.table.blockSignals(False)
         self._filling = False
         self.count.setText(t("ms_count", n=len(rows)))
         self._show()

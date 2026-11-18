@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QLocale, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QLocale, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
@@ -400,3 +400,19 @@ def _short(v: float) -> str:
     if a >= 1e3:
         return f"{v / 1e3:.0f}k"
     return f"{v:.0f}"
+
+
+class _WheelGuard(QObject):
+    """Mouse wheel over a number box or a drop-down that does not have the keyboard focus scrolls the page, not the value."""
+
+    def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
+        if ev.type() == QEvent.Type.Wheel and isinstance(obj, (QAbstractSpinBox, QComboBox)) and not obj.hasFocus():
+            ev.ignore()
+            return True          # ignored + handled: Qt hands the event on to the parent (the scroll area)
+        return False
+
+
+def install_wheel_guard(app) -> None:
+    if getattr(app, "_wheel_guard", None) is None:
+        app._wheel_guard = _WheelGuard(app)
+        app.installEventFilter(app._wheel_guard)
