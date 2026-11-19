@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QEvent, QLocale, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
+    QAbstractItemView, QAbstractScrollArea, QAbstractSpinBox, QApplication, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -67,11 +68,18 @@ class Sections(QTabWidget):
     """Parallel sub-pages for a long page: each section is a column of cards, only the open one takes room.
 
     ``page(title)`` returns the QVBoxLayout of a new section; call ``finish()`` once all cards have been added.
+
+    The widget reports the height of the *open* section for the width it really has (word-wrapped notes get
+    taller on a narrow window) and re-reports it whenever that section changes, so the scroll area around the
+    page always has a scroll range that reaches the last card.
     """
 
     def __init__(self):
         super().__init__()
         self.setDocumentMode(True)
+        sp = self.sizePolicy()
+        sp.setHeightForWidth(True)
+        self.setSizePolicy(sp)
         self.currentChanged.connect(lambda _i: self.updateGeometry())
 
     def page(self, title: str) -> QVBoxLayout:
@@ -79,6 +87,7 @@ class Sections(QTabWidget):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 14, 0, 0)
         lay.setSpacing(16)
+        w.installEventFilter(self)                    # a card shown/hidden or a note re-wrapped changes the height
         self.addTab(w, title)
         return lay
 
@@ -86,10 +95,29 @@ class Sections(QTabWidget):
         for i in range(self.count()):
             self.widget(i).layout().addStretch(1)
 
-    def _fit(self, hint):
+    def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
+        if obj is self.currentWidget() and ev.type() in (QEvent.Type.LayoutRequest, QEvent.Type.Resize):
+            self.updateGeometry()
+        return False
+
+    def _chrome(self) -> int:
+        return self.tabBar().sizeHint().height() + 12
+
+    def _page_height(self, width: int) -> int:
         cur = self.currentWidget()
-        if cur is not None:
-            hint.setHeight(cur.sizeHint().height() + self.tabBar().sizeHint().height() + 8)
+        if cur is None:
+            return 0
+        lay = cur.layout()
+        if lay is None:
+            return cur.sizeHint().height()
+        h = lay.totalHeightForWidth(max(width, 1)) if lay.hasHeightForWidth() else lay.totalSizeHint().height()
+        return max(h, lay.totalMinimumSize().height())
+
+    def heightForWidth(self, w: int) -> int:  # noqa: N802 (Qt API)
+        return self._page_height(w) + self._chrome()
+
+    def _fit(self, hint):
+        hint.setHeight(self.heightForWidth(max(self.width(), hint.width())))
         return hint
 
     def sizeHint(self):
@@ -403,12 +431,45 @@ def _short(v: float) -> str:
 
 
 class _WheelGuard(QObject):
-    """Mouse wheel over a number box or a drop-down that does not have the keyboard focus scrolls the page, not the value."""
+    """Mouse wheel over a number box or a drop-down that does not have the keyboard focus scrolls the page.
+
+    Without it the wheel is swallowed by whichever box is under the pointer (and silently edits its value), so the
+    page seems stuck. The step is handed to the page's own vertical scroll bar.
+    """
 
     def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
-        if ev.type() == QEvent.Type.Wheel and isinstance(obj, (QAbstractSpinBox, QComboBox)) and not obj.hasFocus():
-            ev.ignore()
-            return True          # ignored + handled: Qt hands the event on to the parent (the scroll area)
+        if ev.type() != QEvent.Type.Wheel or not isinstance(obj, (QAbstractSpinBox, QComboBox)) or obj.hasFocus():
+            return False
+        w = obj.parentWidget()
+        while w is not None and not isinstance(w, QAbstractScrollArea):
+            w = w.parentWidget()
+        if w is not None:
+            QApplication.sendEvent(w.verticalScrollBar(), ev)
+        ev.accept()
+        return True
+
+
+_TAGS = re.compile(r"<[^>]*>")
+_LONG_TEXT = 28          # characters; a label with more text than this wraps instead of widening its page
+_MIN_EDITOR = 110        # px; number boxes and drop-downs may shrink to this when the window is narrow
+
+
+class _WidthGuard(QObject):
+    """Keeps prose and wide editors from forcing a page wider than the window.
+
+    Pages were laid out for wide monitors: a note without word-wrap, or a drop-down sized to its longest item,
+    asked for 600-1500 px by itself, so on a laptop the window grew past the screen (or the page scrolled
+    sideways). Long labels now wrap and editors may shrink; their preferred size is unchanged on a wide window.
+    """
+
+    def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
+        if ev.type() in (QEvent.Type.Polish, QEvent.Type.Show):
+            if isinstance(obj, QLabel):
+                if not obj.wordWrap() and len(_TAGS.sub("", obj.text())) > _LONG_TEXT:
+                    obj.setWordWrap(True)
+            elif isinstance(obj, (QAbstractSpinBox, QComboBox)):
+                if obj.minimumWidth() == 0:
+                    obj.setMinimumWidth(_MIN_EDITOR)
         return False
 
 
@@ -416,3 +477,6 @@ def install_wheel_guard(app) -> None:
     if getattr(app, "_wheel_guard", None) is None:
         app._wheel_guard = _WheelGuard(app)
         app.installEventFilter(app._wheel_guard)
+    if getattr(app, "_width_guard", None) is None:
+        app._width_guard = _WidthGuard(app)
+        app.installEventFilter(app._width_guard)
