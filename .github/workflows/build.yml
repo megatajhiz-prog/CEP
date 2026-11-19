@@ -47,7 +47,7 @@ jobs:
 
       - name: Profile main window (diagnostic)
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 10
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tools/profile_window.py
