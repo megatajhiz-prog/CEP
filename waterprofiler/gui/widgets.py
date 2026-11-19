@@ -450,7 +450,7 @@ class _WheelGuard(QObject):
 
 
 _TAGS = re.compile(r"<[^>]*>")
-_LONG_TEXT = 28          # characters; a label with more text than this wraps instead of widening its page
+_LONG_TEXT = 12          # characters; a label with more text than this may wrap (short text still stays on one line)
 _MIN_EDITOR = 110        # px; number boxes and drop-downs may shrink to this when the window is narrow
 
 
@@ -465,7 +465,8 @@ class _WidthGuard(QObject):
     def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
         if ev.type() in (QEvent.Type.Polish, QEvent.Type.Show):
             if isinstance(obj, QLabel):
-                if not obj.wordWrap() and len(_TAGS.sub("", obj.text())) > _LONG_TEXT:
+                if (not obj.wordWrap() and not isinstance(obj.parentWidget(), NavButton)
+                        and len(_TAGS.sub("", obj.text())) > _LONG_TEXT):
                     obj.setWordWrap(True)
             elif isinstance(obj, (QAbstractSpinBox, QComboBox)):
                 if obj.minimumWidth() == 0:
