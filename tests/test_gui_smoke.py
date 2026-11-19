@@ -835,3 +835,23 @@ def test_combined_demo_loads_in_gui(app):
         w.tabs.setCurrentWidget(page)
         app.processEvents()
     w.close()
+
+
+def test_window_and_sidebar_fit_small_screens(app):
+    w = _win("fa")
+    assert w.minimumWidth() <= 760 and w.minimumHeight() <= 480       # layouts may not force a window taller than the screen
+    assert w.nav_scroll.widget() is not None and len(w.nav) == len(w._pages)
+    for i in range(len(w._pages)):
+        w.tabs.setCurrentIndex(i)
+        app.processEvents()
+        assert w.nav[i].isChecked()
+    assert w.tabs.widget(1) is w.subs_page                              # the subsystem page scrolls too
+    w.close()
+
+
+def test_measures_table_fills_all_rows(app):
+    w = _win("fa")
+    w.tabs.setCurrentWidget(w.measures_tab)
+    app.processEvents()
+    assert w.measures_tab.table.rowCount() == 80
+    w.close()

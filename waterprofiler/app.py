@@ -55,10 +55,24 @@ def selftest() -> int:
     return 0
 
 
+def _splash():
+    """Logo window shown at once, so a slow first start (antivirus scan, many pages to build) does not look frozen."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import QSplashScreen
+    from . import branding
+
+    pm = QPixmap(branding.logo_path("full"))
+    if pm.isNull():
+        return None
+    sp = QSplashScreen(pm.scaledToWidth(360, Qt.TransformationMode.SmoothTransformation))
+    sp.show()
+    return sp
+
+
 def main(argv=None) -> int:
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
-    from .gui.main_window import APP, ORG, MainWindow
 
     argv = list(sys.argv if argv is None else argv)
     if "--selftest" in argv:
@@ -70,12 +84,18 @@ def main(argv=None) -> int:
         except Exception as e:  # noqa: BLE001
             print(f"selftest failed: {e!r}", file=sys.stderr)
             return 1
+    _load_fonts(app)
+    splash = _splash()
+    app.processEvents()
+    from .gui.main_window import APP, ORG, MainWindow     # the heavy imports happen behind the splash screen
+
     app.setOrganizationName(ORG)
     app.setApplicationName(APP)
-    _load_fonts(app)
     lang = QSettings(ORG, APP).value("lang", "fa")
     win = MainWindow(lang if lang in ("fa", "en") else "fa")
-    win.show()
+    win.show_fitted()
+    if splash is not None:
+        splash.finish(win)
     return app.exec()
 
 

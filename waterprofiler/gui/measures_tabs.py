@@ -69,8 +69,10 @@ class MeasuresTab(_Scroll):
         self.table = make_table([t("ms_id"), t("ms_measure"), t("ms_use"), t("ms_fresh"), t("ms_capex"), t("ms_est")])
         hh = self.table.horizontalHeader()
         from PySide6.QtWidgets import QHeaderView
+        # Columns are sized once after each fill (see _fill). ResizeToContents here made Qt re-measure all
+        # rows on every inserted cell, which took seconds for the 80 measures.
         for c in range(6):
-            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 1 else QHeaderView.ResizeMode.ResizeToContents)
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 1 else QHeaderView.ResizeMode.Interactive)
         hh.setMinimumSectionSize(60)
         self.table.setWordWrap(True)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -127,6 +129,7 @@ class MeasuresTab(_Scroll):
             rows = [m for m in rows if "plant" in m.targets or kinds.intersection(m.targets)]
         self._rows = rows
         self._filling = True
+        self.table.setUpdatesEnabled(False)
         self.table.blockSignals(True)
         self.table.clearSelection()
         self.table.setRowCount(len(rows))
@@ -146,7 +149,11 @@ class MeasuresTab(_Scroll):
             self.table.selectRow(keep)
         else:
             self._sel = None
+        for c in (0, 2, 3, 4, 5):
+            self.table.resizeColumnToContents(c)
+        self.table.resizeRowsToContents()
         self.table.blockSignals(False)
+        self.table.setUpdatesEnabled(True)
         self._filling = False
         self.count.setText(t("ms_count", n=len(rows)))
         self._show()

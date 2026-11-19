@@ -10,7 +10,7 @@ from PySide6.QtCore import QSettings, Qt, QUrl
 from PySide6.QtGui import QAction, QImage, QKeySequence, QPageSize, QPdfWriter, QPixmap, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QMainWindow,
-    QMessageBox, QSplitter, QTabWidget, QVBoxLayout, QWidget,
+    QMessageBox, QScrollArea, QSplitter, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from .. import __version__, branding
@@ -72,9 +72,30 @@ class MainWindow(QMainWindow):
         self._snapshot = copy.deepcopy(self.plant.to_dict())
         self._cur = -1
         self._synced = False
-        self.resize(1180, 760)
+        self._fit_to_screen()
         self._build()
         self._load_all()
+
+    # ============================================================ window size
+    def _fit_to_screen(self) -> None:
+        """Never open larger than the usable screen (taskbar excluded); small screens get a maximised window."""
+        from PySide6.QtGui import QGuiApplication
+        from ..winsize import DEFAULT_H, DEFAULT_W, MIN_H, MIN_W, fit_size
+        self.setMinimumSize(MIN_W, MIN_H)
+        scr = QGuiApplication.primaryScreen()
+        if scr is None or QGuiApplication.platformName() == "offscreen":      # headless runs keep the default size
+            self.resize(DEFAULT_W, DEFAULT_H)
+            return
+        av = scr.availableGeometry()
+        w, h, self._small_screen = fit_size(av.width(), av.height())
+        self.resize(w, h)
+        self.move(av.x() + (av.width() - w) // 2, av.y() + max(0, (av.height() - h) // 2))
+
+    def show_fitted(self) -> None:
+        if getattr(self, "_small_screen", False):
+            self.showMaximized()
+        else:
+            self.show()
 
     # ============================================================ construction
     def _build(self) -> None:
@@ -143,11 +164,16 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 4)
         split.setSizes([230, 900])
         sh.addWidget(split)
+        subs.setMinimumHeight(560)
+        subs_scroll = QScrollArea()
+        subs_scroll.setWidgetResizable(True)
+        subs_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        subs_scroll.setWidget(subs)
 
-        self.subs_page = subs
+        self.subs_page = subs_scroll
         self._pages = [
             ("plant", "tab_industrial", "desc_industrial", self.industrial_tab),
-            ("subsystems", "tab_subsystems", "desc_subsystems", subs),
+            ("subsystems", "tab_subsystems", "desc_subsystems", subs_scroll),
             ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("pfd", "tab_pfd", "desc_pfd", self.pfd_tab),
@@ -198,7 +224,10 @@ class MainWindow(QMainWindow):
         bar = QFrame()
         bar.setObjectName("sidebar")
         bar.setFixedWidth(250)
-        lay = QVBoxLayout(bar)
+        inner = QWidget()                      # the whole sidebar scrolls, so every page stays reachable on a small screen
+        inner.setObjectName("sidebar_inner")
+        inner.setStyleSheet("QWidget#sidebar_inner{background:transparent;}")
+        lay = QVBoxLayout(inner)
         lay.setContentsMargins(16, 16, 16, 12)
         lay.setSpacing(4)
         logo = QLabel()
@@ -225,7 +254,7 @@ class MainWindow(QMainWindow):
         lay.addSpacing(16)
 
         self.nav = []
-        group = QButtonGroup(bar)
+        group = QButtonGroup(inner)
         group.setExclusive(True)
         for i, (icon, name_key, _d, _w) in enumerate(self._pages):
             b = NavButton(icon, t(name_key))
@@ -239,6 +268,16 @@ class MainWindow(QMainWindow):
         foot.setAlignment(Qt.AlignmentFlag.AlignCenter)
         foot.setWordWrap(True)
         lay.addWidget(foot)
+        self.nav_scroll = QScrollArea()
+        self.nav_scroll.setWidgetResizable(True)
+        self.nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_scroll.setStyleSheet("QScrollArea{background:transparent;border:none;}")
+        self.nav_scroll.viewport().setStyleSheet("background:transparent;")
+        self.nav_scroll.setWidget(inner)
+        outer = QVBoxLayout(bar)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.nav_scroll)
         return bar
 
     def _build_header(self) -> QFrame:
@@ -269,6 +308,8 @@ class MainWindow(QMainWindow):
         if not (0 <= idx < len(self._pages)):
             return
         self.nav[idx].setChecked(True)
+        if getattr(self, "nav_scroll", None) is not None:
+            self.nav_scroll.ensureWidgetVisible(self.nav[idx], 0, 40)
         _icon, name_key, desc_key, _w = self._pages[idx]
         self.page_title.setText(self.t(name_key))
         self.page_desc.setText(self.t(desc_key))
