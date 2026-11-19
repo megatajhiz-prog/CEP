@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QEvent, QLocale, QObject, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics, QPainter, QPen, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractItemView, QAbstractSpinBox, QComboBox, QDoubleSpinBox, QFrame, QGroupBox, QHBoxLayout,
-    QHeaderView, QLabel, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractScrollArea, QApplication, QHeaderView, QLabel, QLayout, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..numparse import fmt_float, parse_float
@@ -86,17 +86,20 @@ class Sections(QTabWidget):
         for i in range(self.count()):
             self.widget(i).layout().addStretch(1)
 
-    def _fit(self, hint):
+    def _fit(self, hint, minimum: bool = False):
+        """Size of the open section (QTabWidget would otherwise ask for the widest of all of them)."""
         cur = self.currentWidget()
         if cur is not None:
+            base = cur.minimumSizeHint() if minimum else cur.sizeHint()
             hint.setHeight(cur.sizeHint().height() + self.tabBar().sizeHint().height() + 8)
+            hint.setWidth(base.width() + 4)
         return hint
 
     def sizeHint(self):
         return self._fit(super().sizeHint())
 
     def minimumSizeHint(self):
-        return self._fit(super().minimumSizeHint())
+        return self._fit(super().minimumSizeHint(), True)
 
 
 class StatCard(QFrame):
@@ -402,17 +405,134 @@ def _short(v: float) -> str:
     return f"{v:.0f}"
 
 
-class _WheelGuard(QObject):
-    """Mouse wheel over a number box or a drop-down that does not have the keyboard focus scrolls the page, not the value."""
+class StatGrid(QLayout):
+    """Row of big-number cards that wraps onto several lines when the window is narrow (a plain row would force a wide page)."""
+
+    MIN_W = 190
+
+    def __init__(self, spacing: int = 14):
+        super().__init__()
+        self._items: list = []
+        self._sp = spacing
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item) -> None:  # noqa: N802 (Qt API)
+        self._items.append(item)
+        self.invalidate()
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, i: int):  # noqa: N802
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i: int):  # noqa: N802
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):  # noqa: N802
+        return Qt.Orientation.Horizontal
+
+    def _min_w(self) -> int:
+        return max([self.MIN_W] + [it.minimumSize().width() for it in self._items])
+
+    def _cols(self, width: int) -> int:
+        n = len(self._items)
+        if n == 0:
+            return 1
+        return max(1, min(n, (width + self._sp) // (self._min_w() + self._sp)))
+
+    def _heights(self, width: int):
+        cols = self._cols(width)
+        cw = (width - (cols - 1) * self._sp) // cols
+        rows = []
+        for r in range(0, len(self._items), cols):
+            h = 0
+            for it in self._items[r:r + cols]:
+                ih = it.heightForWidth(cw) if it.hasHeightForWidth() else it.sizeHint().height()
+                h = max(h, ih, it.minimumSize().height())
+            rows.append(h)
+        return cols, cw, rows
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        if not self._items:
+            return 0
+        _c, _w, rows = self._heights(width)
+        return sum(rows) + self._sp * (len(rows) - 1)
+
+    def setGeometry(self, rect) -> None:  # noqa: N802
+        super().setGeometry(rect)
+        if not self._items:
+            return
+        cols, cw, rows = self._heights(rect.width())
+        rtl = QApplication.layoutDirection() == Qt.LayoutDirection.RightToLeft
+        y = rect.y()
+        for ri, rh in enumerate(rows):
+            for ci, it in enumerate(self._items[ri * cols:(ri + 1) * cols]):
+                x = rect.right() + 1 - (ci + 1) * cw - ci * self._sp if rtl else rect.x() + ci * (cw + self._sp)
+                it.setGeometry(QRect(x, y, cw, rh))
+            y += rh + self._sp
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        if not self._items:
+            return QSize(0, 0)
+        w = sum(max(it.sizeHint().width(), self._min_w()) for it in self._items) + self._sp * (len(self._items) - 1)
+        return QSize(w, max(it.sizeHint().height() for it in self._items))
+
+    def minimumSize(self) -> QSize:  # noqa: N802
+        if not self._items:
+            return QSize(0, 0)
+        return QSize(self._min_w(), max(it.minimumSize().height() for it in self._items))
+
+
+_NO_WRAP = {"appname", "nav", "pagetitle", "accent"}
+
+
+class _UiGuard(QObject):
+    """Application-wide rules that keep pages inside the window:
+
+    * the mouse wheel over a number box or drop-down that does not have the keyboard focus scrolls the page, not the value;
+    * long texts wrap and drop-downs are not as wide as their longest item, so a page never needs more width than the window has.
+    """
+
+    @staticmethod
+    def _area(obj):
+        p = obj.parentWidget()
+        while p is not None:
+            if isinstance(p, QAbstractScrollArea) and p is not obj:
+                return p
+            p = p.parentWidget()
+        return None
 
     def eventFilter(self, obj, ev):  # noqa: N802 (Qt API)
-        if ev.type() == QEvent.Type.Wheel and isinstance(obj, (QAbstractSpinBox, QComboBox)) and not obj.hasFocus():
-            ev.ignore()
-            return True          # ignored + handled: Qt hands the event on to the parent (the scroll area)
+        t = ev.type()
+        if t == QEvent.Type.Wheel:
+            if isinstance(obj, (QAbstractSpinBox, QComboBox)) and not obj.hasFocus():
+                area = self._area(obj)
+                if area is not None:
+                    vp = area.viewport()
+                    pos = vp.mapFromGlobal(ev.globalPosition().toPoint())
+                    fwd = QWheelEvent(QPointF(pos), ev.globalPosition(), ev.pixelDelta(), ev.angleDelta(), ev.buttons(),
+                                      ev.modifiers(), ev.phase(), ev.inverted(), ev.source())
+                    QApplication.sendEvent(vp, fwd)
+                ev.accept()
+                return True
+        elif t == QEvent.Type.Polish:
+            if isinstance(obj, QComboBox):
+                if obj.sizeAdjustPolicy() != QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon:
+                    obj.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+                    obj.setMinimumContentsLength(max(8, obj.minimumContentsLength()))
+            elif isinstance(obj, QLabel):
+                par = obj.parentWidget()
+                if (not obj.wordWrap() and len(obj.text()) > 22 and obj.objectName() not in _NO_WRAP
+                        and not (par is not None and par.objectName() in _NO_WRAP)):
+                    obj.setWordWrap(True)
         return False
 
 
 def install_wheel_guard(app) -> None:
     if getattr(app, "_wheel_guard", None) is None:
-        app._wheel_guard = _WheelGuard(app)
+        app._wheel_guard = _UiGuard(app)
         app.installEventFilter(app._wheel_guard)

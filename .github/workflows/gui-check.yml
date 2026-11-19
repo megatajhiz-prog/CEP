@@ -33,6 +33,7 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider tests/test_layout_fit.py --durations=10
 
       - name: Start-up profile
+        if: always()
         continue-on-error: true
         timeout-minutes: 4
         env:

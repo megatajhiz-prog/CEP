@@ -34,17 +34,29 @@ def _small_window(monkeypatch, lang="fa", screen=SMALL):
     return w
 
 
-def _widest(area, n=5):
-    """The widgets inside a scroll area that ask for the most width (to name the culprit of a horizontal overflow)."""
+def _mw(w):
+    return max(w.minimumWidth(), w.minimumSizeHint().width())
+
+
+def _widest(area, n=6):
+    """The widgets whose own minimum width is not explained by one single child: leaves (a long label, a wide
+    drop-down) and rows (several widgets side by side). These are what make a page wider than the window."""
     rows = []
     for c in area.widget().findChildren(QWidget):
         if not c.isVisibleTo(area.widget()):
             continue
+        m = _mw(c)
+        if m < 260:
+            continue
+        kids = [k for k in c.children() if isinstance(k, QWidget) and k.isVisibleTo(area.widget())]
+        if any(_mw(k) >= m - 70 for k in kids):
+            continue
         txt = c.text() if hasattr(c, "text") and callable(c.text) else ""
-        rows.append((max(c.minimumWidth(), c.minimumSizeHint().width()), type(c).__name__, c.objectName(),
-                     str(txt)[:28].replace("\n", " "), type(c.parentWidget()).__name__))
-    rows.sort(reverse=True)
-    return "; ".join(f"{w}px {k}#{o}'{t}' in {p}" for w, k, o, t, p in rows[:n])
+        lay = type(c.layout()).__name__ if c.layout() is not None else "-"
+        rows.append((m, f"{m}px {type(c).__name__}#{c.objectName()} '{str(txt)[:30]}' layout={lay} kids={len(kids)} "
+                        f"in {type(c.parentWidget()).__name__}"))
+    rows.sort(key=lambda r: -r[0])
+    return " || ".join(t for _m, t in rows[:n])
 
 
 def _scroll_areas(page):

@@ -22,7 +22,7 @@ from .. import measures as _ms
 from ..model import Plant, Subsystem
 from ..reconcile import ReconcileResult, measured_sigma, reconcile
 from .theme import COL
-from .widgets import BarChart, StatCard, button, card, dspin
+from .widgets import BarChart, StatCard, StatGrid, button, card, dspin
 
 RIGHT = Qt.AlignmentFlag.AlignCenter
 WARN_BG = QColor("#FFF1D6")
@@ -68,11 +68,11 @@ def bulk_fill(tb: QTableWidget):
         tb.setUpdatesEnabled(True)
 
 
-def stat_row(*cards: StatCard) -> QHBoxLayout:
-    row = QHBoxLayout()
-    row.setSpacing(14)
+def stat_row(*cards: StatCard) -> StatGrid:
+    """Cards side by side; on a narrow window they wrap onto more lines instead of widening the page."""
+    row = StatGrid(14)
     for c in cards:
-        row.addWidget(c, 1)
+        row.addWidget(c)
     return row
 
 
