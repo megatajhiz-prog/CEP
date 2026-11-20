@@ -250,7 +250,7 @@ def compute(plant: Plant, a: Optional[Analysis] = None) -> IndicatorSet:
         bx, cx = bal.get(s.name), cst.get(s.name)
         inflow = s.total_intake + s.from_other
         gross_x = inflow + s.recirculated
-        q = pf.sub_production.get(s.name, 0.0)
+        q = plant.production_per_year                      # production belongs to the products: the plant's total
         v: Dict[str, Optional[float]] = {
             "intake": s.total_intake,
             "intake_share": 100 * c.water_share.get(s.name, 0.0),

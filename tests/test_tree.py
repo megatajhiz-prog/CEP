@@ -25,7 +25,6 @@ def plant() -> Plant:
             Subsystem("Y", "cooling_tower", intake={"A": 400.0}, evaporation=300.0, discharge={"S": 50.0},
                       params={"mc": 300.0, "bc": 1200.0}),
         ])
-    p.profile.sub_production = {"X": 1000.0}
     return p
 
 
@@ -68,8 +67,6 @@ def test_first_equipment_takes_over_what_the_unit_carried():
     assert h.intake == {"A": 600.0} and h.params == {} and h.discharge == {"S": 400.0}
     assert p.node("X").params == {} and p.node("X").pumps == []
     assert p.links[0].src == "X · unallocated"
-    assert p.profile.sub_production.get("X") == 1000.0           # the unit's production is now the sum of its equipment
-    assert p.profile.sub_production.get("X · unallocated") == 1000.0
     assert not [k for k in p.series if k.startswith("sub:X:")]
 
 

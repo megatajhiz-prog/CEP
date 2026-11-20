@@ -133,9 +133,18 @@ class AboutDialog(QDialog):
         body.setWordWrap(True)
         body.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(body)
-        lines = branding.contact_lines(t.lang)
+        rights = QLabel(branding.RIGHTS[t.lang])
+        rights.setWordWrap(True)
+        rights.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(rights)
+        lines = [ln for ln in branding.contact_lines(t.lang) if ln != branding.CONTACT["website"]]
+        site = branding.CONTACT["website"]
+        if site:
+            lines.append(f'<a href="https://{site}">{site}</a>')
         if lines:
-            c = QLabel("\n".join(lines))
+            c = QLabel("<br>".join(lines))
+            c.setTextFormat(Qt.TextFormat.RichText)
+            c.setOpenExternalLinks(True)
             c.setAlignment(Qt.AlignmentFlag.AlignCenter)
             c.setObjectName("appsub")
             lay.addWidget(c)

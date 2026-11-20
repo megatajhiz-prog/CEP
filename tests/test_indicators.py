@@ -4,7 +4,7 @@ import pytest
 
 from waterprofiler import indicators as K
 from waterprofiler.indicator_text import GROUP_TITLE, PROFILE_LABEL, TEXT
-from waterprofiler.model import Outlet, Plant, Profile, Source, Subsystem
+from waterprofiler.model import Outlet, Plant, Product, Profile, Source, Subsystem
 from waterprofiler.sample import demo_plant
 from waterprofiler.storage import load_project, save_project
 
@@ -97,7 +97,7 @@ def test_profile_indicators():
 
 def test_sub_production_cycles_and_blowdown():
     p = small()
-    p.profile.sub_production = {"X": 400.0}
+    p.site.products = [Product("P", per_year=400.0)]; p.sync_production()
     rows = {s.name: s.values for s in K.compute(p).subsystems}
     assert rows["X"]["per_unit"] == pytest.approx(600 / 400)
     assert rows["Y"]["cycles"] == pytest.approx(4.0)
@@ -130,7 +130,7 @@ def test_catalogue_is_complete_and_bilingual():
 
 def test_profile_roundtrip_and_old_files(tmp_path):
     p = small()
-    p.profile = Profile(employees=120, revenue=5e6, sub_production={"X": 10.0})
+    p.profile = Profile(employees=120, revenue=5e6)
     f = tmp_path / "a.wpj"
     save_project(p, str(f))
     q = load_project(str(f))

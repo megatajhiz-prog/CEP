@@ -17,7 +17,7 @@ _FLOW_ATTRS = ("recirculated", "from_other", "to_other", "product", "evaporation
 def _has_data(s: Subsystem, plant: Plant) -> bool:
     return bool(s.intake or s.discharge or s.water_treatments or s.wastewater_treatments or s.pumps or s.params
                 or any(getattr(s, a) for a in _FLOW_ATTRS)
-                or plant.profile.sub_production.get(s.name) or plant.allocation.get(s.name)
+                or plant.allocation.get(s.name)
                 or any(k.startswith(f"sub:{s.name}:") for k in plant.series)
                 or any(x.src == s.name or x.dst == s.name for x in plant.links))
 
@@ -26,7 +26,6 @@ def _clear_flows(u: Subsystem, plant: Plant) -> None:
     u.intake, u.discharge = {}, {}
     for a in _FLOW_ATTRS:
         setattr(u, a, 0.0)
-    plant.profile.sub_production.pop(u.name, None)
 
 
 def _rename_refs(plant: Plant, old: str, new: str, series: bool = True) -> None:
@@ -41,8 +40,6 @@ def _rename_refs(plant: Plant, old: str, new: str, series: bool = True) -> None:
     for it in plant.plan:
         if it.target == old:
             it.target = new
-    if old in plant.profile.sub_production:
-        plant.profile.sub_production[new] = plant.profile.sub_production.pop(old)
     if old in plant.allocation:
         plant.allocation[new] = plant.allocation.pop(old)
     pre = f"sub:{old}:"
@@ -74,8 +71,6 @@ def _prepare_unit(plant: Plant, unit: Subsystem, holder: str) -> Optional[Subsys
             x.src = holder
         if x.dst == unit.name:
             x.dst = holder
-    if unit.name in plant.profile.sub_production:
-        plant.profile.sub_production[holder] = plant.profile.sub_production.pop(unit.name)
     if unit.name in plant.allocation:
         plant.allocation[holder] = plant.allocation.pop(unit.name)
     for m in plant.site.meters:
@@ -130,7 +125,6 @@ def _drop_refs(plant: Plant, name: str) -> None:
     plant.links = [x for x in plant.links if x.src != name and x.dst != name]
     plant.plan = [it for it in plant.plan if it.target != name]
     plant.layout.pop(f"subsystem:{name}", None)
-    plant.profile.sub_production.pop(name, None)
     plant.allocation.pop(name, None)
     for k in [k for k in plant.series if k.startswith(f"sub:{name}:")]:
         plant.series.pop(k)

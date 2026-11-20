@@ -78,9 +78,6 @@ def catalog(plant: Plant) -> List[VarSpec]:
         v.append(VarSpec(f"production:{p.name}", "production", f"تولید «{p.name}»", f"Production of {p.name}", "units", "sum"))
     nodes = plant.ordered()
     parents = {s.name for s in nodes if plant.has_children(s.name)}
-    for s in nodes:
-        v.append(VarSpec(f"sub:{s.name}:production", "production", f"تولید واحد «{s.name}»", f"Production of unit {s.name}",
-                         "units", "sum", s.name in parents))
     for s in plant.sources:
         v.append(VarSpec(f"source:{s.name}", "source", f"برداشت از «{s.name}»", f"Intake from {s.name}", "m3", "sum"))
     for o in plant.outlets:
@@ -240,7 +237,7 @@ def derived_value_in(plant: Plant, key: str, start: date, end: date):
             if v is None:
                 return None, 0.0
             total, cov, got = total + v, min(cov, cv), True
-        elif (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production" else (abs(getattr(c, attr)) > 0 if attr else False)):
+        elif abs(getattr(c, attr)) > 0 if attr else False:
             return None, 0.0
     return (total, cov) if got else (None, 0.0)
 
@@ -253,8 +250,7 @@ def _unit_slices(plant: Plant, key: str, sl: Sequence[cal.Slice], min_cov: float
     cols = []
     for c in plant.children(name):
         ck = f"sub:{c.name}:{f}"
-        has_value = (plant.profile.sub_production.get(c.name, 0.0) > 0 if f == "production"
-                     else (abs(getattr(c, attr)) > 0 if attr else False))
+        has_value = abs(getattr(c, attr)) > 0 if attr else False
         if plant.series.get(ck):
             cols.append(slice_values(plant, ck, sl, min_cov))
         elif has_value:
@@ -358,9 +354,6 @@ def plan_changes(plant: Plant, start: date, end: date, min_cov: float = 0.5) -> 
     for key, (attr, _agg) in PROFILE_MAP.items():
         if (g := get(key)):
             add(key, f"profile:{attr}", getattr(plant.profile, attr), g)
-    for sub in plant.leaves():
-        if (g := get(f"sub:{sub.name}:production")):
-            add(f"sub:{sub.name}:production", "subprod:" + sub.name, plant.profile.sub_production.get(sub.name), g)
     return out
 
 
@@ -368,7 +361,7 @@ def driven(plant: Plant, min_cov: float = 0.5) -> Dict[str, str]:
     """Model fields that currently take their value from the time series: ``where`` -> series key.
 
     ``where`` is the target used by ``commit`` ("product:<n>:per_year", "source:<n>:metered", "costs:<attr>", "profile:<attr>",
-    "subprod:<name>", "sub:<n>:<flow>" ...). A field is driven when its variable has enough data in the reference window
+    "sub:<n>:<flow>" ...). A field is driven when its variable has enough data in the reference window
     (the window of the time-series page, or the whole data span). Such fields are not entered anywhere else.
     """
     w = window_of(plant)
@@ -413,9 +406,7 @@ def commit(plant: Plant, changes: Sequence[Change]) -> int:
         if ch.new is None:
             continue
         parts = ch.where.split(":")
-        if ch.where.startswith("subprod:"):
-            plant.profile.sub_production[ch.where[len("subprod:"):]] = ch.new
-        elif ch.where.startswith("product:"):
+        if ch.where.startswith("product:"):
             name = ch.where[len("product:"):-len(":per_year")]
             for p in plant.site.products:
                 if p.name == name:

@@ -79,18 +79,6 @@ class IndicatorsTab(_Scroll):
         self.inputs.changed.connect(self._recalc)
         p_inputs.addWidget(card(t("in_inputs"), self.inputs, note=t("in_inputs_note")))
 
-        self.prod_tb = QTableWidget(0, 2)
-        self.prod_tb.setHorizontalHeaderLabels([t("subsystem"), t("in_sub_prod")])
-        self.prod_tb.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.prod_tb.verticalHeader().setVisible(False)
-        self.prod_tb.verticalHeader().setDefaultSectionSize(36)
-        self.prod_tb.setShowGrid(False)
-        self.prod_tb.setAlternatingRowColors(True)
-        self.prod_tb.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.AnyKeyPressed
-                                     | QAbstractItemView.EditTrigger.EditKeyPressed)
-        self.prod_tb.itemChanged.connect(self._prod_changed)
-        self.peek_sub = TrendPeek(t, lambda p: with_data(p, [f"sub:{x.name}:production" for x in p.subsystems]))
-        p_inputs.addWidget(card(t("in_sub_prod"), self.prod_tb, self.peek_sub, note=t("in_sub_prod_note")))
         self.trend = IndicatorTrend(t)
         p_trend.addWidget(card(t("in_trend"), self.trend, note=t("in_trend_note")))
 
@@ -130,46 +118,9 @@ class IndicatorsTab(_Scroll):
     def refresh(self, plant: Plant) -> None:
         self.plant = plant
         self._loading = True
-        pf = plant.profile
         self.inputs.load(plant)
-        self.peek_sub.set_plant(plant)
         self.trend.set_plant(plant)
-        drv = TS.driven(plant)
-        self.prod_tb.blockSignals(True)
-        nodes = plant.ordered()
-        self.prod_tb.setRowCount(len(nodes))
-        for r, s in enumerate(nodes):
-            name_it = QTableWidgetItem(("    ↳ " if s.parent else "") + s.name)
-            name_it.setData(Qt.ItemDataRole.UserRole, s.name)
-            name_it.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            self.prod_tb.setItem(r, 0, name_it)
-            it = QTableWidgetItem(f"{pf.sub_production.get(s.name, 0.0):g}")
-            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if f"subprod:{s.name}" in drv:                      # taken from the time series: shown, not typed
-                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                it.setToolTip(self.t("ft_driven"))
-            if plant.has_children(s.name):                      # a unit with equipment: the sum of them, never typed
-                it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                it.setToolTip(self.t("ts_derived_col"))
-            self.prod_tb.setItem(r, 1, it)
-        self.prod_tb.blockSignals(False)
-        _fit(self.prod_tb)
         self._loading = False
-        self._recalc()
-
-    def _prod_changed(self, item: QTableWidgetItem) -> None:
-        if self._loading or self.plant is None or item.column() != 1:
-            return
-        name0 = self.prod_tb.item(item.row(), 0)
-        name = name0.data(Qt.ItemDataRole.UserRole) or name0.text()
-        try:
-            v = float(item.text().replace(",", "").replace("٫", "."))
-        except ValueError:
-            v = 0.0
-        if v > 0:
-            self.plant.profile.sub_production[name] = v
-        else:
-            self.plant.profile.sub_production.pop(name, None)
         self._recalc()
 
     def _recalc(self) -> None:

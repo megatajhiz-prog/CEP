@@ -267,7 +267,7 @@ def test_catalog_has_losses_unit_production_and_price_before_the_rest():
     p = small()
     keys = [s.key for s in T.catalog(p)]
     assert "loss:measured" in keys
-    assert all(f"sub:{s.name}:production" in keys for s in p.subsystems)
+    assert not any(k.startswith("sub:") and k.endswith(":production") for k in keys)   # production belongs to products only
     groups = []
     for s in T.catalog(p):
         if not groups or groups[-1] != s.group:
@@ -275,15 +275,6 @@ def test_catalog_has_losses_unit_production_and_price_before_the_rest():
     assert len(groups) == len(set(groups))                                  # groups are contiguous in the list
     assert groups.index("price") < groups.index("subsystem") < groups.index("energy")
     assert groups.index("loss") < groups.index("price")
-
-
-def test_unit_production_is_applied_to_the_model():
-    p = small()
-    sub = p.subsystems[0].name
-    _fill_months(p, f"sub:{sub}:production", [10.0] * 12)
-    ch = [c for c in T.plan_changes(p, date(2025, 3, 21), date(2026, 3, 20)) if c.key == f"sub:{sub}:production"]
-    assert len(ch) == 1 and ch[0].new == pytest.approx(120.0)
-    assert T.commit(p, ch) == 1 and p.profile.sub_production[sub] == pytest.approx(120.0)
 
 
 def test_loss_and_price_indicators():
@@ -304,7 +295,6 @@ def test_demo_history_has_loss_price_and_unit_production():
     from waterprofiler.sample import demo_with_history
     p = demo_with_history("en")
     assert p.series.get("loss:measured") and any(k.startswith("price:source:") for k in p.series)
-    assert any(k.endswith(":production") and k.startswith("sub:") for k in p.series)
     g = {i: v for i, _u, v, _r in T.time_indicators(p)}
     assert 0 < g["ts_loss_measured"] < 10 and g["ts_price_change"] > 0
 
@@ -317,7 +307,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
 
     p = demo_with_history("fa")
     sl = C.slices(date(2025, 3, 21), date(2026, 3, 20), "month", "jalali", "fa")
-    keys = ["production:" + p.site.products[0].name, f"source:{p.sources[0].name}", f"sub:{p.subsystems[0].name}:production", "site:steam_t",
+    keys = ["production:" + p.site.products[0].name, f"source:{p.sources[0].name}", "site:steam_t",
             f"price:source:{p.sources[0].name}"]
     specs = [T.spec_of(p, k) for k in keys]
     f = tmp_path / "t.xlsx"
@@ -325,12 +315,12 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     ws = load_workbook(f)["داده"]
     assert [c.value for c in ws[2]][3:] == keys and ws.cell(row=3, column=2).value == "2025-03-21"
     assert ws.cell(row=3, column=4).value is not None            # production is prefilled
-    assert ws.cell(row=3, column=7).value is None                # no steam data in the demo: left blank
+    assert ws.cell(row=3, column=6).value is None                # no steam data in the demo: left blank
     # fill the blanks, break one row, import into a plant that has none of this data
     wb = load_workbook(f)
     w = wb["داده"]
-    w.cell(row=3, column=7, value=150)
-    w.cell(row=4, column=7, value=None)
+    w.cell(row=3, column=6, value=150)
+    w.cell(row=4, column=6, value=None)
     w.cell(row=5, column=3, value="not a date")
     w.cell(row=6, column=5, value="abc")
     wb.save(f)
@@ -338,7 +328,7 @@ def test_excel_template_roundtrip_blank_cells_and_bad_rows(tmp_path):
     for k in ("site:steam_t", "production:" + p.site.products[0].name):
         q.series.pop(k, None)
     ok, bad = X.import_template(q, str(f))
-    assert len(bad) == 2 and ok > 40
+    assert len(bad) == 2 and ok > 30
     assert T.value_in(q.series["site:steam_t"], date(2025, 3, 21), date(2025, 4, 20), "sum")[0] == pytest.approx(150)
     assert len(q.series["site:steam_t"]) == 1                    # blanks and bad rows were skipped, nothing invented
     # production of the untouched months is back and equals the original
