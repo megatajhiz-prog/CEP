@@ -39,7 +39,6 @@ from .pfd_tab import PfdTab
 from .wastewater_tab import WastewaterTab
 from .watertreatment_tab import WaterTreatmentTab
 from .guide_dialog import GuideDialog
-from .guide_dialog import GuideDialog
 from .baseline_tab import BaselineTab
 from .product_tab import ProductWaterTab
 from .tabs import CostTab, ReconcileTab, SavingsTab
@@ -108,9 +107,6 @@ class MainWindow(QMainWindow):
         self._build_menu()
 
         self.tabs = PageStack()
-        self.industrial_tab = IndustrialTab(t)
-        self.plant_panel = self.industrial_tab.plant_panel
-        self.site_tab = self.industrial_tab.site_tab
         self.sub_editor = SubsystemEditor(t)
         self.sub_editor.estimate_requested.connect(self._estimate)
         self.sub_list = QListWidget()
@@ -171,9 +167,11 @@ class MainWindow(QMainWindow):
         subs_scroll.setWidget(subs)
 
         self.subs_page = subs_scroll
+        self.industrial_tab = IndustrialTab(t, subs_scroll)          # subsystems are page 3 of the industrial complex page
+        self.plant_panel = self.industrial_tab.plant_panel
+        self.site_tab = self.industrial_tab.site_tab
         self._pages = [
             ("plant", "tab_industrial", "desc_industrial", self.industrial_tab),
-            ("subsystems", "tab_subsystems", "desc_subsystems", subs_scroll),
             ("ts", "tab_ts", "desc_ts", self.ts_tab),
             ("flow", "tab_flow", "desc_flow", self.flow_tab),
             ("pfd", "tab_pfd", "desc_pfd", self.pfd_tab),
@@ -213,6 +211,7 @@ class MainWindow(QMainWindow):
 
         self.tabs.currentChanged.connect(self._tab_changed)
         self.sub_list.currentRowChanged.connect(self._row_changed)
+        self.industrial_tab.sections.currentChanged.connect(lambda _i: self._subs_section_opened() if self.plant else None)
         self._sync_nav(self.tabs.currentIndex())
 
     def _title(self) -> str:
@@ -353,7 +352,6 @@ class MainWindow(QMainWindow):
         act(lm, "lang_en", lambda: self.set_language("en"))
         hm = mb.addMenu(t("help"))
         act(hm, "user_guide", self.action_guide, "F1")
-        act(hm, "user_guide", self.action_guide, "F1")
         act(hm, "about", self.action_about)
 
     # ===================================================== model <-> UI sync
@@ -457,15 +455,24 @@ class MainWindow(QMainWindow):
             self.ind_tab.refresh(self.plant)
         elif w is self.industrial_tab:
             self.industrial_tab.refresh(self.plant)
+            self._subs_section_opened()
         elif w is self.ts_tab:
             self.ts_tab.refresh(self.plant)
         elif w is self.reconcile_tab:
             self.reconcile_tab.refresh(self.plant)
-        else:
-            # subsystems tab: pick up renamed sources / outlets / treatments
-            self.sub_editor.set_catalog(*self._catalog())
-            if 0 <= self._cur < len(self.plant.subsystems):
-                self._load_editor(self.plant.subsystems[self._cur])
+
+    def _subs_section_opened(self) -> None:
+        """Page 3 of the industrial complex page: pick up renamed sources / outlets / treatments."""
+        if self.industrial_tab.sections.currentWidget() is not self.subs_page:
+            return
+        self.sub_editor.set_catalog(*self._catalog())
+        if 0 <= self._cur < len(self.plant.subsystems):
+            self._load_editor(self.plant.subsystems[self._cur])
+
+    def show_subsystems(self) -> None:
+        self.tabs.setCurrentWidget(self.industrial_tab)
+        self.industrial_tab.show_subsystems()
+        self._subs_section_opened()
 
     def _to_plan(self, measure_id: int, target: str) -> None:
         self.collect()
@@ -477,7 +484,7 @@ class MainWindow(QMainWindow):
         self.collect()
         for i, s in enumerate(self.plant.subsystems):
             if s.name == name:
-                self.tabs.setCurrentWidget(self.subs_page)
+                self.show_subsystems()
                 self.sub_list.setCurrentRow(i)
                 return
 
@@ -681,9 +688,6 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, self.t("error"), str(e))
             return
         self.statusBar().showMessage(self.t("export_done"), 4000)
-
-    def action_guide(self) -> None:
-        GuideDialog(self.t, self).exec()
 
     def action_guide(self) -> None:
         GuideDialog(self.t, self).exec()

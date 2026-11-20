@@ -1,6 +1,8 @@
-"""The industrial complex page: plant definition and site structure on one page (two sections)."""
+"""The industrial complex page: plant definition and site structure on one page (three sections)."""
 
 from __future__ import annotations
+
+from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
@@ -16,15 +18,18 @@ class IndustrialTab(QWidget):
 
     changed = Signal()
 
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, subsystems: Optional[QWidget] = None):
         super().__init__()
         self.t = t
-        self.plant_panel = PlantPanel(t)
         self.site_tab = SiteTab(t)
+        self.plant_panel = PlantPanel(t, self.site_tab.info_widget)     # page 1: plant + site details in one card
+        self.subs_page = subsystems
         self.sections = QTabWidget()
         self.sections.setDocumentMode(True)
         self.sections.addTab(self.plant_panel, t("ind_sec_plant"))
         self.sections.addTab(self.site_tab, t("ind_sec_site"))
+        if subsystems is not None:                                       # page 3: the subsystems (units and equipment)
+            self.sections.addTab(subsystems, t("ind_sec_subs"))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.sections)
@@ -58,3 +63,7 @@ class IndustrialTab(QWidget):
 
     def show_site(self) -> None:
         self.sections.setCurrentWidget(self.site_tab)
+
+    def show_subsystems(self) -> None:
+        if self.subs_page is not None:
+            self.sections.setCurrentWidget(self.subs_page)

@@ -53,7 +53,7 @@ def test_edit_roundtrip_does_not_change_plant(app):
     base = demo_with_history("en")
     TS.sync(base)                                  # the model carries the series-driven values from the start
     before = base.to_dict()
-    w.tabs.setCurrentWidget(w.subs_page)
+    w.show_subsystems()
     for r in range(w.sub_list.count()):
         w.sub_list.setCurrentRow(r)
     w.tabs.setCurrentIndex(0)
@@ -210,7 +210,8 @@ def test_flow_tab_draws_edits_links_and_exports(app, tmp_path):
     ft.table.remove_selected()
     assert w.plant.links == [] and w.plant.subsystems[1].to_other == 0.0
     ft.subsystem_requested.emit(names[2])
-    assert w.tabs.currentWidget() is w.subs_page and w.sub_list.currentRow() == 2
+    assert w.tabs.currentWidget() is w.industrial_tab and w.industrial_tab.sections.currentWidget() is w.subs_page
+    assert w.sub_list.currentRow() == 2
     w.export_pdf_to(str(tmp_path / "r.pdf"))
     assert (tmp_path / "r.pdf").stat().st_size > 2000
     w.close()
@@ -324,7 +325,6 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert txt(it.heads[0].value) != "—"
     assert sum(tb.rowCount() for tb in it.tables.values()) == len(K.compute(w.plant).items)
     assert it.sub_tb.columnCount() == len(w.plant.subsystems) + 1
-    assert it.prod_tb.rowCount() == len(w.plant.subsystems)
     # entering a missing input fills the indicators that need it, and writes into the project
     r_permit = [i.id for i in K.compute(w.plant).by_group("supply")].index("sup_storage_days")
     tb = it.tables["supply"]
@@ -335,10 +335,7 @@ def test_indicators_tab_shows_inputs_and_exports(app, tmp_path):
     assert "storage_m3" not in it.spins and "employees" in it.spins
     w.tabs.setCurrentWidget(w.ind_tab)
     assert txt(tb.item(r_permit, 1)) != "—"
-    # production per subsystem
-    first = w.plant.subsystems[0].name
-    it.prod_tb.item(0, 1).setText("50000")
-    assert w.plant.profile.sub_production[first] == 50000.0
+    # intake per unit of product uses the plant's total production (production belongs to the products only)
     assert txt(it.sub_tb.item(9, 1)) != "—"             # "intake per unit" row, first subsystem
     # the alternative-source flag survives the Plant page round trip
     w.tabs.setCurrentWidget(w.industrial_tab)
@@ -383,7 +380,7 @@ def test_time_tab_presets_defaults_and_entry(app):
     tt._add_preset("loss")
     assert tt.checked_keys() == ["loss:measured"]
     tt._add_preset("prod")
-    assert f"sub:{first}:production" in tt.checked_keys() and any(k.startswith("production:") for k in tt.checked_keys())
+    assert f"sub:{first}:production" not in tt.checked_keys() and any(k.startswith("production:") for k in tt.checked_keys())
     tt._add_preset("water")
     assert f"sub:{first}:intake" in tt.checked_keys() and any(k.startswith("source:") for k in tt.checked_keys())
     tt._add_preset("price")
@@ -515,10 +512,7 @@ def test_series_driven_fields_are_locked_everywhere(app):
     assert pp.sources.item(0, 3).flags() & Qt.ItemFlag.ItemIsUserCheckable
     w.tabs.setCurrentWidget(w.ind_tab)
     assert not w.ind_tab.spins["employees"].isEnabled() and w.ind_tab.spins["revenue"].isEnabled()
-    first = w.plant.subsystems[0].name
-    assert not (w.ind_tab.prod_tb.item(0, 1).flags() & Qt.ItemFlag.ItemIsEditable) or f"subprod:{first}" not in __import__(
-        "waterprofiler.timeseries", fromlist=["x"]).driven(w.plant)
-    w.tabs.setCurrentWidget(w.subs_page)
+    w.show_subsystems()
     names = [s.name for s in w.plant.subsystems]
     w.sub_list.setCurrentRow(names.index("فرایند") if "فرایند" in names else 0)
     ed = w.sub_editor
@@ -845,7 +839,8 @@ def test_window_and_sidebar_fit_small_screens(app):
         w.tabs.setCurrentIndex(i)
         app.processEvents()
         assert w.nav[i].isChecked()
-    assert w.tabs.widget(1) is w.subs_page                              # the subsystem page scrolls too
+    assert w.industrial_tab.sections.count() == 3 and w.industrial_tab.sections.widget(2) is w.subs_page   # subsystems: page 3
+    assert isinstance(w.subs_page, __import__("PySide6.QtWidgets", fromlist=["x"]).QScrollArea)           # and it scrolls too
     w.close()
 
 

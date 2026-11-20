@@ -8,10 +8,14 @@ import sys
 APP_NAME = "Watra"
 APP_SUBTITLE = {"fa": "نرم‌افزار ممیزی و مدیریت آب", "en": "Water audit & management software"}
 COMPANY = {"fa": "کنترل انرژی پاسارگاد", "en": "Control Energy Pasargad"}
+RIGHTS = {
+    "fa": "کلیهٔ حقوق مادی و معنوی این نرم‌افزار متعلق به شرکت کنترل انرژی پاسارگاد (CEP) می‌باشد.",
+    "en": "All material and moral rights to this software belong to Control Energy Pasargad (CEP).",
+}
 TAGLINE = {"fa": "تجهیزات اندازه‌گیری، پایش و کالیبراسیون", "en": "Measuring, monitoring and calibration equipment"}
 
 # Contact details shown in the About box and report footer when filled in.
-CONTACT = {"phone": "", "email": "", "website": "", "address_fa": "", "address_en": ""}
+CONTACT = {"phone": "", "email": "", "website": "www.cep24.ir", "address_fa": "", "address_en": ""}
 
 # Colours of the Watra logo.
 NAVY = "#0B3D78"

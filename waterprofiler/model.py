@@ -183,7 +183,6 @@ class Profile:
     target_recirc_pct: float = 0.0
     target_loss_pct: float = 0.0
     unmetered_unc_pct: float = 10.0    # relative uncertainty assumed for a flow without a stated meter accuracy, %
-    sub_production: Dict[str, float] = field(default_factory=dict)   # subsystem -> product units per year
 
 
 @dataclass
@@ -336,7 +335,6 @@ class Plant:
 
         intake / discharge by source and outlet, product, evaporation: sums of its equipment. Transfers between two of its
         own equipment are internal: they count as the unit's internal recirculation and are not R'out / R'in of the unit.
-        The unit's production is the sum of its equipment's.
         """
         kids: Dict[str, List[Subsystem]] = {}
         names = {s.name for s in self.subsystems}
@@ -365,11 +363,6 @@ class Plant:
             u.recirculated = sum(c.recirculated for c in ch) + internal
             u.to_other = max(0.0, sum(c.to_other for c in ch) - internal)
             u.from_other = max(0.0, sum(c.from_other for c in ch) - internal)
-            q = sum(self.profile.sub_production.get(c.name, 0.0) for c in ch)
-            if q > 0:
-                self.profile.sub_production[u.name] = q
-            else:
-                self.profile.sub_production.pop(u.name, None)
 
     def sync_production(self) -> float:
         """The plant's annual production is the sum of its products' annual production (never entered on its own).
@@ -461,8 +454,7 @@ class Plant:
 
 def _profile_from(d: dict) -> Profile:
     names = {f.name for f in fields(Profile)}
-    kw = {k: v for k, v in (d or {}).items() if k in names and k != "sub_production"}
-    kw["sub_production"] = {str(k): float(v) for k, v in (d or {}).get("sub_production", {}).items()}
+    kw = {k: v for k, v in (d or {}).items() if k in names}      # old files may carry a removed key: ignored
     return Profile(**kw)
 
 

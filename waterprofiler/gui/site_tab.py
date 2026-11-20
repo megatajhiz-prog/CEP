@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QWidget
+from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QVBoxLayout, QWidget
 
 from .. import complex as CX
 from .. import timeseries as TS
@@ -80,7 +80,14 @@ class SiteTab(_Scroll):
         il.setSpacing(40)
         il.addLayout(left, 1)
         il.addLayout(right, 1)
-        self.lay.addWidget(card(t("site_info"), info, note=t("site_info_note")))
+        note = QLabel(t("site_info_note"))
+        note.setObjectName("cardnote")
+        note.setWordWrap(True)
+        self.info_widget = QWidget()                    # shown on the plant page, in the same card as the plant details
+        iv = QVBoxLayout(self.info_widget)
+        iv.setContentsMargins(0, 0, 0, 0)
+        iv.addWidget(note)
+        iv.addWidget(info)
         self.struct = ProfileInputs(t, STRUCT_GROUPS)
         self.lay.addWidget(card(t("site_struct"), self.struct, note=t("site_struct_note")))
 

@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QScrollArea,
+    QComboBox, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QScrollArea,
     QVBoxLayout, QWidget,
 )
 
@@ -43,7 +43,7 @@ class PlantPanel(QScrollArea):
 
     changed = Signal()
 
-    def __init__(self, t: Translator):
+    def __init__(self, t: Translator, site_details: Optional[QWidget] = None):
         super().__init__()
         self.t = t
         self.setWidgetResizable(True)
@@ -54,7 +54,9 @@ class PlantPanel(QScrollArea):
         outer.setContentsMargins(26, 22, 26, 26)
         outer.setSpacing(16)
         self.name = QLineEdit()
-        self.currency = QLineEdit()
+        self.currency = QComboBox()                      # the user chooses the currency: rial or dollar
+        for code, key in (("IRR", "cur_irr"), ("USD", "cur_usd")):
+            self.currency.addItem(t(key), code)
         self.production = dspin(decimals=2)
         self.prod_unit = QLineEdit()
         self.elec = dspin(decimals=6, step=0.01)
@@ -77,7 +79,15 @@ class PlantPanel(QScrollArea):
         il.addLayout(right, 1)
         self.peek_prod = TrendPeek(t, lambda p: with_data(p, ["total:production"] + [f"production:{x.name}" for x in p.site.products]))
         self.peek_energy = TrendPeek(t, lambda p: with_data(p, ["price:electricity", "price:fuel", "energy:el"]))
-        outer.addWidget(card(t("plant_info"), info, self.peek_prod, self.peek_energy, note=t("plant_info_note")))
+        parts = [info, self.peek_prod, self.peek_energy]
+        if site_details is not None:                    # one table: plant details, prices and site details together
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setObjectName("sep")
+            head = QLabel(t("site_info"))
+            head.setObjectName("cardtitle")
+            parts += [sep, head, site_details]
+        outer.addWidget(card(t("plant_info"), *parts, note=t("plant_info_note")))
 
         self.sources = DataTable([t("col_name"), t("col_unit_cost"), t("col_metered"), t("col_alternative"), t("col_permit_on"),
                                   t("col_permit")], ["text", "num", "num", "bool", "bool", "num"])
@@ -96,7 +106,8 @@ class PlantPanel(QScrollArea):
         outer.addLayout(prow)
         outer.addWidget(table_box(t("treatments"), self.treatments, t("add"), t("remove"), lambda: ["", 0.0, False]), 1)
 
-        for w in (self.name, self.currency, self.prod_unit):
+        self.currency.currentIndexChanged.connect(self.changed)
+        for w in (self.name, self.prod_unit):
             w.textChanged.connect(self.changed)
         for w in (self.production, self.elec, self.fuel, self.heat_eff):
             w.valueChanged.connect(self.changed)
@@ -106,7 +117,11 @@ class PlantPanel(QScrollArea):
     def load(self, p: Plant) -> None:
         self.blockSignals(True)
         self.name.setText(p.name)
-        self.currency.setText(p.currency)
+        i = self.currency.findData(p.currency)
+        if i < 0:                                       # an older file with another code: keep it selectable
+            self.currency.addItem(p.currency, p.currency)
+            i = self.currency.count() - 1
+        self.currency.setCurrentIndex(i)
         self.production.setValue(p.production_per_year)
         self.prod_unit.setText(p.production_unit)
         self.elec.setValue(p.costs.electricity_per_kwh)
@@ -137,7 +152,7 @@ class PlantPanel(QScrollArea):
 
     def store(self, p: Plant) -> None:
         p.name = self.name.text().strip() or p.name
-        p.currency = self.currency.text().strip() or p.currency
+        p.currency = self.currency.currentData() or p.currency
         p.production_unit = self.prod_unit.text().strip() or p.production_unit
         if self.elec.isEnabled():
             p.costs.electricity_per_kwh = self.elec.value()
