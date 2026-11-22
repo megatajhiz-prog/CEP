@@ -487,7 +487,7 @@ def test_industrial_page_merges_plant_and_site(app):
     assert w.t(w._pages[0][1]) == "مجتمع صنعتی"
     w.tabs.setCurrentWidget(w.industrial_tab)
     it = w.industrial_tab
-    assert it.sections.count() == 2 and w.plant_panel is it.plant_panel and w.site_tab is it.site_tab
+    assert it.sections.count() == 3 and w.plant_panel is it.plant_panel and w.site_tab is it.site_tab
     w.plant_panel.name.setText("مجتمع آزمون")
     it.show_site()
     app.processEvents()
@@ -522,6 +522,7 @@ def test_series_driven_fields_are_locked_everywhere(app):
     assert abs(pp.production.value() - w.plant.production_per_year) < 0.01
     # no series any more: everything is editable again
     w.plant.series.clear()
+    w.tabs.setCurrentWidget(w.ind_tab)                              # leave the page and come back: it is refreshed on open
     w.tabs.setCurrentWidget(w.industrial_tab)
     assert not pp.production.isEnabled() and pp.sources.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable
     w.close()
